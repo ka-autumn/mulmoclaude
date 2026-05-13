@@ -79,7 +79,7 @@ e2e-live/
 | `/e2e-live-media` | media.spec.ts | 5 | B-17, B-18, B-19, B-20, B-21, B-46 |
 | `/e2e-live-roles` | roles.spec.ts | 5 | B-15, B-41 |
 | `/e2e-live-session` | session.spec.ts | 3 | B-13, B-14, B-16 |
-| `/e2e-live-wiki` | wiki.spec.ts | 3 | B-23〜B-27 |
+| `/e2e-live-wiki` | wiki.spec.ts | 4 | B-23〜B-27, #1297 |
 | `/e2e-live-ui` | ui.spec.ts | 4 | B-30, B-31, B-34, B-50 |
 | `/e2e-live-skills` | skills.spec.ts | 2 | B-08, B-22, B-41 |
 | `/e2e-live-docker` | docker.spec.ts | 8 (うち 2 は L4) | B-01〜B-08 |
@@ -201,7 +201,7 @@ e2e-live/
 - 操作: bridge 接続中にサーバ再起動 → 再接続待機
 - 検証: 固定 token で再接続成功
 
-### wiki（3）
+### wiki（4）
 
 #### L-14: Wiki ページ生成 → 内部リンクを踏める
 
@@ -223,6 +223,13 @@ e2e-live/
 - 重要度: **B** / Docker: `both` / 画像: 不要
 - 操作: 複数ページ生成 → `/wiki` 直下の index を開く → 各リンクをクリック
 - 検証: すべて 404 にならず開ける
+
+#### L-WIKI-PIPE: `[[slug|alias]]` 形式リンクのクリック → URL に `|alias` が混入しない
+
+- カバー: issue #1297 / PR #1312
+- 重要度: **A** / Docker: `both` / 画像: 不要
+- 操作: source / target の 2 ページ seed → source 側に `[[<targetSlug>|<日本語表示>]]` を埋める → クリック
+- 検証: `data-page` が target slug のみ、 表示テキストが alias のみ、 クリック後 URL に `%7C` (`\|`) が含まれない、 target の body marker が表示される
 
 ### ui（4）
 
@@ -350,6 +357,7 @@ e2e-live/
 | **L-14** wiki 内部リンク | ✅ 実装済 | wiki-nav.spec.ts、 fixture wiki page 2 件 seed → wikilink `[[slug]]` を click → `/wiki/pages/<target>` に遷移 (B-23/B-24/B-25)、 catch-all で `/chat` に飛ばないこと |
 | **L-15** 非 ASCII slug の wiki ページ | ✅ 実装済 | wiki-nav.spec.ts、 `日本語タイトル-nonascii-target-${project}-${nonce}` 型 slug の page を 2 件 seed → (A) URL 直叩き (`encodeURIComponent` round trip) と (B) `[[…]]` wikilink クリックの両経路で `wiki-page-body` に Japanese 本文が描画され `/chat` に飛ばないことを assert (B-26 / B-27)。 server `wikiSlugify` が Japanese を落として exact-key match が外れる前提で `resolvePagePath` の fuzzy `key.includes(slug)` 分岐に乗せる設計 (`data/wiki/index.md` 直接編集を避けるため)。 fuzzy が source page と target page の両方にマッチする落とし穴 (両 slug の ASCII tail が共通になる) を踏んだので、 target slug 側に `nonascii-target` という source 名に含まれない unique token を入れて衝突回避 |
 | **L-16** wiki index ナビゲーション | ✅ 実装済 | wiki-nav.spec.ts、 `replaceWikiIndex(content)` + `restoreWikiIndex(original)` helper で `data/wiki/index.md` を一時差し替え → `placeWikiPage` で 2 ページ seed → `/wiki` に直遷移 → `wiki-page-entry-${slug}` を 2 件 visible で確認 → 各エントリを click → `/wiki/pages/<slug>` に遷移 + body marker を assert (B-23/B-24)、 `/chat` フォールバック退行を否定 assertion で塞ぐ。 共有 index ファイルを書く唯一の test なので将来 index 系を増やすときは serial 化 or 別 spec ファイルに切り出す注意書きを describe 上に置いた |
+| **L-WIKI-PIPE** `[[slug\|alias]]` クリック後 URL 清浄性 | ✅ 実装済 | wiki-nav.spec.ts、 PR #1312 (issue #1297) で fix された `parseWikiLink` の `\|` split 退化を end-to-end で検出する net。 source ページに `[[<targetSlug>\|日本語表示+ASCII token]]` を埋め込んで seed → renderer assertion で `data-page` = targetSlug only / 表示テキスト = alias only / DOM 全体に `data-page*="\|"` が 0 件を確認 → click → URL が `/wiki/pages/<targetSlug>$` で終わり `%7C` (= `\|`) が含まれず `/chat` に飛ばないことを assert → target body marker visible。 lint 側の regression は `test/lib/wiki-page/test_lint.ts` の `findBrokenLinksInPage — [[slug\|alias]] regression` ユニット test がカバーするので spec はフロント挙動 (renderer/router) に絞り込み |
 | **L-18** presentForm i18n raw key | ✅ 実装済 | ui.spec.ts、 LLM に「nickname text field 1 個の presentForm を表示して」 と依頼 → `present-form-view` testid (`src/plugins/presentForm/View.vue` に追加) が visible になったら `not.toContainText("pluginPresentForm.")` で B-34 を locale 非依存にカバー。 raw i18n key 漏れは prefix 文字列が DOM の visible text に出ることが regression shape なので submit ボタンや progress カウンタ単体に縛らずに view 全体の textContent を見る設計。 form は submit せず assistant turn を drain して trace を保全 |
 | **L-21** chart deferred-tool dispatch | ✅ 実装済 | skills.spec.ts、 「`L-21 sales` の bar chart を chart tool で render して」 と prompt → `chart-card-0` + `chart-canvas-0` testid (`src/plugins/chart/View.vue` 既存) が visible になることを assert (B-41 canary)。 L-03 (presentMulmoScript) と異なる plugin で 2 本目の deferred dispatch canary を立て、 deferred mode で 1 plugin だけ schema 取りこぼす shear 退行を網羅。 LLM のばらつきを「`Do not narrate the result.`」 で抑え、 textResponse fallback を防ぐ |
 | **L-22** skill end-to-end 実行 (B-08) | ✅ 実装済 | skills.spec.ts、 合成 skill を `<workspace>/.claude/skills/<unique-slug>/SKILL.md` に seed (body には 「`/<slug>` で呼ばれたら `L22-OK-<nonce>` という marker を返答せよ」 の指示) → `/skills` 直叩き → 一覧に row 出現 → click で `skill-body-rendered` に marker が描画 → Run ボタン → `/chat/<id>` で agent ターン完走 → assistant 応答に同 marker が含まれることを assert。 discovery → list API → detail API → slash-command dispatch → skill body が agent context に乗る、 の 4 段全てが繋がっていないと marker が出ない設計。 nonce で他テストと衝突回避、 marker は ASCII の決定論的文字列で LLM 揺れ吸収 |

@@ -8,6 +8,7 @@ import { navigateToWikiIndex, navigateToWikiPage, placeWikiPage, removeWikiPage,
 const L14_TIMEOUT_MS = ONE_MINUTE_MS;
 const L15_TIMEOUT_MS = ONE_MINUTE_MS;
 const L16_TIMEOUT_MS = ONE_MINUTE_MS;
+const L_WIKI_PIPE_TIMEOUT_MS = ONE_MINUTE_MS;
 
 // L-14 / L-15 each seed their own pair of wiki pages and never
 // touch the shared `data/wiki/index.md`, so they parallelise
@@ -217,6 +218,73 @@ test.describe("wiki navigation (real workspace)", () => {
       if (replacedIndex) await restoreWikiIndex(originalIndex);
       await removeWikiPage(slugA);
       await removeWikiPage(slugB);
+    }
+  });
+
+  test("L-WIKI-PIPE: [[slug|alias]] 形式のリンクをクリックすると URL に |alias が混入しない", async ({ page }, testInfo) => {
+    test.setTimeout(L_WIKI_PIPE_TIMEOUT_MS);
+    // Covers PR #1312 / issue #1297: pre-fix `wikiSlugify` stripped
+    // `|` as a non-ASCII character and concatenated the right-hand-
+    // side alias's ASCII chars into the slug. Three symptoms all
+    // stemmed from the same bug:
+    //   1. lint flagged every `[[slug|alias]]` link as a broken link
+    //      to a slug like `<slug>-<alias-ascii>.md`
+    //   2. `renderWikiLinks` (frontend) emitted
+    //      `<span data-page="<slug>|<alias>">` so clicking produced
+    //      a URL containing `%7C<alias-encoded>`
+    //   3. the visible link text was the raw slug+alias string
+    //      instead of just the display alias
+    //
+    // Post-fix, parser/resolver/renderer all share `parseWikiLink`
+    // (`src/lib/wiki-page/link.ts`) and split on `|`. This spec
+    // exercises 2 and 3 end-to-end against a live mulmoclaude server;
+    // 1 is covered by `findBrokenLinksInPage — [[slug|alias]]
+    // regression` in `test/lib/wiki-page/test_lint.ts`.
+    //
+    // Same nonce strategy as L-14: each project gets unique slugs so
+    // chromium / webkit don't race, and `finally` cleans up its own
+    // pages even if an earlier run died mid-test.
+    const projectSlug = testInfo.project.name;
+    const nonce = `${Date.now()}-${randomUUID().slice(0, 6)}`;
+    const sourceSlug = `e2e-live-wiki-pipe-source-${projectSlug}-${nonce}`;
+    const targetSlug = `e2e-live-wiki-pipe-target-${projectSlug}-${nonce}`;
+    const targetMarker = `wiki-pipe target body marker ${nonce}`;
+    // Display alias deliberately mixes Japanese and a unique ASCII
+    // token so a regression that re-includes the alias in the URL
+    // would be visually obvious (the ASCII suffix would survive
+    // wikiSlugify and end up appended to the path segment).
+    const aliasAsciiToken = `alias-ascii-token-${nonce}`;
+    const displayAlias = `日本語の表示テキスト ${aliasAsciiToken}`;
+    try {
+      await placeWikiPage(sourceSlug, [`# wiki-pipe source`, ``, `[[${targetSlug}|${displayAlias}]]`, ``].join("\n"));
+      await placeWikiPage(targetSlug, [`# wiki-pipe target`, ``, targetMarker, ``].join("\n"));
+      await navigateToWikiPage(page, sourceSlug);
+
+      // Renderer assertions — `parseWikiLink` must put the slug in
+      // data-page and the alias in the visible text. Pre-fix both
+      // were the whole `slug|alias` inner string.
+      const pipeLink = page.locator(`.wiki-link[data-page="${targetSlug}"]`);
+      await expect(pipeLink, "wiki-link's data-page must be the target slug only").toBeVisible();
+      await expect(pipeLink, "visible text must be the display alias, not the raw slug+alias string").toHaveText(displayAlias);
+      // Negative DOM guard — if the renderer regresses and emits
+      // data-page with `|`, this locator would match (it does not on
+      // the post-fix DOM). The selector tolerates the renderer
+      // putting other wiki-links on the page; it just asserts none
+      // of them contain a literal pipe.
+      await expect(page.locator(`.wiki-link[data-page*="|"]`), "no wiki-link's data-page should contain a literal pipe").toHaveCount(0);
+
+      await pipeLink.first().click();
+      // Strict URL assertion — path must end with the target slug
+      // exactly, no `|` (or its `%7C` percent-encoding) anywhere.
+      await expect(page).toHaveURL(new RegExp(`/wiki/pages/${encodeURIComponent(targetSlug)}$`));
+      await expect(page, "URL must not contain a percent-encoded pipe (regression sentinel for %7C alias leak)").not.toHaveURL(/%7C/);
+      // Negative guard mirroring L-14/L-15/L-16 — the catch-all
+      // router must not swallow the click into /chat.
+      await expect(page).not.toHaveURL(/\/chat/);
+      await expect(page.getByTestId("wiki-page-body"), "target page must hydrate after click").toContainText(targetMarker);
+    } finally {
+      await removeWikiPage(sourceSlug);
+      await removeWikiPage(targetSlug);
     }
   });
 });
