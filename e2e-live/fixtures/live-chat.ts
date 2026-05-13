@@ -238,7 +238,13 @@ export async function removeProjectSkill(slug: string): Promise<void> {
  * missing row so finally clauses do not fail-cascade on cleanup
  * order surprises.
  */
-const SKILL_ROW_PRESENCE_TIMEOUT_MS = 5 * ONE_SECOND_MS;
+// 30s for the row to appear after the navigation: covers a slow
+// initial /api/skills fetch on a workspace with many skills + an
+// unlucky network jitter. Codex iter-1 review on this PR — the
+// previous 5s value silently false-resolved to "row absent" on a
+// slow listing fetch, skipping the UI delete and leaving the
+// in-memory skill registry to drift until the next config refresh.
+const SKILL_ROW_PRESENCE_TIMEOUT_MS = 30 * ONE_SECOND_MS;
 
 export async function deleteProjectSkillViaUi(page: Page, slug: string, timeoutMs: number = ONE_MINUTE_MS): Promise<void> {
   assertValidSkillSlug(slug);
@@ -247,9 +253,15 @@ export async function deleteProjectSkillViaUi(page: Page, slug: string, timeoutM
   try {
     await expect(skillRow).toBeVisible({ timeout: SKILL_ROW_PRESENCE_TIMEOUT_MS });
   } catch {
-    // Row absent → skill is not in the listing (either the test
-    // never created it or a previous finally already cleaned it).
-    // Treat as success so cleanup stays idempotent.
+    // Row absent after the wait → skill is not in the listing
+    // (either the test never created it or a previous finally
+    // already cleaned it). Treat as success so cleanup stays
+    // idempotent, but log so a missed UI delete is visible to
+    // anyone reading the run log — silent fast-paths here are how
+    // registry-staleness bugs sneak in.
+    console.warn(
+      `deleteProjectSkillViaUi: row [skill-item-${slug}] never appeared in /skills within ${SKILL_ROW_PRESENCE_TIMEOUT_MS}ms — skipping UI delete (fs follow-up still rms both trees)`,
+    );
     return;
   }
   await skillRow.click();
@@ -287,12 +299,21 @@ const STAGING_SKILL_WRITE_PATH_RE = /[/\\]data[/\\]skills[/\\]([a-z0-9]+(?:-[a-z
 /**
  * Extract the staging-skill slug from a `Write` tool call's
  * `file_path` arg. Returns `null` when the call isn't a `Write`,
- * the path doesn't sit under `data/skills/<slug>/SKILL.md`, or the
- * slug fails the canonical kebab-case rule. Specs in L-31 use this
- * to assert that mc-manage-skills routed the agent into the bridge
- * staging path rather than into `.claude/skills/` (which would
- * indicate the bridge SKILL.md was ignored — the regression #1298
- * fixed).
+ * the path doesn't sit under `data/skills/<slug>/SKILL.md`, the
+ * slug fails the canonical kebab-case rule, OR the resolved path
+ * is not under THIS workspace's staging dir (the regex alone is
+ * tail-anchored, so a write to `/some/other/root/data/skills/...`
+ * would otherwise match). Specs in L-31 use this to assert that
+ * mc-manage-skills routed the agent into the bridge staging path
+ * rather than into `.claude/skills/` (which would indicate the
+ * bridge SKILL.md was ignored — the regression #1298 fixed).
+ *
+ * The agent's `Write` `file_path` arg is sometimes absolute (some
+ * host normalisations) and sometimes cwd-relative; both must
+ * resolve to OUR workspace's `data/skills/<slug>/SKILL.md` to be
+ * considered a hit. Codex iter-1 review on this PR — without the
+ * resolve+compare guard the canary could false-positive on a write
+ * outside the workspace and silently report green.
  */
 export function stagingSkillSlugFromWriteCall(call: ToolCallTraceRecord): string | null {
   if (call.toolName !== WRITE_TOOL_NAME) return null;
@@ -300,7 +321,11 @@ export function stagingSkillSlugFromWriteCall(call: ToolCallTraceRecord): string
   const filePath = call.args.file_path;
   if (typeof filePath !== "string") return null;
   const match = STAGING_SKILL_WRITE_PATH_RE.exec(filePath);
-  return match ? match[1] : null;
+  if (!match) return null;
+  const [, slug] = match;
+  const expectedPath = resolveWorkspacePath(`data/skills/${slug}/SKILL.md`);
+  const candidatePath = path.isAbsolute(filePath) ? path.resolve(filePath) : path.resolve(workspaceRoot(), filePath);
+  return candidatePath === expectedPath ? slug : null;
 }
 
 /**

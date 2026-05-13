@@ -367,8 +367,16 @@ test.describe("skills (real LLM / static)", () => {
       // Re-resolve in case the assertion failed before assigning
       // `createdSlugs` — a partial run still owns any dirs it left.
       const slugsToRemove = createdSlugs.length > 0 ? createdSlugs : await collectL32MarkedSlugs(baselineSlugs, replyMarker);
+      // Per-slug try/catch so an unexpected throw from one cleanup
+      // (e.g. removeProjectSkill rejects an out-of-band slug whose
+      // dir name fails the strict isValidSlug rule) does not abort
+      // the loop and leak the remaining slugs. Codex iter-1 review.
       for (const slug of slugsToRemove) {
-        await cleanupProjectSkill(page, slug);
+        try {
+          await cleanupProjectSkill(page, slug);
+        } catch (err) {
+          console.warn(`L-32 finally: cleanup failed for slug ${slug}, continuing with remaining slugs`, err);
+        }
       }
     }
   });
