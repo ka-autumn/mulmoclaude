@@ -338,6 +338,13 @@ export function stagingSkillSlugFromWriteCall(call: ToolCallTraceRecord): string
   const match = STAGING_SKILL_WRITE_PATH_RE.exec(filePath);
   if (!match) return null;
   const [, slug] = match;
+  // Re-validate against the full server rule. The regex enforces
+  // kebab-case shape but not the length bound `isValidSlug` adds
+  // (1-120 chars per server/utils/slug.ts). Without this gate the
+  // L-31 canary could green on a Write whose slug the backend would
+  // reject — catching that mismatch at the test layer keeps the
+  // signal honest. CodeRabbit review on PR #1345.
+  if (!isValidSlug(slug)) return null;
   const expectedPath = resolveWorkspacePath(`data/skills/${slug}/SKILL.md`);
   const candidatePath = path.isAbsolute(filePath) ? path.resolve(filePath) : path.resolve(workspaceRoot(), filePath);
   return candidatePath === expectedPath ? slug : null;
@@ -431,8 +438,19 @@ export async function snapshotProjectSkillSlugs(): Promise<Set<string>> {
  * ENOENT to `null` and resolves the path under the given root —
  * Sourcery review on PR #1345 noted the local copy was duplicating
  * shared workspace-io behaviour.
+ *
+ * Slug must satisfy `isValidSlug`. `readTextUnder` is documented as
+ * "internal fixed paths only — no `..` traversal guard"
+ * (workspace-io.ts:69), so a malformed slug like `../../etc/passwd`
+ * would otherwise read an arbitrary file under the workspace root.
+ * Returns `null` (rather than throwing) on an invalid slug because
+ * L-32 cleanup feeds slugs straight from `readdir`, and a
+ * user-created dir whose name fails the strict rule should be
+ * skipped silently rather than aborting the whole cleanup loop.
+ * CodeRabbit review on PR #1345.
  */
 export async function readProjectSkillBody(slug: string): Promise<string | null> {
+  if (!isValidSlug(slug)) return null;
   return readTextUnder(workspaceRoot(), `.claude/skills/${slug}/SKILL.md`);
 }
 
@@ -816,8 +834,17 @@ const THINKING_INDICATOR_VISIBLE_TIMEOUT_MS = 30 * ONE_SECOND_MS;
  */
 export async function waitForAssistantTurn(page: Page, timeoutMs: number = ONE_MINUTE_MS): Promise<void> {
   const indicator = page.getByTestId("thinking-indicator");
+  // Cap the visible-phase wait at the caller's overall budget so a
+  // short `timeoutMs` (e.g. a smoke test passing 5s) cannot still
+  // burn the full 30s on the first phase. Keep 30s as the upper
+  // bound for the common case where callers pass a generous total
+  // budget — indicator should always show within seconds, and a
+  // 30s ceiling is enough headroom for slow CI without tying the
+  // helper to the caller's per-turn budget. CodeRabbit review on
+  // PR #1345.
+  const visibleTimeoutMs = Math.min(THINKING_INDICATOR_VISIBLE_TIMEOUT_MS, timeoutMs);
   await expect(indicator, "thinking-indicator must appear after sendChatMessage — proves the agent actually started").toBeVisible({
-    timeout: THINKING_INDICATOR_VISIBLE_TIMEOUT_MS,
+    timeout: visibleTimeoutMs,
   });
   await expect(indicator, "thinking-indicator must hide when the assistant turn ends").toBeHidden({ timeout: timeoutMs });
 }
