@@ -11,8 +11,8 @@ MulmoScript files are rendered in the canvas. The underlying engine is [mulmocas
 | Purpose | Provider | Example config |
 |---|---|---|
 | TTS (speech) | `gemini` | `"provider": "gemini", "voiceId": "Kore"` |
-| Image generation | `google` | `"provider": "google", "model": "gemini-2.5-flash-image"` |
-| Video generation | `google` | `"provider": "google", "model": "veo-2.0-generate-001"` |
+| Image generation | `google` | `"provider": "google", "model": "gemini-3.1-flash-image-preview"` |
+| Video generation | `google` | `"provider": "google", "model": "veo-3.1-generate"` |
 
 Do not use `openai`, `elevenlabs`, or other providers — they are not configured in this app.
 
@@ -225,7 +225,7 @@ Control BGM and volume mixing.
       "Presenter": { "provider": "gemini", "voiceId": "Kore", "displayName": { "en": "Presenter" } }
     }
   },
-  "imageParams": { "provider": "google", "model": "gemini-2.5-flash-image" },
+  "imageParams": { "provider": "google", "model": "gemini-3.1-flash-image-preview" },
   "beats": [
     {
       "speaker": "Presenter",

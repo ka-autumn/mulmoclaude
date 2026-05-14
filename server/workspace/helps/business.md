@@ -37,8 +37,8 @@ Reach for `presentMulmoScript` when the user asks for a presentation, slideshow,
       }
     }
   },
-  "imageParams": { "provider": "google", "model": "gemini-2.5-flash-image" },
-  "movieParams": { "provider": "google", "model": "veo-2.0-generate-001" },
+  "imageParams": { "provider": "google", "model": "gemini-3.1-flash-image-preview" },
+  "movieParams": { "provider": "google", "model": "veo-3.1-generate" },
   "textSlideParams": { "cssStyles": "body { background-color: white; }" },
   "beats": [
     {
