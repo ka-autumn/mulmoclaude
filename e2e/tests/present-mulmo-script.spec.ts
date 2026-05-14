@@ -223,13 +223,18 @@ test.describe("presentMulmoScript plugin", () => {
     await expect(retryButton).toBeVisible();
     await expect(page.getByText("Movie generation failed")).toBeVisible();
     await expect(page.getByText(SSE_ERROR_MESSAGE)).toBeVisible();
-    expect(generateMovieCalls).toBe(1);
+    // expect.poll instead of a plain toBe so the assertion tolerates
+    // the microtask gap between the route handler firing and the SPA's
+    // catch arm landing. Chip visibility above already implies the
+    // handler ran, but the poll keeps this future-proof against any
+    // scheduling tweak in Playwright or Vue.
+    await expect.poll(() => generateMovieCalls).toBe(1);
 
     // Retry: same endpoint is hit again, chip stays (same error replays).
     await retryButton.click();
     await expect(retryButton).toBeVisible();
     await expect(page.getByText(SSE_ERROR_MESSAGE)).toBeVisible();
-    expect(generateMovieCalls).toBe(2);
+    await expect.poll(() => generateMovieCalls).toBe(2);
   });
 
   // Regression for #839 + the in-PR follow-up. The slide view must
