@@ -1209,6 +1209,15 @@ async function refreshScriptFromDisk(): Promise<void> {
 }
 
 async function initializeScript() {
+  // Stop any in-flight playback BEFORE we tear down per-script state
+  // — a pending `silentPlaybackTimer` or running audio from the
+  // previous script would otherwise fire `advanceFromBeat()` against
+  // the new script's lightbox / beat list and either crash or
+  // silently jump the new presentation forward. Also close any open
+  // lightbox so the user lands on the clean View for the new result
+  // (Codex review iter-4 on #1365).
+  stopAllPlayback();
+  lightbox.value = null;
   // Reset scroll position so new results start at the top
   if (beatListEl.value) beatListEl.value.scrollTop = 0;
   // Reset per-script state
