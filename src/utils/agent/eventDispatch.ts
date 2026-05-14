@@ -2,9 +2,11 @@
 // via the AgentEventContext adapter. No Vue refs, no component scope.
 
 import type { ActiveSession } from "../../types/session";
-import type { SseEvent } from "../../types/sse";
+import type { SseEvent, SseToolCallResult } from "../../types/sse";
 import { EVENT_TYPES, generationKey } from "../../types/events";
+import type { ToolCallHistoryItem } from "../../types/toolCallHistory";
 import { findPendingToolCall, toToolCallEntry } from "./toolCalls";
+import { extractMcpHint } from "./mcpHint";
 import { pushErrorMessage, applySkillEvent, applyTextEvent, applyToolResultToSession } from "../session/sessionHelpers";
 
 export interface AgentEventContext {
@@ -14,6 +16,23 @@ export interface AgentEventContext {
   onGenerationsDrained: () => void;
 }
 
+// Route a `toolCallResult` SSE event onto the pending history entry.
+// Errors land on `entry.error` (drives the red chip) with an optional
+// catalog-derived MCP hint; successes land on `entry.result`. Pulled
+// out of `applyAgentEvent` so the dispatch switch keeps its cognitive
+// complexity below the lint budget (#1354).
+function applyToolCallResult(history: ToolCallHistoryItem[], event: SseToolCallResult): void {
+  const entry = findPendingToolCall(history, event.toolUseId);
+  if (!entry) return;
+  if (event.isError === true) {
+    entry.error = event.content;
+    const hint = extractMcpHint(entry.toolName);
+    if (hint !== null) entry.mcpHint = hint;
+    return;
+  }
+  entry.result = event.content;
+}
+
 export async function applyAgentEvent(event: SseEvent, ctx: AgentEventContext): Promise<void> {
   const { session } = ctx;
   switch (event.type) {
@@ -21,12 +40,10 @@ export async function applyAgentEvent(event: SseEvent, ctx: AgentEventContext): 
       session.toolCallHistory.push(toToolCallEntry(event));
       ctx.scrollSidebarToBottom();
       return;
-    case EVENT_TYPES.toolCallResult: {
-      const entry = findPendingToolCall(session.toolCallHistory, event.toolUseId);
-      if (entry) entry.result = event.content;
+    case EVENT_TYPES.toolCallResult:
+      applyToolCallResult(session.toolCallHistory, event);
       ctx.scrollSidebarToBottom();
       return;
-    }
     case EVENT_TYPES.status:
       session.statusMessage = event.message;
       return;

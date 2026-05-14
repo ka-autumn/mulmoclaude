@@ -125,6 +125,11 @@ const enMessages = {
     error: "Error",
     result: "Result",
     running: "Running...",
+    mcpHint: {
+      title: (ctx: { named: (key: "server") => string }) => `${ctx.named("server")} setup hint`,
+      requiredKeys: "Required keys",
+      setupGuide: "Open setup guide",
+    },
   },
   fileTreePane: {
     sort: "Sort:",

@@ -54,6 +54,25 @@
             <div class="bg-red-50 p-2 rounded text-red-700">
               {{ call.error }}
             </div>
+            <!--
+              Catalog-derived hint chip for MCP tool errors (#1354).
+              Shown only when `mcpHint` was attached at event-dispatch
+              time (= the failing tool's server is in the catalog).
+              Non-MCP / custom-server errors fall through to the plain
+              red chip above.
+            -->
+            <div v-if="call.mcpHint" class="mt-2 bg-amber-50 border border-amber-200 p-2 rounded text-amber-900">
+              <div class="font-medium mb-1">{{ t("rightSidebar.mcpHint.title", { server: t(call.mcpHint.displayNameKey) }) }}</div>
+              <div v-if="call.mcpHint.requiredKeys.length > 0" class="text-xs mb-1">
+                {{ t("rightSidebar.mcpHint.requiredKeys") }}:
+                <code class="bg-amber-100 px-1 rounded">{{ call.mcpHint.requiredKeys.join(", ") }}</code>
+              </div>
+              <div v-if="call.mcpHint.setupGuideUrl" class="text-xs">
+                <a :href="call.mcpHint.setupGuideUrl" target="_blank" rel="noopener noreferrer" class="underline text-amber-800 hover:text-amber-900">{{
+                  t("rightSidebar.mcpHint.setupGuide")
+                }}</a>
+              </div>
+            </div>
           </div>
           <div v-else-if="call.result !== undefined">
             <div class="font-medium text-gray-500 mb-1">{{ t("rightSidebar.result") }}</div>

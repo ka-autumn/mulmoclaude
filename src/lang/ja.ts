@@ -111,6 +111,11 @@ const jaMessages = {
     error: "エラー",
     result: "結果",
     running: "実行中...",
+    mcpHint: {
+      title: (ctx: { named: (key: "server") => string }) => `${ctx.named("server")} のセットアップヒント`,
+      requiredKeys: "必要なキー",
+      setupGuide: "セットアップガイドを開く",
+    },
   },
   fileTreePane: {
     sort: "並び順:",

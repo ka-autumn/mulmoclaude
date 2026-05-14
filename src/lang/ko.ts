@@ -112,6 +112,11 @@ const koMessages = {
     error: "오류",
     result: "결과",
     running: "실행 중...",
+    mcpHint: {
+      title: (ctx: { named: (key: "server") => string }) => `${ctx.named("server")} 설정 도움말`,
+      requiredKeys: "필수 키",
+      setupGuide: "설정 가이드 열기",
+    },
   },
   fileTreePane: {
     sort: "정렬:",

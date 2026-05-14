@@ -109,6 +109,11 @@ const esMessages = {
     error: "Error",
     result: "Resultado",
     running: "Ejecutando...",
+    mcpHint: {
+      title: (ctx: { named: (key: "server") => string }) => `Ayuda de configuración: ${ctx.named("server")}`,
+      requiredKeys: "Claves requeridas",
+      setupGuide: "Abrir guía de configuración",
+    },
   },
   fileTreePane: {
     sort: "Orden:",

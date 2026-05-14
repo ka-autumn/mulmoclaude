@@ -108,6 +108,11 @@ const zhMessages = {
     error: "错误",
     result: "结果",
     running: "运行中...",
+    mcpHint: {
+      title: (ctx: { named: (key: "server") => string }) => `${ctx.named("server")} 配置提示`,
+      requiredKeys: "必填字段",
+      setupGuide: "打开配置指南",
+    },
   },
   fileTreePane: {
     sort: "排序:",

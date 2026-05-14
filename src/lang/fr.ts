@@ -104,6 +104,11 @@ const frMessages = {
     error: "Erreur",
     result: "Résultat",
     running: "En cours...",
+    mcpHint: {
+      title: (ctx: { named: (key: "server") => string }) => `Aide à la configuration : ${ctx.named("server")}`,
+      requiredKeys: "Clés requises",
+      setupGuide: "Ouvrir le guide de configuration",
+    },
   },
   fileTreePane: {
     sort: "Tri :",

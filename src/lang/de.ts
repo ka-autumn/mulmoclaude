@@ -105,6 +105,11 @@ const deMessages = {
     error: "Fehler",
     result: "Ergebnis",
     running: "Läuft...",
+    mcpHint: {
+      title: (ctx: { named: (key: "server") => string }) => `Einrichtungshinweis: ${ctx.named("server")}`,
+      requiredKeys: "Erforderliche Schlüssel",
+      setupGuide: "Einrichtungsanleitung öffnen",
+    },
   },
   fileTreePane: {
     sort: "Sortieren:",

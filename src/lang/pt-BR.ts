@@ -104,6 +104,11 @@ const ptBRMessages = {
     error: "Erro",
     result: "Resultado",
     running: "Executando...",
+    mcpHint: {
+      title: (ctx: { named: (key: "server") => string }) => `Dica de configuração: ${ctx.named("server")}`,
+      requiredKeys: "Chaves obrigatórias",
+      setupGuide: "Abrir guia de configuração",
+    },
   },
   fileTreePane: {
     sort: "Ordenar:",
