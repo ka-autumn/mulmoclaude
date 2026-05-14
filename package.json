@@ -55,6 +55,7 @@
     "test:e2e:live:mulmo-script-edit": "cross-env E2E_LIVE_REPORT_SUBDIR=mulmo-script-edit playwright test --config e2e-live/playwright.config.ts mulmo-script-edit.spec.ts",
     "test:e2e:live:ui": "cross-env E2E_LIVE_REPORT_SUBDIR=ui playwright test --config e2e-live/playwright.config.ts ui.spec.ts",
     "test:e2e:live:skills": "cross-env E2E_LIVE_REPORT_SUBDIR=skills playwright test --config e2e-live/playwright.config.ts skills.spec.ts",
+    "test:e2e:live:settings": "cross-env E2E_LIVE_REPORT_SUBDIR=settings playwright test --config e2e-live/playwright.config.ts settings.spec.ts",
     "test:coverage": "tsx --test --experimental-test-coverage ./test/*/test_*.ts ./test/*/*/test_*.ts && yarn workspaces run test",
     "sandbox:remove": "docker rmi mulmoclaude-sandbox",
     "sandbox:login": "security find-generic-password -s 'Claude Code-credentials' -w > ~/.claude/.credentials.json && echo 'Credentials exported to ~/.claude/.credentials.json'",

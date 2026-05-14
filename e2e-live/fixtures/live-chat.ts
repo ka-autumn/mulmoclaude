@@ -93,6 +93,23 @@ export async function placeWorkspaceFile(workspaceRel: string, body: string): Pr
 }
 
 /**
+ * Read the raw text of a workspace-relative file. Returns `null` when
+ * the file does not exist so the caller can distinguish "absent" from
+ * "empty string" without ad-hoc try/catch. Used by snapshot/restore
+ * flows that round-trip a real user file across a test (e.g.
+ * `config/settings.json` in the L-SETTINGS-EFFORT spec).
+ */
+export async function readWorkspaceFile(workspaceRel: string): Promise<string | null> {
+  const target = resolveWorkspacePath(workspaceRel);
+  try {
+    return await readFile(target, "utf8");
+  } catch (err) {
+    if (isErrorWithCode(err) && err.code === "ENOENT") return null;
+    throw err;
+  }
+}
+
+/**
  * Drop a wiki page directly onto disk at `data/wiki/pages/<slug>.md`.
  * The wiki view fetches /api/wiki?slug=<slug> on navigate, which
  * reads the same file — so seeding the file is enough to make a page
