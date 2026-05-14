@@ -251,6 +251,35 @@ describe("buildSystemPrompt", () => {
     assert.match(result, /raw html tags work inside `\.md` files/i);
   });
 
+  it("contains the file-link convention in chat replies (#1300 / PR #1325 layer B)", () => {
+    // Layer B of #1325: SYSTEM_PROMPT tells the LLM to present
+    // generated files as Markdown links instead of inline code or
+    // plain text. Layer A (workspaceLinkify codespan-fallback) is
+    // covered by the unit tests in test_workspaceLinkify.ts and the
+    // e2e-live L-LINKIFY-CODESPAN spec. This test pins the
+    // SYSTEM_PROMPT side so a future prompt cleanup that drops the
+    // section trips a deterministic CI failure (LLM compliance
+    // alone can't be e2e-asserted — it's stochastic — so we lock
+    // the instruction text instead).
+    const role = makeRole();
+    const result = buildSystemPrompt({
+      role,
+      workspacePath: workspace,
+      useDocker: false,
+      memorySnapshot: EMPTY_ATOMIC_SNAPSHOT,
+    });
+    assert.ok(result.includes("Referring to files in chat replies"));
+    // The three rules the section exists to enforce — drop any of
+    // them and the layer-A fallback ends up doing all the work.
+    assert.match(result, /ALWAYS use the Markdown link form/);
+    assert.match(result, /NEVER write the path as inline code/);
+    assert.match(result, /NEVER write the path as plain text/);
+    // Workspace-relative path convention (no leading slash, no
+    // `file://`, no `/api/files/...`) — same shape used everywhere
+    // else, so the host's workspace-link router resolves it.
+    assert.match(result, /workspace-relative/);
+  });
+
   it("contains today's date", () => {
     const role = makeRole();
     const result = buildSystemPrompt({
