@@ -1,21 +1,17 @@
-name: E2E Live (no LLM)
+name: E2E Live (triage matrix)
 
-# Runs the subset of e2e-live specs that DO NOT call the real Claude
-# API. Wiki page navigation, wiki rendering, and one workspace-link
-# routing case seed their state directly via the workspace API and
-# never send a chat message, so they exercise the real Vue/Express
-# stack without burning Claude tokens.
+# Runs every e2e-live spec file in its own job so we can triage which
+# scenarios work end-to-end in CI and which need extra wiring (Claude
+# auth, secrets, etc.). `fail-fast: false` keeps the matrix going so
+# one broken spec doesn't hide the rest.
 #
-# Triggers:
-#   - `schedule`: weekly Monday 00:00 UTC (= 09:00 JST) regression
-#   - `workflow_dispatch`: manual run from the Actions tab
-#   - `pull_request`: only when this workflow file itself is touched,
-#     so the very PR that introduces it gets a smoke run (#1333
-#     follow-up). Normal PRs are unaffected.
+# Sandbox is disabled because CI runners don't have a logged-in
+# `claude` CLI; without DISABLE_SANDBOX=1 the server hits
+# `assertClaudeFiles()` and exits before Vite proxies anything.
 
 on:
   schedule:
-    - cron: "0 0 * * 1"
+    - cron: "0 0 * * 1"  # Weekly Monday 00:00 UTC
   workflow_dispatch:
   pull_request:
     paths:
@@ -25,13 +21,27 @@ permissions:
   contents: read
 
 concurrency:
-  group: e2e-live-no-llm-${{ github.ref }}
+  group: e2e-live-triage-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  e2e-live-no-llm:
+  e2e-live:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+
+    strategy:
+      fail-fast: false
+      matrix:
+        spec:
+          - wiki              # expected ✓ — no LLM, workspace-seed only
+          - wiki-nav          # expected ✓ — no LLM, workspace-seed only
+          - workspace-link-routing  # mixed — L-24 ✓, L-23 needs LLM
+          - media             # needs Claude
+          - mulmo-script-edit # needs Claude
+          - roles             # needs Claude
+          - session           # needs Claude
+          - skills            # needs Claude
+          - ui                # needs Claude
 
     steps:
       - uses: actions/checkout@v6
@@ -51,23 +61,25 @@ jobs:
         run: npx playwright install chromium --with-deps
 
       - name: Create workspace dir
-        # Server defaults to `$HOME/mulmoclaude`. Create it empty so
-        # the wiki/workspace fixtures can seed pages into it.
         run: mkdir -p "$HOME/mulmoclaude"
 
       - name: Start mulmoclaude dev server (background)
+        env:
+          # Skip Docker sandbox setup. Without this the server calls
+          # `assertClaudeFiles()` (server/system/docker.ts) which
+          # requires ~/.claude + ~/.claude.json to exist and exits 1
+          # otherwise — concurrently then kills Vite via -k.
+          DISABLE_SANDBOX: "1"
         run: |
           yarn dev > dev-server.log 2>&1 &
           echo $! > dev-server.pid
           echo "Started yarn dev with PID $(cat dev-server.pid)"
 
       - name: Wait for Vite (5173) to be ready
-        # yarn dev launches both Express (3001) and Vite (5173).
-        # e2e-live's baseURL is 5173, so that's what we gate on.
         run: |
           for i in $(seq 1 90); do
             if curl -fsS http://localhost:5173 > /dev/null 2>&1; then
-              echo "Vite ready after ${i}s"
+              echo "Vite ready after $((i*2))s"
               exit 0
             fi
             sleep 2
@@ -76,20 +88,15 @@ jobs:
           tail -200 dev-server.log
           exit 1
 
-      - name: Run Claude-free e2e-live specs
-        # Three spec files contain the LLM-free subset:
-        #   wiki.spec.ts                       — L-W-S-01/02/04/05
-        #   wiki-nav.spec.ts                   — L-14/15/16
-        #   workspace-link-routing.spec.ts     — L-24 only (L-23 needs LLM)
-        # The -g regex picks exactly those, excluding L-23.
+      - name: Run ${{ matrix.spec }}.spec.ts
         run: |
           npx playwright test \
             --config e2e-live/playwright.config.ts \
-            wiki.spec.ts wiki-nav.spec.ts workspace-link-routing.spec.ts \
-            -g "L-W-S-|L-1[456]|L-24"
+            ${{ matrix.spec }}.spec.ts
         env:
           E2E_LIVE_BASE_URL: http://localhost:5173
           E2E_LIVE_WORKERS: "2"
+          E2E_LIVE_REPORT_SUBDIR: ${{ matrix.spec }}
 
       - name: Stop dev server
         if: always()
@@ -104,8 +111,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report-live-no-llm
-          path: playwright-report-live/
+          name: playwright-report-${{ matrix.spec }}
+          path: playwright-report-live/${{ matrix.spec }}/
           retention-days: 14
           if-no-files-found: ignore
 
@@ -113,7 +120,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: dev-server-log
+          name: dev-server-log-${{ matrix.spec }}
           path: dev-server.log
           retention-days: 7
           if-no-files-found: ignore
