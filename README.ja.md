@@ -36,7 +36,15 @@ yarn dev
 
 [http://localhost:5173](http://localhost:5173) を開いてください。以上です — チャットを始めましょう。
 
-> **前提条件**: Node.js 20 以降、[Claude Code CLI](https://claude.ai/code) がインストール・認証済みであること。
+### 前提条件
+
+- **Node.js 20 以降** — ランタイム
+- **[Claude Code CLI](https://claude.ai/code)** — インストール・認証済みであること。`claude` を一度実行して OAuth を完了してください
+- **ffmpeg** — 動画生成に必要です。動画を生成しない場合はスキップして構いません
+  - macOS: `brew install ffmpeg`
+  - Linux: `apt install ffmpeg`
+  - Windows: `winget install Gyan.FFmpeg`
+- **Docker Desktop** (任意・推奨) — サンドボックスモードを有効化します。下記 [Docker Desktop のインストール](#docker-desktop-のインストール) を参照してください
 
 > **UI 言語**: 英語、日本語、中国語、韓国語、スペイン語、ポルトガル語 (ブラジル)、フランス語、ドイツ語の 8 言語に対応しています。デフォルトではブラウザ / OS の言語設定から自動判定されます。明示的に指定する場合は `.env` に `VITE_LOCALE=ja` を設定してください (日本語辞書 `src/lang/ja.ts` が使用されます)。ロケールはビルド / 開発時に決定されるため、変更後は `yarn dev` を再起動してください。文字列の追加方法は [`docs/developer.md`](docs/developer.md#i18n-vue-i18n) を参照してください。
 

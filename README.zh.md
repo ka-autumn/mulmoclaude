@@ -36,7 +36,15 @@ yarn dev
 
 打开 [http://localhost:5173](http://localhost:5173)。就这么简单 —— 开始聊天吧。
 
-> **前置条件**：Node.js 20+、已安装并认证的 [Claude Code CLI](https://claude.ai/code)。
+### 前置条件
+
+- **Node.js 20+** —— 运行时
+- **[Claude Code CLI](https://claude.ai/code)** —— 已安装并完成认证。请先运行一次 `claude` 完成 OAuth
+- **ffmpeg** —— 视频生成所需。如果不生成视频可以跳过
+  - macOS: `brew install ffmpeg`
+  - Linux: `apt install ffmpeg`
+  - Windows: `winget install Gyan.FFmpeg`
+- **Docker Desktop** (可选，但推荐) —— 启用沙盒模式。参见下方 [安装 Docker Desktop](#安装-docker-desktop)
 
 > **界面语言**：支持英语、日语、简体中文、韩语、西班牙语、葡萄牙语 (巴西)、法语、德语共 8 种语言。默认从浏览器 / 操作系统的语言设置自动检测。如需显式指定，请在 `.env` 中设置 `VITE_LOCALE=zh`。语言会在构建 / 开发期确定；修改后请重启 `yarn dev`。关于如何添加字符串，请参考 [`docs/developer.md`](docs/developer.md#i18n-vue-i18n)。
 

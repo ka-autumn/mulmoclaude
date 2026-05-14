@@ -27,7 +27,7 @@ lsof -i :5173 -sTCP:LISTEN
 
 Docker 固有の補足:
 
-- `which docker` が無ければ README の Prerequisites + Installing Docker Desktop セクションを案内
+- `which docker` が無ければ README の Prerequisites + [Installing Docker Desktop](../../../README.md#installing-docker-desktop) を案内
 - Docker はインストール済みだが起動していなければ `open -a Docker` (macOS) して、メニューバーの whale アイコンが点滅から定常になるまで待つ
 
 ## Step 4: 開発サーバー起動

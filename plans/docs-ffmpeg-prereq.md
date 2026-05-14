@@ -29,7 +29,7 @@ Tracks: [#1049](https://github.com/receptron/mulmoclaude/issues/1049) のうち 
   - macOS: `brew install ffmpeg`
   - Linux: `apt install ffmpeg`
   - Windows: `winget install Gyan.FFmpeg`
-- **Docker Desktop** (optional but recommended) — enables sandbox mode. See [Sandbox mode (Docker)](#sandbox-mode-docker) below
+- **Docker Desktop** (optional but recommended) — enables sandbox mode. See [Installing Docker Desktop](#installing-docker-desktop) below
 ```
 
 ### 2. `.claude/skills/setup-mulmoclaude/` — initial commit (with dependency check)
@@ -40,6 +40,10 @@ Tracks: [#1049](https://github.com/receptron/mulmoclaude/issues/1049) のうち 
 - インストールコマンドは持たず、不足時は **README の `### Prerequisites` を参照**させる（SoT 一本化）
 - Pitfall 表に「Movie generation hangs / silently fails → ffmpeg missing」を追加
 - `NOTES.ja.md` を SKILL.md と 1:1 で日本語訳
+
+### 3. Localized README 7 本 (`ja / zh / ko / es / pt-BR / fr / de`) も同じ構造に更新
+
+英語版と同じく、line 39 の 1 行 blockquote を `### Prerequisites` サブセクションに展開し ffmpeg / Docker を含めた依存リストを各言語で書く。Docker install セクションへのアンカーは各言語版の見出しに合わせる（例：`ja` は `#docker-desktop-のインストール`、`zh` は `#安装-docker-desktop`）。Codex iteration 1 で localized README に drift が残ることが指摘されたため scope に追加。
 
 ## Out of scope (別 PR で扱う)
 

@@ -36,7 +36,15 @@ yarn dev
 
 [http://localhost:5173](http://localhost:5173) 을 여세요. 이제 끝입니다 — 대화를 시작하세요.
 
-> **필수 조건**: Node.js 20+, [Claude Code CLI](https://claude.ai/code) 설치 및 인증 완료.
+### 필수 조건
+
+- **Node.js 20+** — 런타임
+- **[Claude Code CLI](https://claude.ai/code)** — 설치 및 인증 완료. `claude` 를 한 번 실행해 OAuth 를 완료해 주세요
+- **ffmpeg** — 동영상 생성에 필요합니다. 동영상을 생성하지 않으면 건너뛰어도 됩니다
+  - macOS: `brew install ffmpeg`
+  - Linux: `apt install ffmpeg`
+  - Windows: `winget install Gyan.FFmpeg`
+- **Docker Desktop** (선택 사항이지만 권장) — 샌드박스 모드를 활성화합니다. 아래 [Docker Desktop 설치](#docker-desktop-설치) 를 참조하세요
 
 > **UI 언어**: 영어, 일본어, 중국어, 한국어, 스페인어, 포르투갈어 (브라질), 프랑스어, 독일어 등 8개 언어를 지원합니다. 기본값은 브라우저 / OS 언어 설정에서 자동으로 감지됩니다. 명시적으로 지정하려면 `.env` 에 `VITE_LOCALE=ko` 를 설정하세요. 로케일은 빌드/개발 시점에 결정되므로 변경 후 `yarn dev` 를 재시작해야 합니다. 문자열 추가 방법은 [`docs/developer.md`](docs/developer.md#i18n-vue-i18n) 를 참고하세요.
 
