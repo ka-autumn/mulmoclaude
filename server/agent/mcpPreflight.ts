@@ -78,7 +78,11 @@ function buildFieldToEnvKeyMap(templateEnv: Record<string, string>): Map<string,
 
 function isResolved(value: string | undefined): boolean {
   if (typeof value !== "string") return false;
-  if (value.length === 0) return false;
+  // Trim before the empty check — `"   "` (whitespace-only) is just
+  // as misconfigured as `""` and would otherwise let preflight
+  // greenlight a server that can't actually authenticate (Codex
+  // review on #1355).
+  if (value.trim().length === 0) return false;
   PLACEHOLDER_PATTERN.lastIndex = 0;
   return !PLACEHOLDER_PATTERN.test(value);
 }

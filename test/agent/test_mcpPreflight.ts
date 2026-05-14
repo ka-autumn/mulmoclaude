@@ -43,6 +43,19 @@ describe("findMissingRequiredEnv — Notion (single required field)", () => {
     assert.deepEqual(findMissingRequiredEnv(entry, spec), ["NOTION_API_KEY"]);
   });
 
+  it("flags the required field when the env value is whitespace only (Codex review on #1355)", () => {
+    // `"   "` has non-zero length but is just as misconfigured as
+    // `""` — a server with a whitespace-only token can't
+    // authenticate. Without trimming, preflight greenlit it.
+    const entry = getEntry("notion");
+    const spec: McpServerSpec = {
+      type: "stdio",
+      command: "npx",
+      env: { NOTION_TOKEN: "   " },
+    };
+    assert.deepEqual(findMissingRequiredEnv(entry, spec), ["NOTION_API_KEY"]);
+  });
+
   it("flags the required field when the env key is missing entirely", () => {
     const entry = getEntry("notion");
     const spec: McpServerSpec = {
