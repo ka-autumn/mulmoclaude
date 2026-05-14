@@ -222,16 +222,9 @@ Three independent Node processes cooperate at runtime:
   .mulmoclaude/       internal: per-session MCP config files
 ```
 
-Existing workspaces from before #284 can optionally run the migration script to reorganize old directories:
-
-```bash
-yarn tsx scripts/migrate-workspace-284.ts --dry-run   # preview
-yarn tsx scripts/migrate-workspace-284.ts --execute   # commit (backs up via rsync first)
-```
-
-> The server no longer blocks startup on pre-#284 layouts. The script is kept for users who want to clean up old directory names.
-
 The `config/` dir is the home for the [web Settings UI](../README.md#configuring-additional-tools-web-settings) — `settings.json` carries `extraAllowedTools`, `mcp.json` follows Claude CLI's `--mcp-config` format so you can copy it between machines.
+
+Pre-#284 workspaces (with `chat/`, `summaries/`, `memory.md` at the workspace root) are still accepted by the server — old directory names continue to work alongside the modern layout. If you want to clean them up by hand, move them under `conversations/` and `data/` per the tree above.
 
 ---
 

@@ -3,8 +3,10 @@
 //
 // The data shape mirrors what `server/utils/files/todos-io.ts` (now
 // removed) wrote: a JSON-serialised `TodoItem[]` and `StatusColumn[]`.
-// Existing-user data is moved into this scope by
-// `scripts/migrate-todos-to-plugin.ts`.
+// Pre-#1145 installs that still keep todos under
+// `data/todos/{todos,columns}.json` will need to move them under the
+// scope dir by hand (`data/plugins/%40mulmoclaude%2Ftodo-plugin/`) —
+// the plugin reads from the new path only.
 
 import type { FileOps } from "gui-chat-protocol";
 import type { TodoItem, StatusColumn } from "./types";

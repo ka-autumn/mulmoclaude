@@ -517,7 +517,7 @@ All data is stored as plain files in the workspace directory, grouped into four 
                          images/, news/, spreadsheets/, stories/
 ```
 
-See [`docs/developer.md`](docs/developer.md#workspace-layout-mulmoclaude) for the full reference. Pre-#284 workspaces must run the one-shot migration (`yarn tsx scripts/migrate-workspace-284.ts --dry-run` → `--execute`) once before the server will start.
+See [`docs/developer.md`](docs/developer.md#workspace-layout-mulmoclaude) for the full reference.
 
 ### Todo explorer
 

@@ -12,10 +12,9 @@
 //   artifacts/       LLM-generated (charts, html, images, documents,
 //                    spreadsheets, stories, news)
 //
-// Existing workspaces need the one-shot `scripts/migrate-workspace-284.ts`
-// script run before first startup with this code. `server/workspace.ts`
-// detects the pre-migration layout at boot and aborts with a pointer
-// to the script.
+// Pre-#284 workspaces (with `chat/`, `summaries/`, `memory.md` at the
+// root) continue to boot — the modern layout above is what new
+// installs use, but the older directory names are still accepted.
 //
 // When adding a new top-level directory: add the name to the
 // `WORKSPACE_DIRS` record below. The absolute path is derived

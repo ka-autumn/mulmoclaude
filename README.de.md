@@ -517,7 +517,7 @@ Alle Daten werden als einfache Dateien im Workspace-Verzeichnis gespeichert, gru
                          images/, news/, spreadsheets/, stories/
 ```
 
-Siehe [`docs/developer.md`](docs/developer.md#workspace-layout-mulmoclaude) für die vollständige Referenz. Workspaces vor #284 müssen einmalig die Migration (`yarn tsx scripts/migrate-workspace-284.ts --dry-run` → `--execute`) ausführen, bevor der Server startet.
+Siehe [`docs/developer.md`](docs/developer.md#workspace-layout-mulmoclaude) für die vollständige Referenz.
 
 ### Todo-Explorer
 

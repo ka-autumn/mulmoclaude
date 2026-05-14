@@ -516,7 +516,7 @@ Toutes les données sont stockées sous forme de fichiers en clair dans le répe
                          images/, news/, spreadsheets/, stories/
 ```
 
-Consultez [`docs/developer.md`](docs/developer.md#workspace-layout-mulmoclaude) pour la référence complète. Les espaces de travail antérieurs à #284 doivent exécuter la migration ponctuelle (`yarn tsx scripts/migrate-workspace-284.ts --dry-run` → `--execute`) une seule fois avant que le serveur ne démarre.
+Consultez [`docs/developer.md`](docs/developer.md#workspace-layout-mulmoclaude) pour la référence complète.
 
 ### Explorateur de tâches
 

@@ -515,7 +515,7 @@ Todos los datos se almacenan como archivos planos en el directorio del workspace
                          images/, news/, spreadsheets/, stories/
 ```
 
-Consulta [`docs/developer.md`](docs/developer.md#workspace-layout-mulmoclaude) para la referencia completa. Los workspaces anteriores a #284 deben ejecutar la migración única (`yarn tsx scripts/migrate-workspace-284.ts --dry-run` → `--execute`) una vez antes de que el servidor arranque.
+Consulta [`docs/developer.md`](docs/developer.md#workspace-layout-mulmoclaude) para la referencia completa.
 
 ### Explorador de pendientes
 

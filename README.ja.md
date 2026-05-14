@@ -516,7 +516,7 @@ PPTX 変換は Docker サンドボックスイメージ内 (`libreoffice --headl
                          images/, news/, spreadsheets/, stories/
 ```
 
-完全なリファレンスは [`docs/developer.md`](docs/developer.md#workspace-layout-mulmoclaude) を参照してください。#284 以前のワークスペースは、サーバーが起動する前に一度だけ移行スクリプト (`yarn tsx scripts/migrate-workspace-284.ts --dry-run` → `--execute`) を実行する必要があります。
+完全なリファレンスは [`docs/developer.md`](docs/developer.md#workspace-layout-mulmoclaude) を参照してください。
 
 ### Todo エクスプローラ
 
