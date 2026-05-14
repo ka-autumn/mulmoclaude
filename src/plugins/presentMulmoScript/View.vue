@@ -651,17 +651,34 @@ function stopAllPlayback(): void {
 }
 
 // Single entry point for "start playback at beat <index>". Routes
-// to `playAudio` when the beat has rendered TTS, or schedules a
-// duration-based auto-advance when the beat is silent. Either path
-// chains to the next beat via `advanceFromBeat` so a sequence of
-// silent beats plays through without manual interaction (#1073).
+// on what the script DECLARED, not on what's currently hydrated:
+//
+//   - `text` empty  → silent path (`scheduleSilentAdvance`). The
+//     schema says no audio is generated for empty-text beats, so
+//     `duration` drives auto-advance.
+//   - `text` present + audio loaded → audio path. `audio.ended`
+//     chains via `advanceFromBeat`.
+//   - `text` present + audio NOT loaded → stop. The Play button's
+//     `isPlayReady` gate prevented this for beat 0, but mid-stream
+//     a transient fetch miss must not silently skip the narration
+//     by falling through to the silent timer (Codex review on
+//     #1073 — gating on `beatAudios[index]` would do exactly that).
+//
+// Either path chains to the next beat via `advanceFromBeat`, so a
+// run of silent beats — or audio / silent / audio sequences —
+// plays through without manual interaction.
 function playBeat(index: number): void {
   stopAllPlayback();
-  if (beatAudios[index]) {
-    playAudio(index);
+  const hasText = Boolean(effectiveBeat(index).text);
+  if (!hasText) {
+    scheduleSilentAdvance(index);
     return;
   }
-  scheduleSilentAdvance(index);
+  if (beatAudios[index]) {
+    playAudio(index);
+  }
+  // Text beat with no audio yet → stop. The user can re-click Play
+  // once the audio finishes hydrating.
 }
 
 function scheduleSilentAdvance(index: number): void {
