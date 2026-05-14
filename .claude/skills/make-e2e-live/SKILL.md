@@ -136,6 +136,7 @@ git checkout -b feat/e2e-live-<topic>
   - 命名: `data-testid="<plugin>-<role>"` の kebab-case
   - **同 PR で `docs/ui-cheatsheet.md` の該当 ASCII ブロックを更新**（CLAUDE.md ルール）
   - 翻訳テキストや `iframe[sandbox]` 構造属性に依存しない（脆い）
+- 新規テスト追加時は `docs/e2e-live-testing.md` の skip 規約（`test.skip(process.env.E2E_LIVE_NO_LLM === "1", ...)`）と matrix 登録ルール（`.github/workflows/e2e_live_no_llm.yaml` の `matrix.spec:`）に従う
 
 ### コーディングルール（CLAUDE.md より）
 
@@ -227,4 +228,5 @@ yarn test:e2e:live:<category>   # 該当カテゴリだけ
 - `e2e-live/fixtures/live-chat.ts` — 既存 helper 一覧
 - `e2e-live/tests/media.spec.ts` — L-01 / L-02 の参考実装
 - `docs/ui-cheatsheet.md` — testid 追加時に併せて更新
+- `docs/e2e-live-testing.md` — e2e-live オーサリング規約（2 backend / fake-echo 対応表 / skip 作法、必読）
 - `CLAUDE.md` — コーディングルール / git 運用 / PR フォーマット
