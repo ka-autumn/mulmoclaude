@@ -86,6 +86,8 @@ async function isDirectory(absPath: string): Promise<boolean> {
 }
 
 async function readCatalogEntry(slugDir: string, slug: string, source: CatalogSource, workspaceRoot: string): Promise<CatalogEntry | null> {
+  // `slugDir` is already a `safeJoinSlug` result — joining a fixed
+  // `"SKILL.md"` keeps the path inside the catalog tree.
   const skillMdPath = path.join(slugDir, "SKILL.md");
   let raw: string;
   try {
@@ -95,7 +97,8 @@ async function readCatalogEntry(slugDir: string, slug: string, source: CatalogSo
   }
   const parsed = parseSkillFrontmatter(raw);
   if (!parsed) return null;
-  const alreadyActive = await isDirectory(path.join(activeDir(workspaceRoot), slug));
+  const activeSlugDir = safeJoinSlug(activeDir(workspaceRoot), slug);
+  const alreadyActive = activeSlugDir !== null && (await isDirectory(activeSlugDir));
   return { slug, name: slug, description: parsed.description, source, alreadyActive };
 }
 
@@ -113,7 +116,13 @@ async function scanCatalogSource(source: CatalogSource, workspaceRoot: string): 
   const results: CatalogEntry[] = [];
   for (const slug of entries) {
     if (slug.startsWith(".")) continue;
-    const slugDir = path.join(dir, slug);
+    // Slugs come from `readdir`, which CodeQL flags as tainted even
+    // though the directory is launcher-managed. `safeJoinSlug` is
+    // both the path-injection sanitiser (resolve + startsWith) and
+    // a slug-shape guard — a malformed catalog entry name is
+    // skipped rather than crashing the listing.
+    const slugDir = safeJoinSlug(dir, slug);
+    if (slugDir === null) continue;
     if (!(await isDirectory(slugDir))) continue;
     const entry = await readCatalogEntry(slugDir, slug, source, workspaceRoot);
     if (entry) results.push(entry);
@@ -145,6 +154,28 @@ export async function listCatalogEntries(opts: CatalogOptions = {}): Promise<Cat
 // eslint-disable-next-line security/detect-unsafe-regex -- non-overlapping character classes, no catastrophic backtracking
 const SAFE_SLUG_PATTERN = /^[a-zA-Z0-9](?:[a-zA-Z0-9_-]*[a-zA-Z0-9])?$/;
 
+/** Resolve `<rootDir>/<slug>/` and verify the result stays inside
+ *  `rootDir`. Returns `null` if anything looks suspicious — a
+ *  separator-bearing slug, a `..` segment, an absolute slug, or a
+ *  result that escapes the root after `path.resolve` normalisation.
+ *
+ *  Belt-and-suspenders on top of `SAFE_SLUG_PATTERN`: the regex
+ *  already rejects every problematic shape, but mirroring the
+ *  resolve-then-startsWith check CodeQL recognises for
+ *  `js/path-injection` is cheap and lets downstream readers verify
+ *  the sanitisation at a glance without re-deriving why the regex
+ *  is sufficient. */
+function safeJoinSlug(rootDir: string, slug: string): string | null {
+  if (!SAFE_SLUG_PATTERN.test(slug)) return null;
+  const resolvedRoot = path.resolve(rootDir);
+  const resolvedSlug = path.resolve(resolvedRoot, slug);
+  // `path.sep` boundary check avoids the `/root` vs `/root-other` confusion.
+  if (resolvedSlug !== resolvedRoot && !resolvedSlug.startsWith(resolvedRoot + path.sep)) {
+    return null;
+  }
+  return resolvedSlug;
+}
+
 export type StarResult =
   | { kind: "starred"; slug: string }
   | { kind: "not-found"; source: CatalogSource; slug: string }
@@ -169,13 +200,15 @@ async function copyDirTree(srcDir: string, destDir: string): Promise<void> {
 
 /** Copy `data/skills/catalog/<source>/<slug>/` → `.claude/skills/<slug>/`.
  *  Returns a discriminated result so the route can map to clean
- *  HTTP status codes. */
+ *  HTTP status codes. Slug is sanitised via `safeJoinSlug` for both
+ *  the source and destination — a separator-bearing or escaping
+ *  slug yields `invalid-slug` and never reaches the filesystem. */
 export async function starCatalogEntry(source: CatalogSource, slug: string, opts: CatalogOptions = {}): Promise<StarResult> {
-  if (!SAFE_SLUG_PATTERN.test(slug)) return { kind: "invalid-slug", slug };
   const workspaceRoot = opts.workspaceRoot ?? workspacePath;
-  const catalogSlugDir = path.join(catalogDirForSource(source, workspaceRoot), slug);
+  const catalogSlugDir = safeJoinSlug(catalogDirForSource(source, workspaceRoot), slug);
+  const activeSlugDir = safeJoinSlug(activeDir(workspaceRoot), slug);
+  if (catalogSlugDir === null || activeSlugDir === null) return { kind: "invalid-slug", slug };
   if (!(await isDirectory(catalogSlugDir))) return { kind: "not-found", source, slug };
-  const activeSlugDir = path.join(activeDir(workspaceRoot), slug);
   if (await isDirectory(activeSlugDir)) return { kind: "already-active", slug };
   await copyDirTree(catalogSlugDir, activeSlugDir);
   log.info("skills", "starred catalog entry", { source, slug });
