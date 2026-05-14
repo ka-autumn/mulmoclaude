@@ -85,9 +85,10 @@ async function isDirectory(absPath: string): Promise<boolean> {
   }
 }
 
-async function readCatalogEntry(slugDir: string, slug: string, source: CatalogSource, workspaceRoot: string): Promise<CatalogEntry | null> {
-  // `slugDir` is already a `safeJoinSlug` result — joining a fixed
-  // `"SKILL.md"` keeps the path inside the catalog tree.
+async function readCatalogEntry(slugDir: string, safeName: string, source: CatalogSource, workspaceRoot: string): Promise<CatalogEntry | null> {
+  // `slugDir` was built from a `safeSlugName`-laundered name, so
+  // joining a fixed `"SKILL.md"` keeps the path inside the catalog
+  // tree and stays clear of CodeQL's path-injection trace.
   const skillMdPath = path.join(slugDir, "SKILL.md");
   let raw: string;
   try {
@@ -97,9 +98,9 @@ async function readCatalogEntry(slugDir: string, slug: string, source: CatalogSo
   }
   const parsed = parseSkillFrontmatter(raw);
   if (!parsed) return null;
-  const activeSlugDir = safeJoinSlug(activeDir(workspaceRoot), slug);
-  const alreadyActive = activeSlugDir !== null && (await isDirectory(activeSlugDir));
-  return { slug, name: slug, description: parsed.description, source, alreadyActive };
+  const activeSlugDir = joinUnderRoot(activeDir(workspaceRoot), safeName);
+  const alreadyActive = await isDirectory(activeSlugDir);
+  return { slug: safeName, name: safeName, description: parsed.description, source, alreadyActive };
 }
 
 async function scanCatalogSource(source: CatalogSource, workspaceRoot: string): Promise<CatalogEntry[]> {
@@ -117,14 +118,16 @@ async function scanCatalogSource(source: CatalogSource, workspaceRoot: string): 
   for (const slug of entries) {
     if (slug.startsWith(".")) continue;
     // Slugs come from `readdir`, which CodeQL flags as tainted even
-    // though the directory is launcher-managed. `safeJoinSlug` is
-    // both the path-injection sanitiser (resolve + startsWith) and
-    // a slug-shape guard — a malformed catalog entry name is
-    // skipped rather than crashing the listing.
-    const slugDir = safeJoinSlug(dir, slug);
-    if (slugDir === null) continue;
+    // though the directory is launcher-managed. `safeSlugName`
+    // applies the slug whitelist + a `path.basename` round-trip —
+    // CodeQL's recognised path-injection sanitiser. A catalog entry
+    // with an unexpected name is skipped rather than crashing the
+    // listing.
+    const safeName = safeSlugName(slug);
+    if (safeName === null) continue;
+    const slugDir = joinUnderRoot(dir, safeName);
     if (!(await isDirectory(slugDir))) continue;
-    const entry = await readCatalogEntry(slugDir, slug, source, workspaceRoot);
+    const entry = await readCatalogEntry(slugDir, safeName, source, workspaceRoot);
     if (entry) results.push(entry);
   }
   results.sort((left, right) => left.slug.localeCompare(right.slug));
@@ -154,26 +157,35 @@ export async function listCatalogEntries(opts: CatalogOptions = {}): Promise<Cat
 // eslint-disable-next-line security/detect-unsafe-regex -- non-overlapping character classes, no catastrophic backtracking
 const SAFE_SLUG_PATTERN = /^[a-zA-Z0-9](?:[a-zA-Z0-9_-]*[a-zA-Z0-9])?$/;
 
-/** Resolve `<rootDir>/<slug>/` and verify the result stays inside
- *  `rootDir`. Returns `null` if anything looks suspicious — a
- *  separator-bearing slug, a `..` segment, an absolute slug, or a
- *  result that escapes the root after `path.resolve` normalisation.
+/** Sanitise a user-supplied slug into a safe directory-name leaf.
+ *  Returns `null` for anything that fails the slug whitelist OR is
+ *  not a basename (i.e. survives `path.basename` round-trip
+ *  unchanged). Returning a `path.basename` result is the pattern
+ *  CodeQL recognises as a `js/path-injection` sanitiser — once a
+ *  slug has been passed through `path.basename`, downstream
+ *  `path.join` / `stat` / `readFile` calls are no longer flagged.
  *
  *  Belt-and-suspenders on top of `SAFE_SLUG_PATTERN`: the regex
- *  already rejects every problematic shape, but mirroring the
- *  resolve-then-startsWith check CodeQL recognises for
- *  `js/path-injection` is cheap and lets downstream readers verify
- *  the sanitisation at a glance without re-deriving why the regex
- *  is sufficient. */
-function safeJoinSlug(rootDir: string, slug: string): string | null {
+ *  already rejects every problematic shape, but the basename
+ *  round-trip catches edge cases the regex might miss on platforms
+ *  with different separators (Windows `\\`) and lets the type
+ *  system express "this value has been laundered". */
+function safeSlugName(slug: string): string | null {
   if (!SAFE_SLUG_PATTERN.test(slug)) return null;
-  const resolvedRoot = path.resolve(rootDir);
-  const resolvedSlug = path.resolve(resolvedRoot, slug);
-  // `path.sep` boundary check avoids the `/root` vs `/root-other` confusion.
-  if (resolvedSlug !== resolvedRoot && !resolvedSlug.startsWith(resolvedRoot + path.sep)) {
-    return null;
-  }
-  return resolvedSlug;
+  // `path.basename` strips anything that looks like a directory
+  // component and is CodeQL's recognised sanitiser for
+  // `js/path-injection`. On a slug that already passed the regex
+  // this is an identity transform.
+  const basename = path.basename(slug);
+  if (basename !== slug) return null;
+  return basename;
+}
+
+/** Compose a path inside `rootDir` using a `safeSlugName`-laundered
+ *  slug. The taint flow ends at `safeSlugName`, so the joined path
+ *  is no longer flagged. */
+function joinUnderRoot(rootDir: string, safeName: string): string {
+  return path.join(rootDir, safeName);
 }
 
 export type StarResult =
@@ -200,17 +212,20 @@ async function copyDirTree(srcDir: string, destDir: string): Promise<void> {
 
 /** Copy `data/skills/catalog/<source>/<slug>/` → `.claude/skills/<slug>/`.
  *  Returns a discriminated result so the route can map to clean
- *  HTTP status codes. Slug is sanitised via `safeJoinSlug` for both
- *  the source and destination — a separator-bearing or escaping
- *  slug yields `invalid-slug` and never reaches the filesystem. */
+ *  HTTP status codes. Slug is laundered via `safeSlugName` (regex
+ *  whitelist + `path.basename` round-trip) before any `path.join`,
+ *  which is CodeQL's recognised pattern for clearing
+ *  `js/path-injection` taint. A separator-bearing or escaping slug
+ *  yields `invalid-slug` and never reaches the filesystem. */
 export async function starCatalogEntry(source: CatalogSource, slug: string, opts: CatalogOptions = {}): Promise<StarResult> {
+  const safeName = safeSlugName(slug);
+  if (safeName === null) return { kind: "invalid-slug", slug };
   const workspaceRoot = opts.workspaceRoot ?? workspacePath;
-  const catalogSlugDir = safeJoinSlug(catalogDirForSource(source, workspaceRoot), slug);
-  const activeSlugDir = safeJoinSlug(activeDir(workspaceRoot), slug);
-  if (catalogSlugDir === null || activeSlugDir === null) return { kind: "invalid-slug", slug };
-  if (!(await isDirectory(catalogSlugDir))) return { kind: "not-found", source, slug };
-  if (await isDirectory(activeSlugDir)) return { kind: "already-active", slug };
+  const catalogSlugDir = joinUnderRoot(catalogDirForSource(source, workspaceRoot), safeName);
+  const activeSlugDir = joinUnderRoot(activeDir(workspaceRoot), safeName);
+  if (!(await isDirectory(catalogSlugDir))) return { kind: "not-found", source, slug: safeName };
+  if (await isDirectory(activeSlugDir)) return { kind: "already-active", slug: safeName };
   await copyDirTree(catalogSlugDir, activeSlugDir);
-  log.info("skills", "starred catalog entry", { source, slug });
-  return { kind: "starred", slug };
+  log.info("skills", "starred catalog entry", { source, slug: safeName });
+  return { kind: "starred", slug: safeName };
 }
