@@ -19,6 +19,7 @@ import {
 
 const L23_TIMEOUT_MS = 3 * ONE_MINUTE_MS;
 const L24_TIMEOUT_MS = ONE_MINUTE_MS;
+const L_LINKIFY_TIMEOUT_MS = 3 * ONE_MINUTE_MS;
 const SESSION_URL_PATTERN = /\/chat\/[0-9a-f-]+/;
 const FILES_URL_PATTERN = /\/files\//;
 
@@ -170,6 +171,85 @@ test.describe("workspace link routing (real workspace)", () => {
         await removeWikiPage(sourceSlug);
       }
     } finally {
+      await removeFromWorkspace(relativePath);
+    }
+  });
+
+  test("L-LINKIFY-CODESPAN: inline-code workspace path が自動リンク化されて Files で開ける (#1300 / PR #1325)", async ({ page }, testInfo) => {
+    test.setTimeout(L_LINKIFY_TIMEOUT_MS);
+    // Covers the issue-#1300 / PR #1325 fallback layer (A) end-to-end.
+    //
+    // SYSTEM_PROMPT (layer B) asks the LLM to emit Markdown links for
+    // generated files. The remaining tail — where the model drops the
+    // wrapper and ships ``artifacts/.../name.md`` as an inline code
+    // span — used to render as non-clickable <code>, forcing copy-paste.
+    // `src/utils/markdown/workspaceLinkify.ts` overrides marked's
+    // codespan renderer to wrap matching paths in
+    // `<a href="..." class="workspace-link" data-workspace-path="...">`,
+    // and the textResponse view's `openLinksInNewTab` handler then
+    // routes the click through `appApi.navigateToWorkspacePath`.
+    //
+    // Unit tests (`test/utils/markdown/test_workspaceLinkify.ts`) pin
+    // the detector + the marked pipeline; this spec is the missing
+    // end-to-end net: marked → linkify → DOM anchor → click → Files
+    // view actually opens the seeded file.
+    //
+    // ASCII filename on purpose — L-23 already covers the multibyte
+    // percent-encoding axis on the Markdown-link branch. Keeping this
+    // case ASCII isolates the codespan-fallback regression from the
+    // encoding regression.
+    const projectSlug = testInfo.project.name;
+    const nonce = `${Date.now()}-${randomUUID().slice(0, 6)}`;
+    const filename = `e2e-live-linkify-codespan-${projectSlug}-${nonce}.md`;
+    const relativePath = pathPosix.join("artifacts", "e2e-live", "workspace-link-routing", filename);
+    const marker = `L-LINKIFY-CODESPAN ${projectSlug} ${nonce} body marker`;
+    const fileBody = `# ${filename}\n\n${marker}\n`;
+
+    // Inline-code echo prompt — explicitly require backticks so the
+    // LLM emits the codespan shape that triggers the fallback path,
+    // not the Markdown-link shape that bypasses it. The trailing
+    // Japanese phrase mirrors the exact reproduction shape from the
+    // issue (``artifacts/.../foo.pdf`` followed by plain text).
+    const userPrompt = [
+      "次の 1 行を**そのまま**返答してください。説明・前置き・引用符・コードブロックは付けないでください。バッククォートも 1 文字目と最後のバッククォートをそのまま保持してください:",
+      `\`${relativePath}\` 開いて内容を確認`,
+    ].join("\n");
+
+    const sessionsToCleanup: string[] = [];
+    await placeWorkspaceFile(relativePath, fileBody);
+    try {
+      await startNewSession(page);
+      await page.waitForURL(SESSION_URL_PATTERN);
+      const sessionId = getCurrentSessionId(page);
+      if (sessionId === null) {
+        throw new Error("getCurrentSessionId returned null after startNewSession — URL pattern likely drifted");
+      }
+      sessionsToCleanup.push(sessionId);
+
+      await sendChatMessage(page, userPrompt);
+
+      // Target the anchor produced by `workspaceLinkifyExtension`. The
+      // detector accepts exactly this path shape (artifacts/... with
+      // ≤8-char extension, no whitespace), and the wrapper sets the
+      // `workspace-link` class + `data-workspace-path` attribute.
+      // Matching on all three (class, data-attr, inner <code>) makes
+      // sure we're seeing the fallback path, not a stray Markdown-link
+      // shape that would defeat the regression.
+      const linkifySelector = `a.workspace-link[data-workspace-path="${relativePath}"]`;
+      const link = page.locator(linkifySelector).first();
+      await expect(link, 'codespan workspace path must be wrapped in <a class="workspace-link">').toBeVisible({ timeout: 2 * ONE_MINUTE_MS });
+      await expect(link.locator("code"), "anchor must wrap a <code> (default codespan renderer preserved)").toHaveText(relativePath);
+
+      await link.click();
+
+      await expect(page).toHaveURL(FILES_URL_PATTERN, { timeout: ONE_MINUTE_MS });
+      await expect(page.getByText(marker), "FilesView must render the seeded file body").toBeVisible({ timeout: ONE_MINUTE_MS });
+
+      await waitForAssistantResponseComplete(page, L_LINKIFY_TIMEOUT_MS);
+    } finally {
+      for (const sid of sessionsToCleanup) {
+        await deleteSession(page, sid);
+      }
       await removeFromWorkspace(relativePath);
     }
   });
