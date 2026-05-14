@@ -36,7 +36,15 @@ yarn dev
 
 Open [http://localhost:5173](http://localhost:5173). That's it — start chatting.
 
-> **Prerequisites**: Node.js 20+, [Claude Code CLI](https://claude.ai/code) installed and authenticated.
+### Prerequisites
+
+- **Node.js 20+** — runtime
+- **[Claude Code CLI](https://claude.ai/code)** — installed and authenticated. Run `claude` once to complete OAuth
+- **ffmpeg** — required for movie generation. Skip if you don't generate videos
+  - macOS: `brew install ffmpeg`
+  - Linux: `apt install ffmpeg`
+  - Windows: `winget install Gyan.FFmpeg`
+- **Docker Desktop** (optional but recommended) — enables sandbox mode. See [Installing Docker Desktop](#installing-docker-desktop) below
 
 > **UI language**: 8 locales are supported (English, Japanese, Simplified Chinese, Korean, Spanish, Brazilian Portuguese, French, German). The default is auto-detected from the browser / OS language. To set it explicitly, put `VITE_LOCALE=ja` (or `zh` / `ko` / `es` / `pt-BR` / `fr` / `de`) in `.env`. Locale is picked at build/dev time; restart `yarn dev` after changing it. See [`docs/developer.md`](docs/developer.md#i18n-vue-i18n) for how to add strings.
 
