@@ -62,6 +62,24 @@ Scan the QR code in the LINE Developers Console → Messaging API tab. Send a me
 | `LINE_BRIDGE_DEFAULT_ROLE` | No | Role id to seed new bridge sessions with (e.g. `coder`, `general`). Applied ONLY when a line session first appears — once the user switches role via `/role <id>` the session's own role wins. Unknown role ids silently fall back to the server's default with a warn log. |
 | `BRIDGE_DEFAULT_ROLE` | No | Same as above but shared across every bridge. Transport-specific `LINE_BRIDGE_DEFAULT_ROLE` wins when both are set. |
 
+### Auth token persistence across server restarts
+
+The MulmoClaude server regenerates a fresh bearer token on every startup and writes it to `~/mulmoclaude/.session-token`. The bridge reads that file once at launch and keeps the token in memory — so if the server restarts while the bridge is running, the bridge keeps using the **old** token and every API call returns **401**, silently.
+
+**Fix**: set `MULMOCLAUDE_AUTH_TOKEN` to the same long random value on **both** the server and the bridge. The server uses it verbatim instead of regenerating, so the token survives restarts and the bridge stays authenticated.
+
+```bash
+# Server (one-time setup — same value across restarts)
+MULMOCLAUDE_AUTH_TOKEN=long-random-string yarn dev
+
+# Bridge (separate process / machine — same value)
+MULMOCLAUDE_AUTH_TOKEN=long-random-string \
+  <bridge-specific-envs> \
+  npx <this-package>@latest
+```
+
+Recommended: at least 32 characters of random data (the server logs a warning at startup for shorter values).
+
 ## Notes
 
 - LINE reply tokens expire in **1 minute**. Since Claude responses can take longer, the bridge uses **push messages** instead of reply messages. This requires your bot to be a verified/certified account for push to work with all users, OR the user must have added the bot as a friend first.

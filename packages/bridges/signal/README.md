@@ -72,6 +72,24 @@ Send a Signal message to the bot number from another Signal account — you'll g
 | `MULMOCLAUDE_AUTH_TOKEN` | no       | auto    | MulmoClaude bearer token override |
 | `MULMOCLAUDE_API_URL`    | no       | `http://localhost:3001` | MulmoClaude server URL |
 
+### Auth token persistence across server restarts
+
+The MulmoClaude server regenerates a fresh bearer token on every startup and writes it to `~/mulmoclaude/.session-token`. The bridge reads that file once at launch and keeps the token in memory — so if the server restarts while the bridge is running, the bridge keeps using the **old** token and every API call returns **401**, silently.
+
+**Fix**: set `MULMOCLAUDE_AUTH_TOKEN` to the same long random value on **both** the server and the bridge. The server uses it verbatim instead of regenerating, so the token survives restarts and the bridge stays authenticated.
+
+```bash
+# Server (one-time setup — same value across restarts)
+MULMOCLAUDE_AUTH_TOKEN=long-random-string yarn dev
+
+# Bridge (separate process / machine — same value)
+MULMOCLAUDE_AUTH_TOKEN=long-random-string \
+  <bridge-specific-envs> \
+  npx <this-package>@latest
+```
+
+Recommended: at least 32 characters of random data (the server logs a warning at startup for shorter values).
+
 ## How it works
 
 1. The bridge opens a WebSocket to `ws://<SIGNAL_API_URL>/v1/receive/<SIGNAL_NUMBER>`. The daemon relays every inbound Signal envelope to this stream as JSON.

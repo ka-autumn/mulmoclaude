@@ -186,6 +186,24 @@ SLACK_ACK_REACTION=my_bot_ack           # custom workspace emoji
 
 `SLACK_BRIDGE_*` and `BRIDGE_*` env vars are automatically forwarded to the server as a camelCased options bag (e.g. `SLACK_BRIDGE_DEFAULT_ROLE=slack` → `options.defaultRole = "slack"`). The MulmoClaude server reads `defaultRole`; other host apps using `@mulmobridge/client` can define their own keys without any protocol change. See `plans/done/feat-bridge-options-passthrough.md` for the full convention.
 
+### Auth token persistence across server restarts
+
+The MulmoClaude server regenerates a fresh bearer token on every startup and writes it to `~/mulmoclaude/.session-token`. The bridge reads that file once at launch and keeps the token in memory — so if the server restarts while the bridge is running, the bridge keeps using the **old** token and every API call returns **401**, silently.
+
+**Fix**: set `MULMOCLAUDE_AUTH_TOKEN` to the same long random value on **both** the server and the bridge. The server uses it verbatim instead of regenerating, so the token survives restarts and the bridge stays authenticated.
+
+```bash
+# Server (one-time setup — same value across restarts)
+MULMOCLAUDE_AUTH_TOKEN=long-random-string yarn dev
+
+# Bridge (separate process / machine — same value)
+MULMOCLAUDE_AUTH_TOKEN=long-random-string \
+  <bridge-specific-envs> \
+  npx <this-package>@latest
+```
+
+Recommended: at least 32 characters of random data (the server logs a warning at startup for shorter values).
+
 ## Ecosystem
 
 Part of the [`@mulmobridge/*`](https://www.npmjs.com/~mulmobridge) package family.

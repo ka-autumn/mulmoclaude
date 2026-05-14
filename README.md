@@ -105,6 +105,24 @@ npx @mulmobridge/email@latest        # Email bridge (IMAP + SMTP)
 
 All bridges support **real-time text streaming** (typing updates as the agent writes). CLI and Telegram also support **file attachments** (images, PDFs, DOCX, XLSX, PPTX). See [`docs/mulmobridge-guide.md`](docs/mulmobridge-guide.md) for the full platform list and setup instructions.
 
+#### Auth token persistence for long-running bridges
+
+The MulmoClaude server regenerates a fresh bearer token on every startup and writes it to `~/mulmoclaude/.session-token`. A bridge that started before the server restart keeps the **old** token in memory and every API call then returns **401**, silently.
+
+**Fix**: set `MULMOCLAUDE_AUTH_TOKEN` to the same long random value on **both** the server and the bridge. The server uses it verbatim instead of regenerating, so the token survives restarts and the bridge stays authenticated.
+
+```bash
+# Server (one-time setup — same value across restarts)
+MULMOCLAUDE_AUTH_TOKEN=long-random-string yarn dev
+
+# Bridge (separate process / machine — same value)
+MULMOCLAUDE_AUTH_TOKEN=long-random-string \
+  TELEGRAM_BOT_TOKEN=... \
+  npx @mulmobridge/telegram@latest
+```
+
+Recommended: at least 32 characters of random data (the server logs a warning at startup for shorter values).
+
 ### Why do you need a Gemini API key?
 
 MulmoClaude uses Google's **Gemini 3.1 Flash Image (nano banana 2)** model for image generation and editing. This powers:

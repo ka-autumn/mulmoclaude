@@ -106,6 +106,24 @@ npx @mulmobridge/email@latest        # Email bridge (IMAP + SMTP)
 
 すべてのブリッジは **リアルタイムテキストストリーミング** (エージェントが書き込むのに合わせて入力中表示が更新される) をサポートします。CLI と Telegram はさらに **ファイル添付** (画像、PDF、DOCX、XLSX、PPTX) もサポートしています。対応プラットフォームの全一覧とセットアップ方法は [`docs/mulmobridge-guide.md`](docs/mulmobridge-guide.md) を参照してください。
 
+#### 長期運用ブリッジの認証トークン保持
+
+MulmoClaude サーバは起動するたびに新しい bearer トークンを生成して `~/mulmoclaude/.session-token` に書き出します。ブリッジは起動時にこのファイルを 1 回だけ読んでトークンをメモリに保持するため、**サーバ再起動を挟むとブリッジは古いトークンを使い続け、すべての API 呼び出しが 401 で静かに失敗します**。
+
+**対策**: サーバとブリッジの **両方** に同じ長いランダム文字列を `MULMOCLAUDE_AUTH_TOKEN` 環境変数で渡してください。サーバは自動生成ではなくこの値をそのまま使うので、再起動を跨いでもトークンが変わらず、ブリッジは認証され続けます。
+
+```bash
+# サーバ (起動毎に同じ値を渡す)
+MULMOCLAUDE_AUTH_TOKEN=長めのランダム文字列 yarn dev
+
+# ブリッジ (別プロセス / 別マシン、同じ値)
+MULMOCLAUDE_AUTH_TOKEN=長めのランダム文字列 \
+  TELEGRAM_BOT_TOKEN=... \
+  npx @mulmobridge/telegram@latest
+```
+
+推奨は **32 文字以上のランダム文字列** です (短い値だとサーバ起動時に警告が出ます)。
+
 ### なぜ Gemini API キーが必要なの?
 
 MulmoClaude は画像生成・編集に Google の **Gemini 3.1 Flash Image (nano banana 2)** モデルを使用しています。これにより以下が実現します:

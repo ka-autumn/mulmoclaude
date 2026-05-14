@@ -46,6 +46,32 @@ Express server.
 
 Your data lives in `~/mulmoclaude/` (created on first run).
 
+## Auth token for long-running bridges
+
+By default the server generates a fresh bearer token on every startup
+and writes it to `~/mulmoclaude/.session-token`. Bridges
+(`@mulmobridge/telegram`, `@mulmobridge/discord`, …) read that file
+once at launch — so if you restart the server while a bridge is
+running, the bridge keeps the old token and every API call then
+returns **401**, silently.
+
+**Fix**: set `MULMOCLAUDE_AUTH_TOKEN` to the same long random value
+on both the server and the bridge. The server uses it verbatim
+instead of regenerating, so the token survives restarts.
+
+```bash
+# Launch the server with a pinned token
+MULMOCLAUDE_AUTH_TOKEN=long-random-string npx mulmoclaude
+
+# Bridge (separate process / machine — same value)
+MULMOCLAUDE_AUTH_TOKEN=long-random-string \
+  TELEGRAM_BOT_TOKEN=... \
+  npx @mulmobridge/telegram@latest
+```
+
+Recommended: ≥ 32 characters of random data (shorter values trigger a
+startup warning).
+
 ## For developers
 
 Publish flow and the full local-test recipe (prepare-dist,
