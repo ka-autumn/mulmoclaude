@@ -81,9 +81,13 @@ const EVENT_PALETTE = [
 ];
 
 export function eventColorClasses(eventId: string): string {
+  // Defensive on non-string input: handlers sanitize ids at write,
+  // but pre-existing on-disk items may pre-date that guard and
+  // shouldn't crash the render.
+  const safe = typeof eventId === "string" ? eventId : "";
   let hash = 0;
-  for (let i = 0; i < eventId.length; i++) {
-    hash = (hash * 31 + eventId.charCodeAt(i)) | 0;
+  for (let i = 0; i < safe.length; i++) {
+    hash = (hash * 31 + safe.charCodeAt(i)) | 0;
   }
   return EVENT_PALETTE[Math.abs(hash) % EVENT_PALETTE.length] ?? EVENT_PALETTE[0] ?? "";
 }

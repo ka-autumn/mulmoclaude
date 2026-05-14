@@ -188,4 +188,13 @@ describe("eventColorClasses", () => {
     const cls = eventColorClasses("");
     assert.match(cls, /bg-\w+-100/);
   });
+
+  it("does not crash on non-string id (pre-sanitize legacy data)", () => {
+    const numeric = eventColorClasses(123 as unknown as string);
+    assert.match(numeric, /bg-\w+-100/);
+    const nullish = eventColorClasses(null as unknown as string);
+    assert.match(nullish, /bg-\w+-100/);
+    const undef = eventColorClasses(undefined as unknown as string);
+    assert.match(undef, /bg-\w+-100/);
+  });
 });

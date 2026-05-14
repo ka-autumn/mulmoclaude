@@ -325,6 +325,38 @@ describe("multi-day events (endDate)", () => {
     assert.deepEqual(result.items[0]?.props, {});
   });
 
+  it("handleReplace mints a string id for items missing one (color-hash crash protection)", () => {
+    const noId = { title: "no id", createdAt: 100, props: {} } as unknown as ScheduledItem;
+    const numericId = { id: 12345 as unknown as string, title: "num", createdAt: 200, props: {} };
+    const result = handleReplace([], { items: [noId, numericId] });
+    assert.equal(result.kind, "success");
+    if (result.kind !== "success") return;
+    assert.equal(result.items.length, 2);
+    for (const item of result.items) {
+      assert.equal(typeof item.id, "string");
+      assert.ok(item.id.length > 0);
+    }
+  });
+
+  it("handleReplace coerces missing / malformed title and createdAt to safe defaults", () => {
+    const before = Date.now();
+    const malformed = { id: "a", title: 42 as unknown as string, createdAt: "soon" as unknown as number, props: {} };
+    const result = handleReplace([], { items: [malformed] });
+    assert.equal(result.kind, "success");
+    if (result.kind !== "success") return;
+    assert.equal(result.items[0]?.title, "");
+    assert.ok((result.items[0]?.createdAt ?? 0) >= before);
+  });
+
+  it("handleReplace drops non-object items and reports the count in jsonData", () => {
+    const valid = makeItem({ id: "ok", props: {} });
+    const result = handleReplace([], { items: [valid, null as unknown as ScheduledItem, "string" as unknown as ScheduledItem, 7 as unknown as ScheduledItem] });
+    assert.equal(result.kind, "success");
+    if (result.kind !== "success") return;
+    assert.equal(result.items.length, 1);
+    assert.equal(result.jsonData.dropped, 3);
+  });
+
   it("handleAdd persists a valid endDate", () => {
     const result = handleAdd([], { title: "Trip", props: { date: "2026-05-27", endDate: "2026-05-29" } });
     assert.equal(result.kind, "success");

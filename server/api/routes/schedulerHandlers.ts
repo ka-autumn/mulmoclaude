@@ -150,16 +150,35 @@ export function handleUpdate(items: ScheduledItem[], input: SchedulerActionInput
   };
 }
 
+// `replace` accepts an arbitrary array from untrusted JSON, so
+// every item needs the same shape narrowing the in-memory store
+// guarantees: a non-empty string `id` (the dispatch primary key
+// AND the input to the per-event colour-hash, both of which crash
+// or misbehave on non-strings), a string `title`, a numeric
+// `createdAt`, and a sanitised `props`. Non-object items are
+// dropped; objects with missing/malformed required fields get a
+// safe default (newly minted id, empty title, current timestamp)
+// rather than failing the whole replace.
+export function sanitizeItem(raw: unknown): ScheduledItem | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const obj = raw as Partial<ScheduledItem>;
+  const itemId = typeof obj.id === "string" && obj.id.length > 0 ? obj.id : makeId("sched");
+  const title = typeof obj.title === "string" ? obj.title : "";
+  const createdAt = typeof obj.createdAt === "number" && Number.isFinite(obj.createdAt) ? obj.createdAt : Date.now();
+  return { id: itemId, title, createdAt, props: sanitizeProps(obj.props) };
+}
+
 export function handleReplace(_items: ScheduledItem[], input: SchedulerActionInput): SchedulerActionResult {
   if (!Array.isArray(input.items)) {
     return { kind: "error", status: 400, error: "items array required" };
   }
-  const next = sortItems(input.items.map((item) => ({ ...item, props: sanitizeProps(item.props) })));
+  const sanitized = input.items.map(sanitizeItem).filter((item): item is ScheduledItem => item !== null);
+  const next = sortItems(sanitized);
   return {
     kind: "success",
     items: next,
     message: `Replaced all items (${next.length} total)`,
-    jsonData: { count: next.length },
+    jsonData: { count: next.length, dropped: input.items.length - next.length },
   };
 }
 
