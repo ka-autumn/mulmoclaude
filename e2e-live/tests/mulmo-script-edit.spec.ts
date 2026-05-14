@@ -40,6 +40,9 @@ test.describe("mulmoScript edit (real workspace)", () => {
   //      server enrichment and would mask a regression in the
   //      View-side refresh.
   test("L-EDIT: beat 編集 → 更新 → 別セッションへ移動 → 戻ると編集が永続化されている", async ({ page }, testInfo) => {
+    // Needs presentMulmoScript server-side handler to surface the
+    // generate-movie button. Fake tool_call alone doesn't mount it.
+    test.skip(process.env.E2E_LIVE_NO_LLM === "1", "E2E_LIVE_NO_LLM=1 — needs server-side presentMulmoScript dispatch");
     test.setTimeout(LEDIT_TIMEOUT_MS);
     // Covers issue #1074 — beat edits made via the source-editor
     // textarea were reported to disappear after navigating away and

@@ -47,12 +47,10 @@ jobs:
           - wiki                     # 4 tests, no Claude needed
           - wiki-nav                 # 7 tests + L-15b (test.fail in CI)
           - workspace-link-routing   # L-23 / L-24 / linkify-codespan
-          - ui                       # L-18 / L-19 / L-20 (all via fake-echo)
+          - ui                       # L-19 / L-20 (L-18 needs tool dispatch)
           - roles                    # 4 turns via fake-echo
           - session                  # L-11 / L-12 (history-aware fake-echo)
-          - mulmo-script-edit        # L-EDIT via fake presentMulmoScript
-          - media                    # L-01 / L-02 only (L-03..L-05 need real binaries)
-          - skills                   # L-21 (presentChart) / L-22 (slash command → seeded skill body)
+          - skills                   # L-22 only (slash-command → seeded skill body)
 
     steps:
       - uses: actions/checkout@v6
@@ -107,8 +105,12 @@ jobs:
           # Tells Claude-dependent suites to test.skip themselves.
           E2E_LIVE_NO_LLM: "1"
         run: |
+          # --project=chromium: e2e-live's playwright config also
+          # defines a webkit project, but we only install chromium
+          # in the step above to keep the runner image lean.
           npx playwright test \
             --config e2e-live/playwright.config.ts \
+            --project=chromium \
             ${{ matrix.spec }}.spec.ts
 
       - name: Stop dev server

@@ -88,6 +88,8 @@ test.describe.configure({ mode: "parallel" });
 
 test.describe("media (real LLM)", () => {
   test("L-01: presentHtml の <img src='../../../images/...'> が /artifacts/html 経由で描画される", async ({ page }) => {
+    // Needs presentHtml server-side handler to land the html artifact.
+    test.skip(process.env.E2E_LIVE_NO_LLM === "1", "E2E_LIVE_NO_LLM=1 — needs server-side presentHtml dispatch");
     test.setTimeout(L01_TIMEOUT_MS);
     // Spec-unique flat path — see comment in seedL01Fixture.
     const workspaceImageRel = "artifacts/images/e2e-live-l01.png";
@@ -103,6 +105,10 @@ test.describe("media (real LLM)", () => {
   });
 
   test("L-02: 画像参照を含む Markdown 応答が PDF として DL できる", async ({ page }) => {
+    // Fake-echo's history-join echoes the entire user prompt as the
+    // assistant body, which the PDF generator stumbles on. Real
+    // Claude omits the preamble per instruction.
+    test.skip(process.env.E2E_LIVE_NO_LLM === "1", "E2E_LIVE_NO_LLM=1 — needs LLM-trimmed markdown body");
     test.setTimeout(L02_TIMEOUT_MS);
     // Seeding the image makes B-19 / B-20 actually exercisable —
     // without it, /api/pdf/markdown can return a "PDF with broken

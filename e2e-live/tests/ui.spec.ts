@@ -20,10 +20,10 @@ test.describe.configure({ mode: "parallel" });
 
 test.describe("ui (real LLM / static)", () => {
   test("L-18: presentForm の i18n キーが raw 文字列として DOM に漏れない", async ({ page }) => {
-    // fake-echo synthesizes a presentForm tool_call when it sees
-    // the "Use the presentForm tool ... id='nickname' ..." shape
-    // (server/agent/backend/fake-echo.ts#detectPresentForm), so
-    // the form mounts in CI without a real LLM.
+    // Needs the presentForm tool handler to run server-side and
+    // produce the form artifact. A bare fake tool_call event
+    // doesn't mount the View — leave to real Claude.
+    test.skip(process.env.E2E_LIVE_NO_LLM === "1", "E2E_LIVE_NO_LLM=1 — needs server-side presentForm dispatch");
     test.setTimeout(L18_TIMEOUT_MS);
     // Covers B-34: when presentForm was promoted from external
     // plugin to built-in, the i18n keys (pluginPresentForm.submit
