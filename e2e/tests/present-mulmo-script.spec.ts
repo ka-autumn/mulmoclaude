@@ -310,7 +310,14 @@ test.describe("presentMulmoScript plugin", () => {
     );
 
     await page.goto("/chat/mulmo-session");
-    await page.getByText("Silent slideshow").first().click();
+    // Wait for the app shell + sidebar to settle before clicking —
+    // skipping these lets the click race against the route handler's
+    // first render and we end up clicking nothing (sidebar empty).
+    // Matches the pattern used by the existing "View renders" test.
+    await expect(page.getByText("MulmoClaude")).toBeVisible();
+    const sidebarTitle = page.getByText("Silent slideshow").first();
+    await expect(sidebarTitle).toBeVisible();
+    await sidebarTitle.click();
     await expect(page.getByRole("heading", { name: "Silent slideshow", level: 2 })).toBeVisible();
 
     // Wait for the first beat image to hydrate (the Play button is
