@@ -310,6 +310,8 @@ export const ROLES: Role[] = [
       TOOL_NAMES.presentDocument,
       TOOL_NAMES.presentChart,
       TOOL_NAMES.presentHtml,
+      TOOL_NAMES.readXPost,
+      TOOL_NAMES.searchX,
     ],
     queries: [
       "Summarise the key risk factors from AAPL's latest 10-K",
