@@ -19,10 +19,16 @@ import {
   isCatalogSource,
   listCatalogEntries,
   readCatalogEntryDetail,
+  readExternalDetailAsCatalog,
   starCatalogEntry,
+  starExternalAsCatalog,
   type CatalogEntry,
   type CatalogEntryDetail,
+  type CatalogDetailResult,
+  type StarResult,
 } from "../../workspace/skills/catalog.js";
+import { installExternalRepo, listInstalledRepos, uninstallExternalRepo, type InstalledRepo } from "../../workspace/skills/external/install.js";
+import { EXTERNAL_PRESETS, type ExternalPresetSuggestion } from "../../workspace/skills/external/presets.js";
 import { workspacePath } from "../../workspace/workspace.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { bindRoute } from "../../utils/router.js";
@@ -91,11 +97,6 @@ interface CatalogListResponse {
   entries: CatalogEntry[];
 }
 
-interface StarBody {
-  source?: unknown;
-  slug?: unknown;
-}
-
 interface StarResponse {
   starred: true;
   slug: string;
@@ -110,69 +111,221 @@ bindRoute(router, API_ROUTES.skills.catalogList, async (_req: Request, res: Resp
 interface CatalogPreviewQuery {
   source?: unknown;
   slug?: unknown;
+  /** External-source only — repoId + skillFolder identify the entry
+   *  in place of `slug`. */
+  repoId?: unknown;
+  skillFolder?: unknown;
 }
 
 interface CatalogPreviewResponse {
   detail: CatalogEntryDetail;
 }
 
+function previewResponse(result: CatalogDetailResult, source: string, ident: string, res: Response<CatalogPreviewResponse | ErrorResponse>): void {
+  if (result.kind === "ok") {
+    log.info("skills", "catalog preview: ok", { source, slug: result.detail.slug });
+    res.json({ detail: result.detail });
+    return;
+  }
+  if (result.kind === "not-found") {
+    log.warn("skills", "catalog preview: not found", { source, ident });
+    notFound(res, `catalog entry not found: ${result.source}/${result.slug}`);
+    return;
+  }
+  log.warn("skills", "catalog preview: invalid slug", { ident });
+  badRequest(res, `invalid slug: ${result.slug}`);
+}
+
 bindRoute(
   router,
   API_ROUTES.skills.catalogPreview,
   async (req: Request<object, unknown, unknown, CatalogPreviewQuery>, res: Response<CatalogPreviewResponse | ErrorResponse>) => {
-    const { source, slug } = req.query;
-    if (typeof slug !== "string" || slug.length === 0) {
-      badRequest(res, "slug is required");
-      return;
-    }
+    const { source, slug, repoId, skillFolder } = req.query;
     if (!isCatalogSource(source)) {
       badRequest(res, "source must be a known catalog source");
       return;
     }
+    if (source === "external") {
+      if (typeof repoId !== "string" || repoId.length === 0 || typeof skillFolder !== "string" || skillFolder.length === 0) {
+        badRequest(res, "repoId and skillFolder are required for external preview");
+        return;
+      }
+      const result = await readExternalDetailAsCatalog(repoId, skillFolder);
+      previewResponse(result, source, `${repoId}/${skillFolder}`, res);
+      return;
+    }
+    if (typeof slug !== "string" || slug.length === 0) {
+      badRequest(res, "slug is required");
+      return;
+    }
     const result = await readCatalogEntryDetail(source, slug);
-    if (result.kind === "ok") {
-      log.info("skills", "catalog preview: ok", { source, slug: result.detail.slug });
-      res.json({ detail: result.detail });
-      return;
-    }
-    if (result.kind === "not-found") {
-      log.warn("skills", "catalog preview: not found", { source, slug });
-      notFound(res, `catalog entry not found: ${result.source}/${result.slug}`);
-      return;
-    }
-    log.warn("skills", "catalog preview: invalid slug", { slug });
-    badRequest(res, `invalid slug: ${result.slug}`);
+    previewResponse(result, source, slug, res);
   },
 );
 
-bindRoute(router, API_ROUTES.skills.catalogStar, async (req: Request<object, unknown, StarBody>, res: Response<StarResponse | ErrorResponse>) => {
-  const { source, slug } = req.body;
-  if (typeof slug !== "string" || slug.length === 0) {
-    badRequest(res, "slug is required");
-    return;
-  }
-  if (!isCatalogSource(source)) {
-    badRequest(res, "source must be a known catalog source");
-    return;
-  }
-  const result = await starCatalogEntry(source, slug);
+function starResponse(result: StarResult, source: string, ident: string, res: Response<StarResponse | ErrorResponse>): void {
   if (result.kind === "starred") {
-    log.info("skills", "catalog star: ok", { source, slug });
+    log.info("skills", "catalog star: ok", { source, slug: result.slug });
     res.json({ starred: true, slug: result.slug });
     return;
   }
   if (result.kind === "already-active") {
-    log.info("skills", "catalog star: already-active", { source, slug });
+    log.info("skills", "catalog star: already-active", { source, slug: result.slug });
     conflict(res, `skill "${result.slug}" is already active`);
     return;
   }
   if (result.kind === "not-found") {
-    log.warn("skills", "catalog star: not found", { source, slug });
+    log.warn("skills", "catalog star: not found", { source, ident });
     notFound(res, `catalog entry not found: ${result.source}/${result.slug}`);
     return;
   }
-  log.warn("skills", "catalog star: invalid slug", { slug });
+  log.warn("skills", "catalog star: invalid slug", { ident });
   badRequest(res, `invalid slug: ${result.slug}`);
+}
+
+interface ExternalStarBody {
+  source?: unknown;
+  repoId?: unknown;
+  skillFolder?: unknown;
+  slug?: unknown;
+}
+
+bindRoute(router, API_ROUTES.skills.catalogStar, async (req: Request<object, unknown, ExternalStarBody>, res: Response<StarResponse | ErrorResponse>) => {
+  const { source, slug, repoId, skillFolder } = req.body;
+  if (!isCatalogSource(source)) {
+    badRequest(res, "source must be a known catalog source");
+    return;
+  }
+  if (source === "external") {
+    if (typeof repoId !== "string" || repoId.length === 0 || typeof skillFolder !== "string" || skillFolder.length === 0) {
+      badRequest(res, "repoId and skillFolder are required for external star");
+      return;
+    }
+    const result = await starExternalAsCatalog(repoId, skillFolder);
+    starResponse(result, source, `${repoId}/${skillFolder}`, res);
+    return;
+  }
+  if (typeof slug !== "string" || slug.length === 0) {
+    badRequest(res, "slug is required");
+    return;
+  }
+  const result = await starCatalogEntry(source, slug);
+  starResponse(result, source, slug, res);
+});
+
+// External-repo lifecycle endpoints (#1383 / #1335 PR-C). They live
+// under `/api/skills/external/*` so they sort cleanly alongside the
+// catalog endpoints AND register BEFORE the `/:name` detail handler
+// below. Express matches in registration order — a `:name` route
+// declared first would swallow `/external/...` as a skill named
+// "external".
+
+interface ExternalSuggestionsResponse {
+  suggestions: readonly ExternalPresetSuggestion[];
+}
+
+interface ExternalReposResponse {
+  repos: InstalledRepo[];
+}
+
+interface InstallRepoBody {
+  url?: unknown;
+  subpath?: unknown;
+  ref?: unknown;
+}
+
+interface InstallRepoResponse {
+  installed: true;
+  repoId: string;
+  url: string;
+  sha: string;
+  skillCount: number;
+}
+
+interface UninstallRepoResponse {
+  uninstalled: true;
+  repoId: string;
+}
+
+bindRoute(router, API_ROUTES.skills.externalSuggestions, (_req: Request, res: Response<ExternalSuggestionsResponse>) => {
+  res.json({ suggestions: EXTERNAL_PRESETS });
+});
+
+bindRoute(router, API_ROUTES.skills.externalReposList, async (_req: Request, res: Response<ExternalReposResponse>) => {
+  const repos = await listInstalledRepos();
+  log.info("skills", "external repos list: ok", { count: repos.length });
+  res.json({ repos });
+});
+
+bindRoute(
+  router,
+  API_ROUTES.skills.externalReposInstall,
+  async (req: Request<object, unknown, InstallRepoBody>, res: Response<InstallRepoResponse | ErrorResponse>) => {
+    const { url, subpath, ref } = req.body ?? {};
+    if (typeof url !== "string" || url.length === 0) {
+      badRequest(res, "url is required");
+      return;
+    }
+    if (subpath !== undefined && typeof subpath !== "string") {
+      badRequest(res, "subpath must be a string when provided");
+      return;
+    }
+    if (ref !== undefined && typeof ref !== "string") {
+      badRequest(res, "ref must be a string when provided");
+      return;
+    }
+    const result = await installExternalRepo({ url, subpath, ref });
+    if (result.kind === "installed") {
+      log.info("skills", "external install: ok", { repoId: result.detail.repoId, skillCount: result.detail.skillCount });
+      res.json({
+        installed: true,
+        repoId: result.detail.repoId,
+        url: result.detail.url,
+        sha: result.detail.sha,
+        skillCount: result.detail.skillCount,
+      });
+      return;
+    }
+    if (result.kind === "no-skills") {
+      log.warn("skills", "external install: no skills discovered", { repoId: result.repoId });
+      res.status(422).json({ error: `no SKILL.md found in repo (${result.repoId})` });
+      return;
+    }
+    if (result.kind === "invalid-url") {
+      log.warn("skills", "external install: invalid url", { url: result.url });
+      badRequest(res, "url must be a github.com HTTPS URL: https://github.com/<owner>/<repo>");
+      return;
+    }
+    if (result.kind === "invalid-subpath") {
+      log.warn("skills", "external install: invalid subpath", { subpath: result.subpath });
+      badRequest(res, "subpath must be a relative path with no '..', leading '/', or backslash segments");
+      return;
+    }
+    if (result.kind === "id-collision") {
+      log.warn("skills", "external install: repoId collision", { repoId: result.repoId, existingUrl: result.existingUrl });
+      conflict(res, `repo id "${result.repoId}" is already in use by ${result.existingUrl}. Uninstall it first if you intend to replace it.`);
+      return;
+    }
+    log.warn("skills", "external install: error", { reason: result.reason });
+    res.status(502).json({ error: `external install failed: ${result.reason}` });
+  },
+);
+
+bindRoute(router, API_ROUTES.skills.externalReposRemove, async (req: Request<{ repoId: string }>, res: Response<UninstallRepoResponse | ErrorResponse>) => {
+  const { repoId } = req.params;
+  const result = await uninstallExternalRepo(repoId);
+  if (result.kind === "uninstalled") {
+    log.info("skills", "external uninstall: ok", { repoId: result.repoId });
+    res.json({ uninstalled: true, repoId: result.repoId });
+    return;
+  }
+  if (result.kind === "not-found") {
+    log.warn("skills", "external uninstall: not found", { repoId: result.repoId });
+    notFound(res, `external repo not installed: ${result.repoId}`);
+    return;
+  }
+  log.warn("skills", "external uninstall: invalid repoId", { repoId: result.repoId });
+  badRequest(res, `invalid repoId: ${result.repoId}`);
 });
 
 bindRoute(router, API_ROUTES.skills.detail, async (req: Request<{ name: string }>, res: Response<SkillDetailResponse | ErrorResponse>) => {

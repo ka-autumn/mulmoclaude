@@ -25,15 +25,23 @@ import { workspacePath } from "../workspace.js";
 import { WORKSPACE_DIRS } from "../paths.js";
 import { parseSkillFrontmatter } from "./parser.js";
 import { log } from "../../system/logger/index.js";
+import {
+  listExternalCatalogEntries,
+  readExternalCatalogDetail,
+  starExternalCatalogEntry,
+  type ExternalCatalogDetailResult,
+  type ExternalStarResult,
+} from "./external/catalog.js";
 
-// Catalog sources. PR-B ships only `preset` (the `mc-*` skills
-// shipped with the launcher). PR-C will add `anthropic` (sparse
-// git checkout of anthropics/skills) and possibly `community`
-// (URL-installed third-party). The string-union keeps the API
-// surface ready for that extension.
-export type CatalogSource = "preset";
+// Catalog sources. PR-B shipped `preset` (the `mc-*` skills bundled
+// with the launcher). PR-C adds `external` — skills installed from
+// arbitrary GitHub repos (Anthropic's `skills/` collection ships as
+// the seed). Both sources expose the same `CatalogEntry` shape; the
+// star/preview endpoints branch on `source` to route the request to
+// the matching backing module.
+export type CatalogSource = "preset" | "external";
 
-export const CATALOG_SOURCES: readonly CatalogSource[] = ["preset"] as const;
+export const CATALOG_SOURCES: readonly CatalogSource[] = ["preset", "external"] as const;
 
 export function isCatalogSource(value: unknown): value is CatalogSource {
   return typeof value === "string" && (CATALOG_SOURCES as readonly string[]).includes(value);
@@ -50,14 +58,26 @@ export interface CatalogEntry {
    *  render "★ Starred" instead of "★ Star" and to disable the
    *  star button on already-active entries. */
   alreadyActive: boolean;
+  /** External entries only: id of the source repo (also the directory
+   *  name under `data/skills/catalog/external/`). Needed so the UI
+   *  can group entries by repo and pass `(repoId, skillFolder)` back
+   *  to the star / preview endpoints. */
+  repoId?: string;
+  /** External entries only: subdirectory name under
+   *  `<repoDir>/<skillFolder>/` containing the SKILL.md. `"."`
+   *  indicates a single-skill-at-root repo (the SKILL.md is directly
+   *  under the repo dir). */
+  skillFolder?: string;
+  /** External entries only: source repo URL, surfaced for display. */
+  repoUrl?: string;
 }
 
-// `preset` is the only catalog source today. PR-C will add
-// `anthropic` and possibly `community` — at that point this will
-// switch on the source string. For now an if-else keeps the lint
-// rule (sonarjs/no-small-switch) happy without losing the
-// exhaustiveness narrowing.
-function catalogDirForSource(source: CatalogSource, workspaceRoot: string): string {
+// Maps catalog source → on-disk root for the slug-keyed scan path.
+// External entries live under nested `<external>/<repoId>/<folder>/`
+// and aren't slug-keyed, so they take a different code path entirely
+// (`scanExternalEntries` → delegates to `external/catalog.ts`). The
+// preset branch is kept here for symmetry.
+function catalogDirForSource(source: "preset", workspaceRoot: string): string {
   if (source === "preset") {
     return path.join(workspaceRoot, WORKSPACE_DIRS.skillsCatalogPreset);
   }
@@ -85,7 +105,7 @@ async function isDirectory(absPath: string): Promise<boolean> {
   }
 }
 
-async function readCatalogEntry(slugDir: string, safeName: string, source: CatalogSource, workspaceRoot: string): Promise<CatalogEntry | null> {
+async function readCatalogEntry(slugDir: string, safeName: string, source: "preset", workspaceRoot: string): Promise<CatalogEntry | null> {
   // `slugDir` was built from a `safeSlugName`-laundered name, so
   // joining a fixed `"SKILL.md"` keeps the path inside the catalog
   // tree and stays clear of CodeQL's path-injection trace.
@@ -103,7 +123,7 @@ async function readCatalogEntry(slugDir: string, safeName: string, source: Catal
   return { slug: safeName, name: safeName, description: parsed.description, source, alreadyActive };
 }
 
-async function scanCatalogSource(source: CatalogSource, workspaceRoot: string): Promise<CatalogEntry[]> {
+async function scanCatalogSource(source: "preset", workspaceRoot: string): Promise<CatalogEntry[]> {
   const dir = catalogDirForSource(source, workspaceRoot);
   let entries: string[];
   try {
@@ -134,14 +154,25 @@ async function scanCatalogSource(source: CatalogSource, workspaceRoot: string): 
   return results;
 }
 
+async function scanExternalEntries(workspaceRoot: string): Promise<CatalogEntry[]> {
+  const entries = await listExternalCatalogEntries({ workspaceRoot });
+  return entries.map((entry) => ({
+    slug: entry.activeId,
+    name: entry.activeId,
+    description: entry.description,
+    source: "external" as const,
+    alreadyActive: entry.alreadyActive,
+    repoId: entry.repoId,
+    skillFolder: entry.skillFolder,
+    repoUrl: entry.repoUrl,
+  }));
+}
+
 export async function listCatalogEntries(opts: CatalogOptions = {}): Promise<CatalogEntry[]> {
   const workspaceRoot = opts.workspaceRoot ?? workspacePath;
-  const out: CatalogEntry[] = [];
-  for (const source of CATALOG_SOURCES) {
-    const entries = await scanCatalogSource(source, workspaceRoot);
-    out.push(...entries);
-  }
-  return out;
+  const preset = await scanCatalogSource("preset", workspaceRoot);
+  const external = await scanExternalEntries(workspaceRoot);
+  return [...preset, ...external];
 }
 
 export interface CatalogEntryDetail {
@@ -162,8 +193,13 @@ export type CatalogDetailResult =
 
 /** Read one catalog entry's SKILL.md and return the description +
  *  body. The same `safeSlugName` taint-launder used by the star
- *  action gates the path here. */
-export async function readCatalogEntryDetail(source: CatalogSource, slug: string, opts: CatalogOptions = {}): Promise<CatalogDetailResult> {
+ *  action gates the path here.
+ *
+ *  External entries are NOT routed through this — they use
+ *  `(repoId, skillFolder)` as their primary key and go through
+ *  `readExternalCatalogDetail` instead. The route handler dispatches
+ *  on `source`. */
+export async function readCatalogEntryDetail(source: "preset", slug: string, opts: CatalogOptions = {}): Promise<CatalogDetailResult> {
   const safeName = safeSlugName(slug);
   if (safeName === null) return { kind: "invalid-slug", slug };
   const workspaceRoot = opts.workspaceRoot ?? workspacePath;
@@ -182,6 +218,34 @@ export async function readCatalogEntryDetail(source: CatalogSource, slug: string
     kind: "ok",
     detail: { slug: safeName, source, description: parsed.description, body: parsed.body },
   };
+}
+
+/** Read an external catalog entry's SKILL.md, returned in the same
+ *  `CatalogDetailResult` shape so route handlers can dispatch without
+ *  shape-juggling. The `slug` field in the OK detail is the derived
+ *  `activeId` (same value the merged listing emits). */
+export async function readExternalDetailAsCatalog(repoId: string, skillFolder: string, opts: CatalogOptions = {}): Promise<CatalogDetailResult> {
+  const workspaceRoot = opts.workspaceRoot ?? workspacePath;
+  const result = await readExternalCatalogDetail(repoId, skillFolder, { workspaceRoot });
+  return adaptExternalDetail(result, repoId, skillFolder);
+}
+
+function adaptExternalDetail(result: ExternalCatalogDetailResult, repoId: string, skillFolder: string): CatalogDetailResult {
+  if (result.kind === "ok") {
+    return {
+      kind: "ok",
+      detail: {
+        slug: result.detail.activeId,
+        source: "external",
+        description: result.detail.description,
+        body: result.detail.body,
+      },
+    };
+  }
+  if (result.kind === "invalid-id") {
+    return { kind: "invalid-slug", slug: `${repoId}/${skillFolder}` };
+  }
+  return { kind: "not-found", source: "external", slug: `${result.repoId}/${result.skillFolder}` };
 }
 
 // Slug whitelist matches the convention used by user-authored
@@ -250,14 +314,18 @@ async function copyDirTree(srcDir: string, destDir: string): Promise<void> {
   }
 }
 
-/** Copy `data/skills/catalog/<source>/<slug>/` → `.claude/skills/<slug>/`.
+/** Copy `data/skills/catalog/preset/<slug>/` → `.claude/skills/<slug>/`.
  *  Returns a discriminated result so the route can map to clean
  *  HTTP status codes. Slug is laundered via `safeSlugName` (regex
  *  whitelist + `path.basename` round-trip) before any `path.join`,
  *  which is CodeQL's recognised pattern for clearing
  *  `js/path-injection` taint. A separator-bearing or escaping slug
- *  yields `invalid-slug` and never reaches the filesystem. */
-export async function starCatalogEntry(source: CatalogSource, slug: string, opts: CatalogOptions = {}): Promise<StarResult> {
+ *  yields `invalid-slug` and never reaches the filesystem.
+ *
+ *  External entries take a different code path —
+ *  `starExternalAsCatalog(repoId, skillFolder)` — because they're
+ *  keyed by `(repoId, skillFolder)` rather than slug. */
+export async function starCatalogEntry(source: "preset", slug: string, opts: CatalogOptions = {}): Promise<StarResult> {
   const safeName = safeSlugName(slug);
   if (safeName === null) return { kind: "invalid-slug", slug };
   const workspaceRoot = opts.workspaceRoot ?? workspacePath;
@@ -268,4 +336,20 @@ export async function starCatalogEntry(source: CatalogSource, slug: string, opts
   await copyDirTree(catalogSlugDir, activeSlugDir);
   log.info("skills", "starred catalog entry", { source, slug: safeName });
   return { kind: "starred", slug: safeName };
+}
+
+/** Star an external catalog entry, returned in the same `StarResult`
+ *  shape so the route handler can branch on `source` without
+ *  diverging downstream. */
+export async function starExternalAsCatalog(repoId: string, skillFolder: string, opts: CatalogOptions = {}): Promise<StarResult> {
+  const workspaceRoot = opts.workspaceRoot ?? workspacePath;
+  const result = await starExternalCatalogEntry(repoId, skillFolder, { workspaceRoot });
+  return adaptExternalStar(result, repoId, skillFolder);
+}
+
+function adaptExternalStar(result: ExternalStarResult, repoId: string, skillFolder: string): StarResult {
+  if (result.kind === "starred") return { kind: "starred", slug: result.activeId };
+  if (result.kind === "already-active") return { kind: "already-active", slug: result.activeId };
+  if (result.kind === "invalid-id") return { kind: "invalid-slug", slug: `${repoId}/${skillFolder}` };
+  return { kind: "not-found", source: "external", slug: `${result.repoId}/${result.skillFolder}` };
 }

@@ -28,8 +28,24 @@ export const META = definePluginMeta({
     /** GET /api/skills/catalog/preview?source=&slug= — returns one
      *  catalog entry's description + body. Used by the 📖 Preview
      *  modal and the ▶ Run once action (which feeds `body` into a
-     *  fresh chat as user input). */
+     *  fresh chat as user input). For external source, pass `repoId`
+     *  + `skillFolder` instead of `slug`. */
     catalogPreview: { method: "GET", path: "/catalog/preview" },
+    /** GET /api/skills/external/suggestions — bundled list of repo
+     *  URLs the launcher recommends as starting points (Anthropic
+     *  skills + community picks). */
+    externalSuggestions: { method: "GET", path: "/external/suggestions" },
+    /** GET /api/skills/external/repos — list installed external
+     *  repos with their recorded URL / subpath / SHA. */
+    externalReposList: { method: "GET", path: "/external/repos" },
+    /** POST /api/skills/external/repos — body `{ url, subpath?, ref? }`.
+     *  Clone (or refresh) the repo, copy each discovered SKILL.md
+     *  into the catalog under `<external>/<repoId>/`. */
+    externalReposInstall: { method: "POST", path: "/external/repos" },
+    /** DELETE /api/skills/external/repos/:repoId — remove the
+     *  catalog dir + scratch clone for one external repo. Active
+     *  copies under `.claude/skills/` are NOT touched (star = fork). */
+    externalReposRemove: { method: "DELETE", path: "/external/repos/:repoId" },
   },
   mcpDispatch: "create",
 });

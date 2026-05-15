@@ -39,6 +39,7 @@ function writeCatalogEntry(slug: string, body: string): void {
 describe("isCatalogSource", () => {
   it("accepts the supported source strings", () => {
     assert.equal(isCatalogSource("preset"), true);
+    assert.equal(isCatalogSource("external"), true);
   });
 
   it("rejects unknown sources", () => {
