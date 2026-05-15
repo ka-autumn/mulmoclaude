@@ -26,7 +26,7 @@ import { log } from "../../../system/logger/index.js";
 import { errorMessage } from "../../../utils/errors.js";
 import { writeFileAtomic } from "../../../utils/files/index.js";
 import { cloneOrUpdate, defaultCacheRoot, type CloneDeps, type CloneResult } from "./clone.js";
-import { deriveRepoId, safeRepoId, safeSkillFolder, sanitiseSubpath, urlCacheKey } from "./id.js";
+import { canonicalRepoUrl, deriveRepoId, safeRepoId, safeSkillFolder, sanitiseSubpath, urlCacheKey } from "./id.js";
 
 const SOURCE_METADATA_FILE = ".source.json";
 
@@ -203,7 +203,22 @@ export type InstallExternalRepoResult =
   | { kind: "invalid-url"; url: string }
   | { kind: "invalid-subpath"; subpath: string }
   | { kind: "no-skills"; repoId: string; sha: string }
+  | { kind: "id-collision"; repoId: string; existingUrl: string }
   | { kind: "error"; reason: string };
+
+/** When `repoDir` already holds an install, return its recorded
+ *  canonical URL. `repoId` is a lossy punctuation-normalised slug, so
+ *  two different repos (`foo/a.b`, `foo/a-b`) can map to the same dir;
+ *  the canonical URL in `.source.json` is what actually identifies
+ *  the occupant. */
+async function existingCanonicalUrl(metadataPath: string): Promise<string | null> {
+  try {
+    const parsed = JSON.parse(await readFile(metadataPath, "utf-8")) as { url?: unknown };
+    return typeof parsed.url === "string" ? canonicalRepoUrl(parsed.url) : null;
+  } catch {
+    return null;
+  }
+}
 
 /** Install an external skill repo into the catalog. */
 export async function installExternalRepo(opts: InstallRepoOptions, deps: ExternalInstallOptions = {}): Promise<InstallExternalRepoResult> {
@@ -242,6 +257,18 @@ export async function installExternalRepo(opts: InstallRepoOptions, deps: Extern
   }
 
   const { repoDir, metadataPath } = pathsForRepo(workspaceRoot, repoId);
+
+  // Collision guard: `repoId` is a lossy slug. If this dir is already
+  // occupied by a DIFFERENT source repo (canonical URL mismatch),
+  // wiping it would silently destroy that repo's catalog + metadata.
+  // Refuse instead.
+  const occupant = await existingCanonicalUrl(metadataPath);
+  const incoming = canonicalRepoUrl(opts.url);
+  if (occupant && incoming && occupant !== incoming) {
+    log.warn("skills-external", "repoId collision; refusing to overwrite", { repoId, occupant, incoming });
+    return { kind: "id-collision", repoId, existingUrl: occupant };
+  }
+
   // Wipe the previous catalog tree for this repoId so a re-install
   // starts clean (removed skills don't linger). Cache dir is kept
   // because we still need the checked-out tree to copy from.

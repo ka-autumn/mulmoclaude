@@ -296,6 +296,58 @@ describe("installExternalRepo", () => {
     assert.equal(existsSync(path.join(repoDir, "linkfile")), false);
     rmSync(secretDir, { recursive: true, force: true });
   });
+
+  it("refuses to overwrite a punctuation-colliding DIFFERENT repo (no data loss)", async () => {
+    // `foo/a.b` and `foo/a-b` both derive repoId `foo-a-b`.
+    const urlA = "https://github.com/foo/a.b";
+    const urlB = "https://github.com/foo/a-b";
+    const seedingRunGit = (url: string): RunGit => {
+      const cacheDir = path.join(cacheRoot, urlCacheKey(url));
+      return async (args) => {
+        const list = [...args];
+        if (list[0] === "init" && typeof list[1] === "string") {
+          mkdirSync(path.join(list[1], ".git"), { recursive: true });
+        }
+        if (list.includes("checkout")) {
+          seedSkill(path.join(cacheDir, "x"), "---\ndescription: x\n---\nbody");
+        }
+        if (list.includes("rev-parse")) return { stdout: `${FAKE_SHA}\n`, stderr: "" };
+        return { stdout: "", stderr: "" };
+      };
+    };
+
+    const instA = await installExternalRepo({ url: urlA }, { workspaceRoot: workdir, cacheRoot, runGit: seedingRunGit(urlA) });
+    assert.equal(instA.kind, "installed");
+    const repoDir = path.join(workdir, "data/skills/catalog/external/foo-a-b");
+    assert.equal(JSON.parse(readFileSync(path.join(repoDir, ".source.json"), "utf-8")).url, urlA);
+
+    const instB = await installExternalRepo({ url: urlB }, { workspaceRoot: workdir, cacheRoot, runGit: seedingRunGit(urlB) });
+    assert.equal(instB.kind, "id-collision");
+    if (instB.kind === "id-collision") assert.match(instB.existingUrl, /github\.com\/foo\/a\.b/);
+    // Repo A's catalog + metadata must be untouched.
+    assert.equal(existsSync(path.join(repoDir, "x", "SKILL.md")), true);
+    assert.equal(JSON.parse(readFileSync(path.join(repoDir, ".source.json"), "utf-8")).url, urlA);
+  });
+
+  it("re-install of the SAME repo via a different accepted URL form still succeeds", async () => {
+    const url1 = "https://github.com/foo/repo";
+    const url2 = "https://github.com/foo/repo.git";
+    const seedingRunGit = (url: string): RunGit => {
+      const cacheDir = path.join(cacheRoot, urlCacheKey(url));
+      return async (args) => {
+        const list = [...args];
+        if (list[0] === "init" && typeof list[1] === "string") {
+          mkdirSync(path.join(list[1], ".git"), { recursive: true });
+        }
+        if (list.includes("checkout")) seedSkill(path.join(cacheDir, "x"), "---\ndescription: x\n---\nbody");
+        if (list.includes("rev-parse")) return { stdout: `${FAKE_SHA}\n`, stderr: "" };
+        return { stdout: "", stderr: "" };
+      };
+    };
+    assert.equal((await installExternalRepo({ url: url1 }, { workspaceRoot: workdir, cacheRoot, runGit: seedingRunGit(url1) })).kind, "installed");
+    // Same canonical repo → no collision, install succeeds again.
+    assert.equal((await installExternalRepo({ url: url2 }, { workspaceRoot: workdir, cacheRoot, runGit: seedingRunGit(url2) })).kind, "installed");
+  });
 });
 
 describe("listInstalledRepos", () => {

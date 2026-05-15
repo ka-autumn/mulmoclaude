@@ -98,6 +98,17 @@ export function deriveActiveId(url: string, skillFolder: string | null): string 
   return sanitise(`${parsed.owner}-${folderSafe}`);
 }
 
+/** Canonical `https://github.com/<owner>/<repo>` (lowercased, no
+ *  `.git`/trailing slash) — the identity two URLs share iff they
+ *  point at the same GitHub repo. `null` if the URL doesn't parse.
+ *  Used both for cache keying and the install-time collision guard
+ *  (distinct repos whose `repoId` punctuation-collides must be told
+ *  apart by their canonical URL, not their lossy id). */
+export function canonicalRepoUrl(url: string): string | null {
+  const parsed = parseGitHubHttpsUrl(url);
+  return parsed ? `https://github.com/${parsed.owner.toLowerCase()}/${parsed.repo.toLowerCase()}` : null;
+}
+
 /** Stable opaque hash of a URL for keying the scratch-clone cache.
  *  Canonicalises first so the accepted variants of the same repo
  *  (`/o/r`, `/o/r/`, `/o/r.git`, case differences) map to ONE cache
@@ -105,9 +116,10 @@ export function deriveActiveId(url: string, skillFolder: string | null): string 
  *  duplicate clone and uninstall would only drop the last-recorded
  *  variant. */
 export function urlCacheKey(url: string): string {
-  const parsed = parseGitHubHttpsUrl(url);
-  const canonical = parsed ? `https://github.com/${parsed.owner.toLowerCase()}/${parsed.repo.toLowerCase()}` : url;
-  return createHash("sha256").update(canonical).digest("hex").slice(0, 16);
+  return createHash("sha256")
+    .update(canonicalRepoUrl(url) ?? url)
+    .digest("hex")
+    .slice(0, 16);
 }
 
 // Shape of a `deriveRepoId` output (`<owner>-<repo>` lowercased). The

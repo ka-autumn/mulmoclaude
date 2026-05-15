@@ -301,6 +301,11 @@ bindRoute(
       badRequest(res, "subpath must be a relative path with no '..', leading '/', or backslash segments");
       return;
     }
+    if (result.kind === "id-collision") {
+      log.warn("skills", "external install: repoId collision", { repoId: result.repoId, existingUrl: result.existingUrl });
+      conflict(res, `repo id "${result.repoId}" is already in use by ${result.existingUrl}. Uninstall it first if you intend to replace it.`);
+      return;
+    }
     log.warn("skills", "external install: error", { reason: result.reason });
     res.status(502).json({ error: `external install failed: ${result.reason}` });
   },
