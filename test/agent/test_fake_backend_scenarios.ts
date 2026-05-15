@@ -128,4 +128,39 @@ describe("fake-echo backend — failure-shaped scenarios", () => {
     assert.equal(events.length, 1);
     assert.equal(events[0]?.type, EVENT_TYPES.claudeSessionId);
   });
+
+  it("6. plugin dispatch failure: surfaces an error in tool_call_result", async () => {
+    // A known plugin tool whose endpoint is unreachable (port 1 has
+    // no server) drives the `dispatchToPlugin` catch path added in
+    // #1371. The tool_call still emits, but its result must carry
+    // the failure instead of a fake "Done" — the fail-loud contract.
+    setFakeResponse(() => ({
+      toolCalls: [{ toolName: "presentForm", args: { fields: [] } }],
+    }));
+
+    const events = await drain(makeInput({ port: 1 }));
+
+    const result = events.find((event) => event.type === EVENT_TYPES.toolCallResult);
+    assert.ok(result, "the tool_call_result half must still be emitted on dispatch failure");
+    assert.match(String(result?.content), /error/i, "the result content must carry the dispatch error, not a success envelope");
+  });
+
+  it("7. concurrent sessions keep separate history (no bleed)", async () => {
+    // Default generator joins per-session message history. Two
+    // sessions interleaved must not see each other's turns — the
+    // `sessionTurns` map is keyed by sessionId.
+    resetFakeResponse();
+    const sessionA = makeInput({ sessionId: "sess-A", message: "alpha-secret" });
+    const sessionB = makeInput({ sessionId: "sess-B", message: "beta-secret" });
+
+    const eventsA = await drain(sessionA);
+    const eventsB = await drain(sessionB);
+
+    const textA = eventsA.find((event) => event.type === EVENT_TYPES.text);
+    const textB = eventsB.find((event) => event.type === EVENT_TYPES.text);
+    assert.match(String(textA?.message), /alpha-secret/);
+    assert.ok(!String(textA?.message).includes("beta-secret"), "session A must not see session B's turn");
+    assert.match(String(textB?.message), /beta-secret/);
+    assert.ok(!String(textB?.message).includes("alpha-secret"), "session B must not see session A's turn");
+  });
 });
