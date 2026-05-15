@@ -34,9 +34,15 @@ test.describe("agent error banner (fake-echo forced error)", () => {
       await expect(assistantBody, "the forced backend error must render as an assistant [Error] card").toContainText("[Error]", {
         timeout: ONE_MINUTE_MS,
       });
-      await expect(assistantBody, "the error card must carry the fake-echo error message").toContainText("__FAKE_ERROR__ marker", {
-        timeout: ONE_MINUTE_MS,
-      });
+      // Assert on a markdown-safe substring of fake-echo's error
+      // string (the `__FAKE_ERROR__` trigger itself would be eaten
+      // by marked() as bold emphasis, so don't assert on it).
+      await expect(assistantBody, "the error card must carry the fake-echo error message").toContainText(
+        "fake-echo forced error for the e2e-live error-banner canary",
+        {
+          timeout: ONE_MINUTE_MS,
+        },
+      );
 
       // The turn must still complete — endRun fires in the
       // consumer's finally even on the error path, so the thinking

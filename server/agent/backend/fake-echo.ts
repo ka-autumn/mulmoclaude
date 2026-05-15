@@ -86,7 +86,11 @@ async function defaultResponse(input: AgentInput): Promise<FakeResponse> {
   // by sending a message containing this exact marker. Prod never
   // reaches fake-echo (real Claude backend) so this is inert there.
   if (input.message.includes("__FAKE_ERROR__")) {
-    return { error: "fake-echo forced error (__FAKE_ERROR__ marker)" };
+    // Message text is rendered through marked() in the chat card,
+    // so keep it free of markdown-significant characters (no `__`,
+    // `*`, backticks) — the e2e-live canary asserts on a literal
+    // substring of this string.
+    return { error: "fake-echo forced error for the e2e-live error-banner canary" };
   }
 
   const slashMatch = input.message.trim().match(/^\/([a-z0-9][a-z0-9-]*)$/i);
