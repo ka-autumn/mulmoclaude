@@ -96,7 +96,11 @@
       and saw a stalled spinner with no explanation. The chip stays
       visible until the next generate attempt clears it.
     -->
-    <div v-if="movieError" class="bg-red-50 border border-red-200 text-red-800 text-xs px-3 py-2 mx-4 mt-3 mb-1 rounded flex items-start gap-2">
+    <div
+      v-if="movieError"
+      data-testid="mulmo-script-movie-error-chip"
+      class="bg-red-50 border border-red-200 text-red-800 text-xs px-3 py-2 mx-4 mt-3 mb-1 rounded flex items-start gap-2"
+    >
       <span class="material-icons text-base shrink-0 mt-px">error_outline</span>
       <div class="flex-1 min-w-0">
         <div class="font-medium">{{ t("pluginMulmoScript.movieGenerationFailed") }}</div>

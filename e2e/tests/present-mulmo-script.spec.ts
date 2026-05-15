@@ -218,11 +218,15 @@ test.describe("presentMulmoScript plugin", () => {
     await expect(page.getByRole("heading", { name: SCRIPT_TITLE, level: 2 })).toBeVisible();
 
     // First attempt: chip should appear with the SSE-supplied message.
+    // All chip-internal assertions scope through the chip's testid so
+    // they survive copy / locale tweaks and aren't satisfied by a
+    // stray "Movie generation failed" string rendered anywhere else.
     await page.getByTestId("mulmo-script-generate-movie-button").click();
-    const retryButton = page.getByTestId("mulmo-script-movie-retry-button");
-    await expect(retryButton).toBeVisible();
-    await expect(page.getByText("Movie generation failed")).toBeVisible();
-    await expect(page.getByText(SSE_ERROR_MESSAGE)).toBeVisible();
+    const errorChip = page.getByTestId("mulmo-script-movie-error-chip");
+    const retryButton = errorChip.getByTestId("mulmo-script-movie-retry-button");
+    await expect(errorChip).toBeVisible();
+    await expect(errorChip.getByText("Movie generation failed")).toBeVisible();
+    await expect(errorChip.getByText(SSE_ERROR_MESSAGE)).toBeVisible();
     // expect.poll instead of a plain toBe so the assertion tolerates
     // the microtask gap between the route handler firing and the SPA's
     // catch arm landing. Chip visibility above already implies the
@@ -232,8 +236,8 @@ test.describe("presentMulmoScript plugin", () => {
 
     // Retry: same endpoint is hit again, chip stays (same error replays).
     await retryButton.click();
-    await expect(retryButton).toBeVisible();
-    await expect(page.getByText(SSE_ERROR_MESSAGE)).toBeVisible();
+    await expect(errorChip).toBeVisible();
+    await expect(errorChip.getByText(SSE_ERROR_MESSAGE)).toBeVisible();
     await expect.poll(() => generateMovieCalls).toBe(2);
   });
 
