@@ -1078,7 +1078,7 @@ const zhMessages = {
     catalogRunOnce: "运行一次",
     sourceUserTitle: "用户技能 (~/.claude/skills/，所有工作区通用)",
     sourceProjectTitle: "项目技能 (工作区的 .claude/skills/，仅当前工作区可用)",
-    sourcePresetTitle: "预设目录 — 点击 Star 在当前工作区启用",
+    sourcePresetTitle: "预设目录 — 点击收藏在当前工作区启用",
     errCatalogListFailed: "加载目录失败: {error}",
     errCatalogStarFailed: "收藏技能失败: {error}",
     errCatalogPreviewFailed: "加载技能预览失败: {error}",

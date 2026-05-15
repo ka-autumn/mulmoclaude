@@ -1091,7 +1091,7 @@ const frMessages = {
     catalogRunOnce: "Exécuter une fois",
     sourceUserTitle: "Skill utilisateur (~/.claude/skills/, disponible dans tous les espaces)",
     sourceProjectTitle: "Skill de projet (.claude/skills/ de l'espace, espace courant uniquement)",
-    sourcePresetTitle: "Catalogue de préréglages — cliquez sur Star pour activer dans cet espace",
+    sourcePresetTitle: "Catalogue de préréglages — cliquez sur Favori pour activer dans cet espace",
     errCatalogListFailed: "Échec du chargement du catalogue : {error}",
     errCatalogStarFailed: "Échec de l'ajout aux favoris : {error}",
     errCatalogPreviewFailed: "Échec du chargement de l'aperçu : {error}",

@@ -1086,7 +1086,7 @@ const ptBRMessages = {
     catalogRunOnce: "Executar uma vez",
     sourceUserTitle: "Skill do usuário (~/.claude/skills/, disponível em todos os workspaces)",
     sourceProjectTitle: "Skill do projeto (.claude/skills/ do workspace, apenas este workspace)",
-    sourcePresetTitle: "Catálogo de presets — clique em Star para ativar neste workspace",
+    sourcePresetTitle: "Catálogo de presets — clique em Favoritar para ativar neste workspace",
     errCatalogListFailed: "Falha ao carregar o catálogo: {error}",
     errCatalogStarFailed: "Falha ao favoritar a skill: {error}",
     errCatalogPreviewFailed: "Falha ao carregar a pré-visualização da skill: {error}",

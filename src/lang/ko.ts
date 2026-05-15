@@ -1086,7 +1086,7 @@ const koMessages = {
     catalogRunOnce: "한 번만 실행",
     sourceUserTitle: "사용자 스킬 (~/.claude/skills/, 모든 워크스페이스 공통)",
     sourceProjectTitle: "프로젝트 스킬 (워크스페이스 .claude/skills/, 이 워크스페이스 전용)",
-    sourcePresetTitle: "프리셋 카탈로그 — Star를 눌러 이 워크스페이스에 활성화",
+    sourcePresetTitle: "프리셋 카탈로그 — 별 표시를 눌러 이 워크스페이스에 활성화",
     errCatalogListFailed: "카탈로그를 불러오지 못했습니다: {error}",
     errCatalogStarFailed: "스킬에 별 표시를 추가하지 못했습니다: {error}",
     errCatalogPreviewFailed: "스킬 미리보기를 불러오지 못했습니다: {error}",

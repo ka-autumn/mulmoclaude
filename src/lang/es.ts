@@ -1097,7 +1097,7 @@ const esMessages = {
     catalogRunOnce: "Ejecutar una vez",
     sourceUserTitle: "Skill de usuario (~/.claude/skills/, disponible en todos los espacios)",
     sourceProjectTitle: "Skill del proyecto (.claude/skills/ del workspace, solo este espacio)",
-    sourcePresetTitle: "Catálogo de preajustes — pulsa Star para activarla en este espacio",
+    sourcePresetTitle: "Catálogo de preajustes — pulsa Destacar para activarla en este espacio",
     errCatalogListFailed: "Error al cargar el catálogo: {error}",
     errCatalogStarFailed: "Error al destacar la skill: {error}",
     errCatalogPreviewFailed: "Error al cargar la vista previa de la skill: {error}",

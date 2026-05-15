@@ -307,16 +307,6 @@ const renderedBody = computed(() => {
   return sanitizeMarkdownHtml(marked(body) as string);
 });
 
-// Reset the selection when the tool result is replaced (e.g. the
-// user opens a newer `manageSkills` invocation from the sidebar).
-watch(
-  () => props.selectedResult?.uuid,
-  () => {
-    skills.value = props.selectedResult?.data?.skills ?? [];
-    selectedName.value = skills.value[0]?.name ?? null;
-  },
-);
-
 const listError = ref<string | null>(null);
 
 const endpoints = pluginEndpoints<SkillsEndpoints>("skills");
@@ -387,6 +377,28 @@ const presetSourceMeta = computed<SourceMeta>(() => ({
   title: t("pluginManageSkills.sourcePresetTitle"),
   colour: "text-gray-400",
 }));
+
+// Reset the selection when the tool result is replaced (e.g. the
+// user opens a newer `manageSkills` invocation from the sidebar).
+// Lives after the catalog refs so source-order use-before-define
+// is satisfied — the closure runs at watch-fire time, not at
+// module-eval time, but the lint rule is structural.
+watch(
+  () => props.selectedResult?.uuid,
+  () => {
+    skills.value = props.selectedResult?.data?.skills ?? [];
+    selectedName.value = skills.value[0]?.name ?? null;
+    // Also reset catalog-side selection so opening a different
+    // historical manageSkills tool result doesn't leave a stale
+    // catalog detail visible in the right pane. `v-if="selectedCatalog"`
+    // wins over the active-skill branch, so without this reset the
+    // user sees last-session catalog content under a fresh tool
+    // result. (Codex review on PR #1374.)
+    selectedCatalog.value = null;
+    catalogDetail.value = null;
+    catalogDetailLoading.value = false;
+  },
+);
 
 async function loadCatalog(): Promise<void> {
   const response = await apiGet<{ entries: CatalogEntry[] }>(endpoints.catalogList.url);
