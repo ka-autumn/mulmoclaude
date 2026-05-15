@@ -312,8 +312,9 @@ const listError = ref<string | null>(null);
 const endpoints = pluginEndpoints<SkillsEndpoints>("skills");
 
 // Catalog state (#1335 PR-B). Loaded on mount + after a successful
-// star so the row updates from "★ Star" → "★ Starred". `starringSlug`
-// disables the button mid-request to prevent double-clicks.
+// star so the row updates from "★ Star" → "★ Starred".
+// `catalogActioningSlug` (declared below) disables the button
+// mid-request to prevent double-clicks across Star / Run once.
 type CatalogSource = "preset";
 interface CatalogEntry {
   slug: string;
