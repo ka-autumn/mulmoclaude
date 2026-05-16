@@ -34,4 +34,17 @@ export const EXTERNAL_PRESETS: readonly ExternalPresetSuggestion[] = [
     description: "Anthropic's official skill collection — PDF / Excel / DOCX builders, MCP server scaffolder, and more.",
     license: "MIT",
   },
+  {
+    // Engineering-workflow skills that also pay off inside
+    // MulmoClaude's task agent: brainstorming, writing/executing
+    // plans, systematic-debugging, code review. Layout is one-level
+    // (`skills/<name>/SKILL.md`), so the existing one-level
+    // discovery handles it without a scanner change. Verified
+    // 2026-05: MIT, actively maintained, high-quality skills.
+    url: "https://github.com/obra/superpowers",
+    subpath: "skills",
+    displayName: "Superpowers",
+    description: "Battle-tested workflow skills — brainstorming, planning, systematic debugging, TDD, and code review.",
+    license: "MIT",
+  },
 ] as const;
