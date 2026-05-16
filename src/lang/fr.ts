@@ -1094,7 +1094,7 @@ const frMessages = {
     sectionActive: "Actives",
     sectionCatalog: "Catalogue",
     sectionLegend:
-      "Actives : chargées dans le prompt (Système = incluses mc- · Projet = modifiables · Utilisateur = ~/.claude/skills/). Catalogue : parcourez, ★ajoutez aux favoris ou ▶exécutez une fois sans alourdir le prompt.",
+      "Actives : chargées dans le prompt ({system} Système = incluses mc- · {project} Projet = modifiables · {user} Utilisateur = ~/.claude/skills/). Catalogue : parcourez, ★ajoutez aux favoris ou ▶exécutez une fois sans alourdir le prompt.",
     catalogEmpty: "Aucune skill de préréglage disponible.",
     catalogPresetHeading: "Préréglages",
     catalogStar: "Favori",

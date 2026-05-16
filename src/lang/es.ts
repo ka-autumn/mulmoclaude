@@ -1100,7 +1100,7 @@ const esMessages = {
     sectionActive: "Activas",
     sectionCatalog: "Catálogo",
     sectionLegend:
-      "Activas: cargadas en el prompt (Sistema = incluidas mc- · Proyecto = editables · Usuario = ~/.claude/skills/). Catálogo: explora, ★destaca o ▶ejecuta una vez sin inflar el prompt.",
+      "Activas: cargadas en el prompt ({system} Sistema = incluidas mc- · {project} Proyecto = editables · {user} Usuario = ~/.claude/skills/). Catálogo: explora, ★destaca o ▶ejecuta una vez sin inflar el prompt.",
     catalogEmpty: "No hay skills de preajuste disponibles.",
     catalogPresetHeading: "Preajustes",
     catalogStar: "Destacar",

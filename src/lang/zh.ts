@@ -1080,7 +1080,8 @@ const zhMessages = {
     confirmDelete: '要删除技能 "{name}" 吗?将会移除 ~/mulmoclaude/.claude/skills/{name}/SKILL.md。',
     sectionActive: "活动",
     sectionCatalog: "目录",
-    sectionLegend: "活动: 已载入提示词 (系统 = mc- 随附 · 项目 = 可编辑 · 用户 = ~/.claude/skills/)。目录: 浏览、★收藏或▶运行一次而不会撑大提示词。",
+    sectionLegend:
+      "活动: 已载入提示词 ({system} 系统 = mc- 随附 · {project} 项目 = 可编辑 · {user} 用户 = ~/.claude/skills/)。目录: 浏览、★收藏或▶运行一次而不会撑大提示词。",
     catalogEmpty: "没有可用的预设技能。",
     catalogPresetHeading: "预设",
     catalogStar: "收藏",

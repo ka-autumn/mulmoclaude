@@ -1104,7 +1104,7 @@ const deMessages = {
     sectionActive: "Aktiv",
     sectionCatalog: "Katalog",
     sectionLegend:
-      "Aktiv: in den Prompt geladen (System = mc- mitgeliefert · Projekt = bearbeitbar · Benutzer = ~/.claude/skills/). Katalog: durchsuchen, ★markieren oder ▶einmal ausführen, ohne den Prompt aufzublähen.",
+      "Aktiv: in den Prompt geladen ({system} System = mc- mitgeliefert · {project} Projekt = bearbeitbar · {user} Benutzer = ~/.claude/skills/). Katalog: durchsuchen, ★markieren oder ▶einmal ausführen, ohne den Prompt aufzublähen.",
     catalogEmpty: "Keine Preset-Skills verfügbar.",
     catalogPresetHeading: "Presets",
     catalogStar: "Markieren",

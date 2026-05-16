@@ -5,7 +5,17 @@
       <div>
         <h2 class="text-lg font-semibold text-gray-800">{{ t("pluginManageSkills.heading") }}</h2>
         <p class="text-xs text-gray-400 mt-0.5">{{ t("pluginManageSkills.subheading", { count: skills.length }) }}</p>
-        <p class="text-xs text-gray-400 mt-0.5">{{ t("pluginManageSkills.sectionLegend") }}</p>
+        <i18n-t keypath="pluginManageSkills.sectionLegend" tag="p" class="text-xs text-gray-400 mt-0.5">
+          <template #system>
+            <span class="material-icons !text-sm align-middle leading-none text-gray-500" aria-hidden="true">lock</span>
+          </template>
+          <template #project>
+            <span class="material-icons !text-sm align-middle leading-none text-green-600" aria-hidden="true">folder</span>
+          </template>
+          <template #user>
+            <span class="material-icons !text-sm align-middle leading-none text-blue-500" aria-hidden="true">home</span>
+          </template>
+        </i18n-t>
       </div>
     </div>
 

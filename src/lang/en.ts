@@ -1088,7 +1088,7 @@ const enMessages = {
     sectionActive: "Active",
     sectionCatalog: "Catalog",
     sectionLegend:
-      "Active: loaded into the prompt (System = mc- bundled · Project = editable · User = ~/.claude/skills/). Catalog: browse, ★ star or ▶ run once without bloating the prompt.",
+      "Active: loaded into the prompt ({system} System = mc- bundled · {project} Project = editable · {user} User = ~/.claude/skills/). Catalog: browse, ★ star or ▶ run once without bloating the prompt.",
     catalogEmpty: "No preset skills available.",
     catalogPresetHeading: "Presets",
     catalogStar: "Star",

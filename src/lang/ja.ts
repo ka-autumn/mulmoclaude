@@ -1089,7 +1089,7 @@ const jaMessages = {
     sectionActive: "アクティブ",
     sectionCatalog: "カタログ",
     sectionLegend:
-      "アクティブ: プロンプトに読み込まれる (システム = mc- 同梱 · プロジェクト = 編集可 · ユーザー = ~/.claude/skills/)。カタログ: プロンプトを肥大化させずに閲覧・★スター・▶今だけ実行ができる。",
+      "アクティブ: プロンプトに読み込まれる ({system} システム = mc- 同梱 · {project} プロジェクト = 編集可 · {user} ユーザー = ~/.claude/skills/)。カタログ: プロンプトを肥大化させずに閲覧・★スター・▶今だけ実行ができる。",
     catalogEmpty: "利用できるプリセットスキルがありません。",
     catalogPresetHeading: "プリセット",
     catalogStar: "スター",

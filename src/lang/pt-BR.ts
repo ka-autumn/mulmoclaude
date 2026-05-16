@@ -1089,7 +1089,7 @@ const ptBRMessages = {
     sectionActive: "Ativas",
     sectionCatalog: "Catálogo",
     sectionLegend:
-      "Ativas: carregadas no prompt (Sistema = inclusas mc- · Projeto = editáveis · Usuário = ~/.claude/skills/). Catálogo: explore, ★favorite ou ▶execute uma vez sem inflar o prompt.",
+      "Ativas: carregadas no prompt ({system} Sistema = inclusas mc- · {project} Projeto = editáveis · {user} Usuário = ~/.claude/skills/). Catálogo: explore, ★favorite ou ▶execute uma vez sem inflar o prompt.",
     catalogEmpty: "Nenhuma skill de preset disponível.",
     catalogPresetHeading: "Presets",
     catalogStar: "Favoritar",

@@ -1089,7 +1089,7 @@ const koMessages = {
     sectionActive: "활성",
     sectionCatalog: "카탈로그",
     sectionLegend:
-      "활성: 프롬프트에 로드됨 (시스템 = mc- 동봉 · 프로젝트 = 편집 가능 · 사용자 = ~/.claude/skills/). 카탈로그: 프롬프트를 키우지 않고 살펴보거나 ★별 표시 또는 ▶한 번만 실행할 수 있습니다.",
+      "활성: 프롬프트에 로드됨 ({system} 시스템 = mc- 동봉 · {project} 프로젝트 = 편집 가능 · {user} 사용자 = ~/.claude/skills/). 카탈로그: 프롬프트를 키우지 않고 살펴보거나 ★별 표시 또는 ▶한 번만 실행할 수 있습니다.",
     catalogEmpty: "사용 가능한 프리셋 스킬이 없습니다.",
     catalogPresetHeading: "프리셋",
     catalogStar: "별 표시",
