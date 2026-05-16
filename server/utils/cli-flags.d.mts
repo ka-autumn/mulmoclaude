@@ -7,7 +7,7 @@ export interface CliFlag {
   help: string;
 }
 
-export const CLI_FLAGS: ReadonlyArray<CliFlag>;
+export const CLI_FLAGS: readonly CliFlag[];
 
 export function flagEnvOverrides(argv: readonly string[]): Record<string, "1">;
 

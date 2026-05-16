@@ -17,14 +17,14 @@ describe("cli-flags CLI_FLAGS registry", () => {
   });
 
   it("has unique flags and unique env vars (no accidental dup)", () => {
-    const flags = CLI_FLAGS.map((f) => f.flag);
-    const envs = CLI_FLAGS.map((f) => f.env);
+    const flags = CLI_FLAGS.map((entry) => entry.flag);
+    const envs = CLI_FLAGS.map((entry) => entry.env);
     assert.equal(new Set(flags).size, flags.length);
     assert.equal(new Set(envs).size, envs.length);
   });
 
   it("covers exactly the five intended toggles", () => {
-    assert.deepEqual(CLI_FLAGS.map((f) => f.flag).sort(), [
+    assert.deepEqual(CLI_FLAGS.map((entry) => entry.flag).sort(), [
       "--chat-index-force-run",
       "--disable-macos-reminders",
       "--disable-sandbox",
@@ -72,18 +72,19 @@ describe("cli-flags cliFlagHelpLines", () => {
     assert.equal(lines.length, CLI_FLAGS.length);
     for (const { flag } of CLI_FLAGS) {
       assert.ok(
-        lines.some((l) => l.includes(flag)),
+        lines.some((line) => line.includes(flag)),
         `help mentions ${flag}`,
       );
     }
   });
 
   it("pads flags to a common column so help text aligns", () => {
-    const width = Math.max(...CLI_FLAGS.map((f) => f.flag.length));
+    const width = Math.max(...CLI_FLAGS.map((entry) => entry.flag.length));
     for (const line of cliFlagHelpLines().split("\n")) {
-      const m = line.match(/^ {2}(\S+) +(\S.*)$/);
-      assert.ok(m, `line shape: ${JSON.stringify(line)}`);
-      assert.equal(line.indexOf(m![2]), 2 + width + 2, "help column constant");
+      const match = line.match(/^ {2}(\S+) +(\S.*)$/);
+      assert.ok(match, `line shape: ${JSON.stringify(line)}`);
+      const helpText = match === null ? "" : match[2];
+      assert.equal(line.indexOf(helpText), 2 + width + 2, "help column constant");
     }
   });
 });
