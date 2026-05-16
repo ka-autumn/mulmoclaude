@@ -278,10 +278,14 @@ function isBuiltIn(name: string): boolean {
 
 async function loadVersion(): Promise<void> {
   if (appVersion.value) return;
+  // apiGet absorbs network + HTTP errors into `{ ok: false }` (see
+  // ApiResult contract in utils/api.ts — it never throws), so a
+  // try/catch would be unreachable. Both failure modes (network and
+  // !ok) are handled the same way on purpose: the version line is
+  // best-effort chrome, so on any failure we just leave it hidden.
   const response = await apiGet<{ version?: string }>(API_ROUTES.health);
-  if (response.ok && typeof response.data.version === "string") {
-    appVersion.value = response.data.version;
-  }
+  if (!response.ok || typeof response.data.version !== "string") return;
+  appVersion.value = response.data.version;
 }
 
 async function loadConfig(): Promise<void> {
