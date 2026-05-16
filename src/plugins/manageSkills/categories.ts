@@ -79,6 +79,40 @@ export function persistCollapsedSections(state: ReadonlySet<SkillSectionKey>): v
   }
 }
 
+// Per-external-repo collapse state (#1383 PR-C2). Distinct storage key
+// from the section-level state above: the section axis is a fixed
+// 2-value union (active/catalog), whereas repo ids are open-ended
+// (one per installed external repo), so this set is validated as
+// plain strings rather than against a key union. Default: every repo
+// EXPANDED (absent = open) — a freshly installed repo should show its
+// skills without a click.
+export const REPO_COLLAPSED_STORAGE_KEY = "skills:repoCollapsed";
+
+/** Read the persisted per-repo collapse set, defaulting to empty
+ *  (all repos expanded) on any error. */
+export function loadRepoCollapsed(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = window.localStorage.getItem(REPO_COLLAPSED_STORAGE_KEY);
+    if (raw === null) return new Set();
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter((entry): entry is string => typeof entry === "string"));
+  } catch {
+    return new Set();
+  }
+}
+
+/** Persist the per-repo collapse set. Failures are swallowed. */
+export function persistRepoCollapsed(state: ReadonlySet<string>): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(REPO_COLLAPSED_STORAGE_KEY, JSON.stringify([...state]));
+  } catch {
+    // localStorage may be unavailable (private mode) — swallow silently.
+  }
+}
+
 /**
  * Auto-select the first active skill so the right pane isn't empty on
  * open. Returns null when the Active section is collapsed (don't select

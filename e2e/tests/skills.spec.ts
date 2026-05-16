@@ -401,3 +401,152 @@ test.describe("manageSkills plugin — delete (phase 1)", () => {
     await expect(page.getByTestId("skill-edit-description")).toHaveCount(0);
   });
 });
+
+// ── #1383 PR-C2: hierarchical external-skill catalog ──────────────
+
+interface StarCall {
+  source?: string;
+  repoId?: string;
+  skillFolder?: string;
+  slug?: string;
+}
+interface InstallCall {
+  url?: string;
+  subpath?: string;
+}
+
+async function setupExternalCatalog(page: Page, calls: { star: StarCall[]; install: InstallCall[]; deleted: string[] }) {
+  await setupSkillsSession(page);
+
+  // Registered AFTER setupSkillsSession so these win over its
+  // `/api/skills/` catch-all (Playwright matches last-registered first).
+  await page.route(urlEndsWith("/api/skills/catalog"), (route) =>
+    route.fulfill({
+      json: {
+        entries: [
+          { slug: "mc-foo", name: "mc-foo", description: "a preset", source: "preset", alreadyActive: false },
+          {
+            slug: "anthropics-pdf",
+            name: "anthropics-pdf",
+            description: "Fill PDFs",
+            source: "external",
+            alreadyActive: false,
+            repoId: "anthropics-skills",
+            skillFolder: "pdf",
+            repoUrl: "https://github.com/anthropics/skills",
+          },
+          {
+            slug: "anthropics-xlsx",
+            name: "anthropics-xlsx",
+            description: "Build spreadsheets",
+            source: "external",
+            alreadyActive: true,
+            repoId: "anthropics-skills",
+            skillFolder: "xlsx",
+            repoUrl: "https://github.com/anthropics/skills",
+          },
+        ],
+      },
+    }),
+  );
+  await page.route(urlEndsWith("/api/skills/external/repos"), (route) => {
+    if (route.request().method() === "POST") {
+      calls.install.push(route.request().postDataJSON() as InstallCall);
+      return route.fulfill({ json: { installed: true, repoId: "foo-bar" } });
+    }
+    return route.fulfill({
+      json: {
+        repos: [
+          {
+            repoId: "anthropics-skills",
+            url: "https://github.com/anthropics/skills",
+            subpath: "skills",
+            sha: "a".repeat(40),
+            installedAt: "2026-05-16T00:00:00Z",
+          },
+        ],
+      },
+    });
+  });
+  await page.route(
+    (url) => url.pathname.startsWith("/api/skills/external/repos/"),
+    (route) => {
+      if (route.request().method() === "DELETE") {
+        calls.deleted.push(decodeURIComponent(route.request().url().split("/api/skills/external/repos/").pop() ?? ""));
+        return route.fulfill({ json: { uninstalled: true, repoId: "anthropics-skills" } });
+      }
+      return route.fallback();
+    },
+  );
+  await page.route(urlEndsWith("/api/skills/external/suggestions"), (route) =>
+    route.fulfill({
+      json: {
+        suggestions: [{ url: "https://github.com/anthropics/skills", subpath: "skills", displayName: "Anthropic skills", description: "Official collection" }],
+      },
+    }),
+  );
+  await page.route(urlEndsWith("/api/skills/catalog/preview"), (route) =>
+    route.fulfill({ json: { detail: { slug: "anthropics-pdf", source: "external", description: "Fill PDFs", body: "## PDF\n\nstep one" } } }),
+  );
+  await page.route(urlEndsWith("/api/skills/catalog/star"), (route) => {
+    calls.star.push(route.request().postDataJSON() as StarCall);
+    return route.fulfill({ json: { starred: true, slug: "anthropics-pdf" } });
+  });
+}
+
+test.describe("manageSkills plugin — external catalog (#1383 PR-C2)", () => {
+  test("renders installed repos as collapsible subgroups + add-repo button", async ({ page }) => {
+    const calls = { star: [] as StarCall[], install: [] as InstallCall[], deleted: [] as string[] };
+    await setupExternalCatalog(page, calls);
+    await page.goto("/chat/skills-session");
+    await expect(page.getByText("MulmoClaude")).toBeVisible();
+    await page.getByText("2 skills").first().click();
+
+    const repo = page.getByTestId("skill-catalog-repo-anthropics-skills");
+    await expect(repo).toBeVisible();
+    // Both external entries visible while expanded.
+    await expect(page.getByTestId("skill-catalog-item-anthropics-skills/pdf")).toBeVisible();
+    await expect(page.getByTestId("skill-catalog-item-anthropics-skills/xlsx")).toBeVisible();
+    // Starred external entry shows the ★ indicator.
+    await expect(page.getByTestId("skill-catalog-starred-indicator-anthropics-skills/xlsx")).toBeVisible();
+
+    // Collapse the repo → rows hidden.
+    await page.getByTestId("skill-catalog-repo-toggle-anthropics-skills").click();
+    await expect(page.getByTestId("skill-catalog-item-anthropics-skills/pdf")).toBeHidden();
+
+    await expect(page.getByTestId("skill-catalog-add-repo")).toBeVisible();
+  });
+
+  test("selecting an external entry loads detail and Star sends external params", async ({ page }) => {
+    const calls = { star: [] as StarCall[], install: [] as InstallCall[], deleted: [] as string[] };
+    await setupExternalCatalog(page, calls);
+    await page.goto("/chat/skills-session");
+    await expect(page.getByText("MulmoClaude")).toBeVisible();
+    await page.getByText("2 skills").first().click();
+
+    await page.getByTestId("skill-catalog-item-anthropics-skills/pdf").click();
+    await expect(page.getByTestId("skill-catalog-detail-pane")).toContainText("Fill PDFs");
+    await page.getByTestId("skill-catalog-detail-star-btn").click();
+
+    await expect.poll(() => calls.star.length).toBe(1);
+    expect(calls.star[0]).toMatchObject({ source: "external", repoId: "anthropics-skills", skillFolder: "pdf" });
+  });
+
+  test("add-repo modal installs from a suggestion; uninstall confirms + fires DELETE", async ({ page }) => {
+    page.on("dialog", (dialog) => dialog.accept());
+    const calls = { star: [] as StarCall[], install: [] as InstallCall[], deleted: [] as string[] };
+    await setupExternalCatalog(page, calls);
+    await page.goto("/chat/skills-session");
+    await expect(page.getByText("MulmoClaude")).toBeVisible();
+    await page.getByText("2 skills").first().click();
+
+    await page.getByTestId("skill-catalog-add-repo").click();
+    await expect(page.getByTestId("skill-add-repo-modal")).toBeVisible();
+    await page.getByTestId("skill-add-repo-suggestion-https://github.com/anthropics/skills").click();
+    await expect.poll(() => calls.install.length).toBe(1);
+    expect(calls.install[0]).toMatchObject({ url: "https://github.com/anthropics/skills", subpath: "skills" });
+
+    await page.getByTestId("skill-catalog-repo-uninstall-anthropics-skills").click();
+    await expect.poll(() => calls.deleted).toContain("anthropics-skills");
+  });
+});

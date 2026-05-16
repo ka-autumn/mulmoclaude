@@ -17,6 +17,9 @@ import {
   loadCollapsedSections,
   persistCollapsedSections,
   pickInitialSelection,
+  REPO_COLLAPSED_STORAGE_KEY,
+  loadRepoCollapsed,
+  persistRepoCollapsed,
 } from "../../../src/plugins/manageSkills/categories.js";
 
 // Minimal localStorage shim. Mirrors only the methods the helpers call,
@@ -45,6 +48,56 @@ interface WindowGlobal {
   window?: { localStorage: Storage };
 }
 const globalRef = globalThis as unknown as WindowGlobal;
+
+describe("manageSkills repo-collapse state (#1383 PR-C2)", () => {
+  afterEach(() => {
+    delete globalRef.window;
+  });
+
+  it("uses the documented localStorage key", () => {
+    assert.equal(REPO_COLLAPSED_STORAGE_KEY, "skills:repoCollapsed");
+  });
+
+  it("defaults to empty (all repos expanded) with no window", () => {
+    delete globalRef.window;
+    assert.deepEqual([...loadRepoCollapsed()], []);
+  });
+
+  it("defaults to empty when nothing is persisted", () => {
+    const { storage } = makeStorageShim();
+    globalRef.window = { localStorage: storage };
+    assert.deepEqual([...loadRepoCollapsed()], []);
+  });
+
+  it("round-trips a persisted set", () => {
+    const { storage } = makeStorageShim();
+    globalRef.window = { localStorage: storage };
+    persistRepoCollapsed(new Set(["anthropics-skills", "foo-bar"]));
+    assert.deepEqual([...loadRepoCollapsed()].sort(), ["anthropics-skills", "foo-bar"]);
+  });
+
+  it("ignores non-array / non-string garbage", () => {
+    const { storage, map } = makeStorageShim();
+    globalRef.window = { localStorage: storage };
+    map.set(REPO_COLLAPSED_STORAGE_KEY, JSON.stringify({ not: "an array" }));
+    assert.deepEqual([...loadRepoCollapsed()], []);
+    map.set(REPO_COLLAPSED_STORAGE_KEY, JSON.stringify(["ok", 42, null]));
+    assert.deepEqual([...loadRepoCollapsed()], ["ok"]);
+  });
+
+  it("returns empty on malformed JSON", () => {
+    const { storage, map } = makeStorageShim();
+    globalRef.window = { localStorage: storage };
+    map.set(REPO_COLLAPSED_STORAGE_KEY, "{not json");
+    assert.deepEqual([...loadRepoCollapsed()], []);
+  });
+
+  it("swallows persist errors (quota / private mode)", () => {
+    const { storage } = makeStorageShim({ setItemThrows: true });
+    globalRef.window = { localStorage: storage };
+    assert.doesNotThrow(() => persistRepoCollapsed(new Set(["x"])));
+  });
+});
 
 describe("manageSkills categorizeSkill", () => {
   it("returns 'user' for user-source skills regardless of name", () => {
