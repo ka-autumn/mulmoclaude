@@ -13,11 +13,7 @@
         <details class="group">
           <summary class="cursor-pointer list-none p-4 flex items-start gap-3 hover:bg-purple-100/40 rounded-lg" :data-testid="'skill-summary-' + skillName">
             <span class="material-icons text-purple-600 text-base mt-0.5 shrink-0">extension</span>
-            <!-- `grow shrink basis-0` instead of `flex-1` is intentional: StackView's
-                 `.stack-natural :deep(.flex-1) { flex: 0 0 auto !important }` rule (intended
-                 for vertical-flex content height) would otherwise pin this horizontal flex
-                 child to its content width, breaking long-description wrapping in stack mode. -->
-            <div class="grow shrink basis-0 min-w-0">
+            <div class="flex-1 min-w-0">
               <div class="flex items-baseline gap-2 flex-wrap">
                 <span class="font-medium text-purple-900">{{ skillName }}</span>
                 <span v-if="skillScope !== 'unknown'" class="text-[10px] uppercase tracking-wide text-purple-500 px-1.5 py-0.5 rounded-full bg-purple-100">
