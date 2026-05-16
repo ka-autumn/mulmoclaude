@@ -155,6 +155,7 @@ const jaMessages = {
   },
   settingsModal: {
     title: "設定",
+    version: "MulmoClaude v{version}",
     tabs: {
       gemini: "Gemini API キー",
       tools: "許可ツール",

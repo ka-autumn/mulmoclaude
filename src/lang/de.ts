@@ -152,6 +152,7 @@ const deMessages = {
   },
   settingsModal: {
     title: "Einstellungen",
+    version: "MulmoClaude v{version}",
     tabs: {
       gemini: "Gemini-API-Schlüssel",
       tools: "Erlaubte Tools",

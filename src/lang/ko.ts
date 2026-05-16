@@ -157,6 +157,7 @@ const koMessages = {
   },
   settingsModal: {
     title: "설정",
+    version: "MulmoClaude v{version}",
     tabs: {
       gemini: "Gemini API 키",
       tools: "허용된 도구",

@@ -153,6 +153,7 @@ const zhMessages = {
   },
   settingsModal: {
     title: "设置",
+    version: "MulmoClaude v{version}",
     tabs: {
       gemini: "Gemini API 密钥",
       tools: "允许的工具",

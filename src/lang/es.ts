@@ -155,6 +155,7 @@ const esMessages = {
   },
   settingsModal: {
     title: "Ajustes",
+    version: "MulmoClaude v{version}",
     tabs: {
       gemini: "Clave API de Gemini",
       tools: "Herramientas permitidas",

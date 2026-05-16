@@ -47,6 +47,7 @@ import { createJournalRouter } from "./api/routes/journal.js";
 import { createTranslationRouter } from "./api/routes/translation.js";
 import { announcePluginMetaDiagnostics } from "./plugins/diagnostics.js";
 import { announceOptionalDeps } from "./system/announceOptionalDeps.js";
+import { APP_VERSION } from "./system/appVersion.js";
 import { createChatService } from "@mulmobridge/chat-service";
 import { readSessionJsonl } from "./utils/files/session-io.js";
 import { onSessionEvent, initSessionStore } from "./events/session-store/index.js";
@@ -566,6 +567,7 @@ app.get(API_ROUTES.health, (_req: Request, res: Response) => {
   const cores = cpus().length;
   res.json({
     status: "OK",
+    version: APP_VERSION,
     geminiAvailable: isGeminiAvailable(),
     sandboxEnabled,
     cpu: { load1, cores },

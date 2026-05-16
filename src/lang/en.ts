@@ -171,6 +171,7 @@ const enMessages = {
   },
   settingsModal: {
     title: "Settings",
+    version: "MulmoClaude v{version}",
     tabs: {
       gemini: "Gemini API Key",
       tools: "Allowed Tools",

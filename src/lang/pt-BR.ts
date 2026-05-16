@@ -150,6 +150,7 @@ const ptBRMessages = {
   },
   settingsModal: {
     title: "Configurações",
+    version: "MulmoClaude v{version}",
     tabs: {
       gemini: "Chave API do Gemini",
       tools: "Ferramentas permitidas",

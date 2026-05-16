@@ -150,6 +150,7 @@ const frMessages = {
   },
   settingsModal: {
     title: "Paramètres",
+    version: "MulmoClaude v{version}",
     tabs: {
       gemini: "Clé API Gemini",
       tools: "Outils autorisés",
