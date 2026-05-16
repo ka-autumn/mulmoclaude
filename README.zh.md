@@ -164,7 +164,7 @@ MulmoClaude 使用 Claude Code 作为 AI 后端，它可以访问包括 Bash 在
 
 如果没有安装 Docker，应用会显示警告横幅，并在无沙盒的情况下继续工作。
 
-> **调试模式**：即使已安装 Docker，若想在没有沙盒的情况下运行，请在启动服务器之前设置 `DISABLE_SANDBOX=1`。
+> **调试模式**：即使已安装 Docker，若想在没有沙盒的情况下运行，请在启动服务器之前设置 `DISABLE_SANDBOX=1`，或传入 CLI 标志 `--disable-sandbox`（`yarn dev --disable-sandbox` / `npx mulmoclaude --disable-sandbox`，Windows PowerShell 同样可用）。
 >
 > **工具调用历史**：设置 `PERSIST_TOOL_CALLS=1` 后,`tool_call` 事件(包含 `args`)将与 `tool_result` 一起被记录到会话 jsonl。默认关闭,因为 `args` 可能很大,并可能携带你不希望写入磁盘的负载字节(图像 base64、MulmoScript JSON);适合在页面刷新或服务器重启后进行调试。详见 [issue #1096](https://github.com/receptron/mulmoclaude/issues/1096)。
 
@@ -232,7 +232,12 @@ MulmoClaude 的默认 **Docker 沙盒模式** 将 Claude Code 隔离在容器中
 1. **为本次会话禁用沙盒**：
 
    ```bash
+   # env-var form (any shell supporting VAR=value)
    DISABLE_SANDBOX=1 yarn dev
+
+   # or the equivalent --disable-sandbox CLI flag (Windows PowerShell / npx / IDE run configs)
+   yarn dev --disable-sandbox
+   npx mulmoclaude --disable-sandbox
    ```
 
    Claude CLI 会使用你真正的 `~/.claude/` 运行，所有内容都能原生解析。只有当你信任即将发送的提示时才使用此方式 —— 对于不信任 / 探索性的工作，仍然推荐沙盒作为默认方式。

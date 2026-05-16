@@ -44,6 +44,8 @@ Anything larger than that should start as an issue. If you are not sure, opening
 
 All env vars are **optional unless flagged "required"**. The server reads them at process start (or per-agent-invocation where noted); set them in `.env` (loaded via `dotenv`) or your shell.
 
+> **CLI flag equivalents**: the launch-time boolean toggles also accept a `--flag` form on both `yarn dev` and `npx mulmoclaude` (handy on Windows PowerShell / IDE run configs): `DISABLE_SANDBOX` → `--disable-sandbox`, `DISABLE_MACOS_REMINDER_NOTIFICATIONS` → `--disable-macos-reminders`, `PERSIST_TOOL_CALLS` → `--persist-tool-calls`, `JOURNAL_FORCE_RUN_ON_STARTUP` → `--journal-force-run`, `CHAT_INDEX_FORCE_RUN_ON_STARTUP` → `--chat-index-force-run`. Registry: `server/utils/cli-flags.mjs`. Secret-bearing vars have no flag form (argv leaks via `ps`).
+
 ### API keys
 
 | Variable                    | Used by                       | Notes                                                                                                                                                    |

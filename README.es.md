@@ -162,7 +162,7 @@ Cuando el sandbox de Docker está activo en macOS, las credenciales se gestionan
 
 Si Docker no está instalado, la app muestra un aviso y sigue funcionando sin sandbox.
 
-> **Modo depuración**: para ejecutar sin sandbox aunque Docker esté instalado, define `DISABLE_SANDBOX=1` antes de iniciar el servidor.
+> **Modo depuración**: para ejecutar sin sandbox aunque Docker esté instalado, define `DISABLE_SANDBOX=1` antes de iniciar el servidor, o pasa el flag de CLI `--disable-sandbox` (`yarn dev --disable-sandbox` / `npx mulmoclaude --disable-sandbox`; funciona en Windows PowerShell).
 >
 > **Historial de llamadas a herramientas**: define `PERSIST_TOOL_CALLS=1` para registrar también los eventos `tool_call` (con sus `args`) en el jsonl de la sesión junto a `tool_result`. Desactivado por defecto porque `args` puede ser grande y contener bytes de carga útil (imágenes en base64, JSON de MulmoScript) que no querrías guardar en disco; útil para depurar tras refrescar la página o reiniciar el servidor. Ver [issue #1096](https://github.com/receptron/mulmoclaude/issues/1096).
 
@@ -231,7 +231,12 @@ El **modo sandbox de Docker** por defecto de MulmoClaude aísla Claude Code en u
 1. **Deshabilita el sandbox para esta sesión**:
 
    ```bash
+   # env-var form (any shell supporting VAR=value)
    DISABLE_SANDBOX=1 yarn dev
+
+   # or the equivalent --disable-sandbox CLI flag (Windows PowerShell / npx / IDE run configs)
+   yarn dev --disable-sandbox
+   npx mulmoclaude --disable-sandbox
    ```
 
    La CLI de Claude se ejecuta con tu `~/.claude/` real y todo se resuelve de forma nativa. Úsalo cuando confíes en los prompts que estás a punto de enviar — el sandbox sigue siendo el valor predeterminado recomendado para trabajo no confiable / exploratorio.

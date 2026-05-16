@@ -17,6 +17,7 @@ import { fileURLToPath } from "url";
 // it's plain JS rather than TypeScript.
 import { isPortFree, findAvailablePort, MAX_PORT_PROBES } from "../server/utils/port.mjs";
 import { parseDevPluginArgs } from "../server/utils/dev-plugin-args.mjs";
+import { cliFlagHelpLines, flagEnvOverrides } from "../server/utils/cli-flags.mjs";
 
 const require = createRequire(import.meta.url);
 
@@ -106,6 +107,7 @@ Options:
                        (repeatable). Path can be absolute or relative to cwd.
                        The dir must have package.json and dist/index.js
                        (run \`yarn build\` or \`yarn dev\` in the plugin first).
+${cliFlagHelpLines()}
   --version            Show version
   --help               Show this help
 `);
@@ -220,6 +222,14 @@ const serverEnv = {
 };
 if (devPluginPaths.length > 0) {
   serverEnv.MULMOCLAUDE_DEV_PLUGINS = devPluginPaths.join(PATH_DELIMITER);
+}
+// Boolean CLI flags that mirror an env var (#1089 + bundle): inject
+// the corresponding VAR=1 into the spawned server so the flag is
+// equivalent to the env-var prefix. The server reads these via
+// server/system/env.ts.
+for (const [flagEnv, value] of Object.entries(flagEnvOverrides(args))) {
+  serverEnv[flagEnv] = value;
+  log(`[flag] ${flagEnv}=${value}`);
 }
 
 const server = spawn(process.execPath, [tsxCli, SERVER_ENTRY], {

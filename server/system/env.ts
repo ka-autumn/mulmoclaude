@@ -15,6 +15,8 @@
 // `docs/developer.md` lists every env var and what it does; this
 // module is the runtime side of that table.
 
+import { CLI_FLAGS } from "../utils/cli-flags.mjs";
+
 // ── Type coercion helpers ───────────────────────────────────────────
 
 function asInt(value: string | undefined, fallback: number, opts: { min?: number; max?: number } = {}): number {
@@ -31,6 +33,17 @@ function asFlag(value: string | undefined): boolean {
   // (truthy) vs anything else (falsy). Avoids the trap of
   // `process.env.FOO === "false"` evaluating truthy as a string.
   return value === "1";
+}
+
+// Env vars also switched on by a CLI flag on this process's argv.
+// The npx launcher injects the env var into the spawned server, so
+// its path doesn't rely on this; this covers a direct
+// `tsx server/index.ts` / `yarn dev --<flag>` run. Computed once at
+// module load — same lifetime as the env snapshot below. (#1089.)
+const argvEnabledEnv = new Set<string>(CLI_FLAGS.filter(({ flag }) => process.argv.includes(flag)).map(({ env: envName }) => envName));
+
+function flagOf(envName: string): boolean {
+  return asFlag(process.env[envName]) || argvEnabledEnv.has(envName);
 }
 
 function asCsv(value: string | undefined): readonly string[] {
@@ -57,13 +70,13 @@ export const env = Object.freeze({
   isProduction: process.env.NODE_ENV === "production",
 
   // Sandbox / Docker
-  disableSandbox: asFlag(process.env.DISABLE_SANDBOX),
+  disableSandbox: flagOf("DISABLE_SANDBOX"),
   // Debug aid: also persist `tool_call` events to the session
   // jsonl (the `tool_result` side already lands on disk). Off by
   // default because args can be large and may carry payload bytes
   // the user didn't expect to land in this exact form. See
   // plans/done/feat-persist-tool-calls.md / issue #1096.
-  persistToolCalls: asFlag(process.env.PERSIST_TOOL_CALLS),
+  persistToolCalls: flagOf("PERSIST_TOOL_CALLS"),
   // Host-credential opt-ins for the Docker sandbox (#259). Both off
   // by default. See docs/sandbox-credentials.md for the contract.
   sandboxSshAgentForward: asFlag(process.env.SANDBOX_SSH_AGENT_FORWARD),
@@ -89,8 +102,8 @@ export const env = Object.freeze({
   // Debug-only force-run flags. Off by default; `=1` triggers an
   // immediate run on startup instead of waiting for the scheduled
   // interval.
-  journalForceRunOnStartup: asFlag(process.env.JOURNAL_FORCE_RUN_ON_STARTUP),
-  chatIndexForceRunOnStartup: asFlag(process.env.CHAT_INDEX_FORCE_RUN_ON_STARTUP),
+  journalForceRunOnStartup: flagOf("JOURNAL_FORCE_RUN_ON_STARTUP"),
+  chatIndexForceRunOnStartup: flagOf("CHAT_INDEX_FORCE_RUN_ON_STARTUP"),
 
   // macOS Reminder notification sink (#789). Darwin-only; iCloud
   // Reminders sync mirrors the entry to the user's iPhone, which
@@ -100,7 +113,7 @@ export const env = Object.freeze({
   // `DISABLE_MACOS_REMINDER_NOTIFICATIONS=1` to opt out (e.g. for
   // a shared dev box where the iPhone owner shouldn't get pinged).
   // Mirrors the `DISABLE_SANDBOX` convention.
-  disableMacosReminderNotifications: asFlag(process.env.DISABLE_MACOS_REMINDER_NOTIFICATIONS),
+  disableMacosReminderNotifications: flagOf("DISABLE_MACOS_REMINDER_NOTIFICATIONS"),
 
   // MulmoBridge Relay (#520). Optional — when both are set the server
   // connects to the Relay via WebSocket and forwards bridge messages.
