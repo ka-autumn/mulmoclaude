@@ -10,6 +10,13 @@ Encore then:
 
 You never call `chat.start` directly for an obligation. The bell click handles that. You just close the loop on the resulting chat by calling `markStepDone` with the `pendingId` from the seed prompt.
 
+## Your end-to-end loop
+
+1. User describes a recurring obligation → you compose a DSL document → call `manageEncore({ kind: "setup", definition })`.
+2. Encore fires bell notifications at the right times. You do NOT call `chat.start` — the host opens a fresh chat with you when the user clicks the bell, and seeds it with a prompt that names the obligation, the open targets, and a `pendingId`.
+3. In that seeded chat: converse with the user about the obligation, collect what they recorded, and call the matching action (`markStepDone` / `markTargetSkipped` / `recordValues` / `snooze`) passing the `pendingId`. That's the ONLY way the bell entry clears — there is no separate clear/dismiss action.
+4. Encore handles cycle recurrence: closing a cycle (all targets done or skipped) provisions the next cycle on the next tick. You don't need to do anything for that.
+
 ## When to use this
 
 Whenever the user describes something that recurs and they want to be reminded about:
@@ -118,6 +125,8 @@ Every action takes a `kind` discriminator. The handler validates the rest with Z
 { "kind": "setup", "definition": { /* full DSL above */ } }
 ```
 
+`definition` is an **OBJECT** in the tool-call arguments, not a JSON-encoded string. Don't `JSON.stringify` it — pass the object literal. The 400 you get for the string form names the error explicitly ("expected object, received string"), so if you see that, drop the stringify.
+
 Returns `{ ok: true, obligationId, cycleId, cyclePath, indexPath }`. Encore writes `obligations/<id>/index.md` plus the first cycle file and kicks the tick (so a `cycle-start` phase fires immediately).
 
 ### amendDefinition
@@ -130,7 +139,7 @@ Returns `{ ok: true, obligationId, cycleId, cyclePath, indexPath }`. Encore writ
 }
 ```
 
-Shallow-merge at the top level — for arrays (`targets`, `steps`, `formSchema.fields`, `firingPlan`) send the **full** replacement value, not just the field you want to change. Cannot change `type` / `currency` / `cadence.type`. Encore clears active bell entries on amend and re-fires with the new title/text.
+`definition` is an **OBJECT**, not a JSON-encoded string (same as setup). Shallow-merge at the top level — for arrays (`targets`, `steps`, `formSchema.fields`, `firingPlan`) send the **full** replacement value, not just the field you want to change. Cannot change `type` / `currency` / `cadence.type`. Encore clears active bell entries on amend and re-fires with the new title/text.
 
 ### markStepDone — CLOSE ONE STEP ON ONE TARGET
 

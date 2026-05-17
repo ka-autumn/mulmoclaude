@@ -47,18 +47,8 @@ const toolDefinition: ToolDefinition = {
   type: "function",
   name: TOOL_NAME,
   prompt:
-    "Track recurring obligations (monthly payments, biannual taxes, annual services) defined in the Encore DSL.\n\n" +
-    "Actions:\n" +
-    "- setup: create a new obligation. Args: { kind: 'setup', definition: <full DSL> }. Encore generates `id` and `createdAt`.\n" +
-    "- amendDefinition: update an obligation mid-life. Args: { kind: 'amendDefinition', obligationId, definition: <partial DSL fields to merge> }. Cannot change `type`, `currency`, or `cadence.type`.\n" +
-    "- markStepDone: close ONE step on ONE target. Args: { kind: 'markStepDone', obligationId, cycleId, targetId, stepId, values?, pendingId? }. `targetId` is SINGULAR (string). `values` is FLAT { fieldName: value, ... } — never nested by target. If a bundled notification covered multiple targets, call markStepDone ONCE PER TARGET.\n" +
-    "- markTargetSkipped: skip a whole target for this cycle. Args: { kind: 'markTargetSkipped', obligationId, cycleId, targetId, pendingId? }.\n" +
-    "- recordValues: write partial values without closing. Args: { kind: 'recordValues', obligationId, cycleId, targetId, values, pendingId? }.\n" +
-    "- snooze: defer a step's bell entry. Args: { kind: 'snooze', obligationId, cycleId, targetId, stepId, pendingId? }.\n" +
-    "- query: read obligations + cycle history. Args: { kind: 'query', obligationId?, range?: 'current' | 'all' | <number>, targetId? }. Response includes workspace-relative paths so you can deep-read raw files.\n" +
-    "- appendNote: append free-form notes. Args: { kind: 'appendNote', obligationId, cycleId?, body }. Omit cycleId to append to the obligation's index.md body; include it to append to a specific cycle's body.\n\n" +
-    "Bell-entry lifecycle: notifications are NOT auto-cleared on user click. When the user clicks a bell entry the host lands them in a seeded chat with you; you converse, then call markStepDone (or markTargetSkipped / snooze) with the `pendingId` from the seed prompt — that's what clears the bell. Do NOT invent a separate clear/dismiss action.\n\n" +
-    "Read `helps/encore-dsl.md` for the full DSL grammar and three worked examples (monthly-payments, real-estate-tax, annual-physical). When composing a setup DSL, the help file is mandatory reference reading.",
+    "Encore registers recurring obligations (monthly payments, biannual taxes, annual physicals, daily check-ins, etc.) and surfaces reminders in the notification bell at the right times. " +
+    "Read `helps/encore-dsl.md` before calling — it documents the DSL grammar, every action's call shape, bell-clearing semantics, and three worked examples.",
   description: "Manage recurring obligations defined in the Encore DSL — payments and services with cadence, targets, steps, and firing plans.",
   parameters: {
     type: "object",

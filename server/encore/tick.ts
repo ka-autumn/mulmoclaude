@@ -1,38 +1,46 @@
-// Encore tick — the DSL interpreter.
+// Encore tick — the DSL interpreter over data-only cycle state.
 //
 // Each tick, for every `active` obligation:
 //
-//   1. Read DSL (index.md) + current cycle file.
-//   2. For each open (target, step), compute (currentPhase,
-//      currentSeverity, fireDate) by walking firingPlan in order
-//      and picking the latest phase whose `at` resolves to a date
-//      ≤ today.
-//   3. Group un-fired pairs by (stepId, severity, fireDate) within
-//      the obligation. Each group becomes ONE notification —
-//      the "multi-target → one ding" UX. Store the same
-//      activeNotificationId on each target.step entry.
-//   4. For pairs that already have an activeNotificationId, check
-//      if the current severity differs from lastPublishedSeverity;
-//      if so, escalate (clear+publish, same pendingId/navigateTarget,
-//      different severity).
+//   1. Read DSL (index.md). Pick the current cycle file (latest by
+//      name). If derivation says it's closed (closure.ts), provision
+//      the next cycle file and operate on that — no separate
+//      `state.status` flag is consulted.
+//   2. Read pending-clear/*.json filtered to this obligation+cycle.
+//      One ticket = one live bell entry; their `targets[]` and
+//      `stepId` tell us which (target, step) pairs are already
+//      published. (The cycle file no longer mentions notification
+//      ids.)
+//   3. For each existing ticket: compute the step's current phase;
+//      if its severity differs from the ticket's `severity`,
+//      escalate (clear+republish) and rewrite the ticket.
+//   4. For each (target, step) that is NOT closed (via closure.ts)
+//      AND not covered by any ticket: compute the current phase; if
+//      one fires, collect into a bundle group keyed by
+//      (stepId, severity, fireDate).
+//   5. Each bundle group becomes one published notification + one
+//      ticket. Multi-target → one ding.
+//   6. Prune orphan tickets older than 30 days.
 //
-// The tick NEVER calls chat.start. It writes a pending-clear ticket
-// with the seed prompt; chat creation is deferred to the user's
-// click on the bell, handled by Step 5's /encore page.
+// The tick NEVER calls chat.start — chat creation is deferred to the
+// user's bell click via the /encore page (View.vue dispatches
+// resolveNotification on mount). The tick also never writes a
+// `status` flag; the cycle file is purely user-recorded data.
 
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 
 import { log as defaultLog } from "../system/logger/index.js";
 import { ONE_HOUR_MS } from "../utils/time.js";
-import { compareIsoDates, isoDate } from "./dsl/cadence.js";
+import { compareIsoDates, formatCycleId, isoDate, nextSlot, type CycleSlot } from "./dsl/cadence.js";
 import { parseAtExpression } from "./dsl/at-expression.js";
 import { resolveAtExpression } from "./dsl/at-resolver.js";
 import type { EncoreDsl, Severity, StepDef } from "./dsl/schema.js";
 import { parseIndexFile } from "./obligation.js";
-import { parseCycleFile, serializeCycleFile, type CycleState, type StepState } from "./cycle.js";
-import { obligationDir, obligationIndexPath, pendingClearPath, PENDING_CLEAR_DIRNAME, OBLIGATIONS_DIRNAME } from "./paths.js";
-import { readDir, readTextOrNull, writeText, unlink } from "../utils/files/encore-io.js";
+import { buildCycleState, parseCycleFile, serializeCycleFile, type CycleState } from "./cycle.js";
+import { isCycleClosed, isStepClosed } from "./closure.js";
+import { cycleFilePath, obligationDir, obligationIndexPath, pendingClearPath, PENDING_CLEAR_DIRNAME, OBLIGATIONS_DIRNAME } from "./paths.js";
+import { exists, readDir, readTextOrNull, writeText, unlink } from "../utils/files/encore-io.js";
 import * as encoreNotifier from "./notifier.js";
 
 const ORPHAN_TICKET_AGE_MS = 30 * 24 * ONE_HOUR_MS; // 30 days
@@ -42,11 +50,11 @@ export interface TickDeps {
   log?: typeof defaultLog;
 }
 
-/** Shape of a pending-clear ticket on disk. The /encore page reads
- *  this on the user's click (Step 5), starts the chat with
- *  `seedPrompt`, and returns navigateTo: /chat/<chatId>. The handler
- *  side reads it from markStepDone/markTargetSkipped to clear the
- *  bell entry. */
+/** Shape of a pending-clear ticket on disk. Authoritative record
+ *  of every live Encore bell entry: which obligation+cycle+step it
+ *  belongs to, which targets it covers, what severity it was
+ *  published at (used for escalation diff), and the seed prompt
+ *  resolveNotification will use to start the chat on user click. */
 export interface PendingClearTicket {
   pendingId: string;
   obligationId: string;
@@ -55,15 +63,15 @@ export interface PendingClearTicket {
   stepId: string;
   /** Target ids covered by this bundled notification. */
   targets: string[];
+  /** Severity at last publish — used as the escalation-diff
+   *  baseline. The cycle file used to carry
+   *  `lastPublishedSeverity`; that moved here when status flags
+   *  were removed. */
   severity: Severity;
-  /** Initial message the chat opens with — embeds the
-   *  bundle scope, the relevant formSchema fields, and the
-   *  pendingId so the LLM can call back with the right args. */
   seedPrompt: string;
   createdAt: string;
-  /** Filled by resolveNotification on the user's first bell click.
-   *  Subsequent clicks reuse it (idempotent) so a double-click
-   *  doesn't spawn two chats for the same bell entry. */
+  /** Filled by resolveNotification on first bell click. Subsequent
+   *  clicks reuse it (idempotent). */
   chatSessionId?: string;
 }
 
@@ -89,123 +97,155 @@ async function tickOneObligation(obligationId: string, todayIso: string, log: ty
   const { dsl } = parseIndexFile(indexRaw);
   if (dsl.status !== "active") return;
 
-  const cycleRel = await pickCurrentCycle(obligationId);
-  if (!cycleRel) return;
-  const cycleRaw = await readTextOrNull(cycleRel);
-  if (cycleRaw === null) return;
-  const { state, body } = parseCycleFile(cycleRaw);
-  if (state.status !== "open") return;
+  const opened = await ensureOpenCycle(obligationId, dsl, log);
+  if (!opened) return;
+  const { state } = opened;
 
-  let dirty = false;
+  // Pull every ticket that covers this obligation+cycle so we know
+  // which (target, step) pairs already have a live bell entry.
+  const tickets = await ticketsForCycle(obligationId, state.cycleId);
+  const activeByStepTarget = new Map<string, PendingClearTicket>();
+  for (const ticket of tickets) {
+    for (const targetId of ticket.targets) {
+      activeByStepTarget.set(`${ticket.stepId}:${targetId}`, ticket);
+    }
+  }
 
   // Phase 1: escalate existing notifications when current phase
-  // severity ≠ lastPublishedSeverity.
-  const byActiveId = groupByActiveId(state);
-  for (const [notificationId, members] of byActiveId.entries()) {
-    const escalated = await maybeEscalate(dsl, state, members, todayIso, notificationId, log);
-    if (escalated) dirty = true;
+  // severity differs from the ticket's recorded severity. The
+  // cycle file is untouched (it carries user-data only; bell
+  // state lives in the ticket).
+  for (const ticket of dedupeTickets(tickets)) {
+    await maybeEscalate(dsl, state, ticket, todayIso, log);
   }
 
-  // Phase 2: publish for un-fired (target, step) pairs.
-  const unfired = collectUnfired(dsl, state, todayIso);
-  const groups = groupForBundling(unfired);
-  for (const group of groups) {
+  // Phase 2: publish for un-fired, not-closed (target, step) pairs.
+  const unfired = collectUnfired(dsl, state, activeByStepTarget, todayIso);
+  for (const group of groupForBundling(unfired)) {
     await fireGroup(dsl, state, group, log);
-    dirty = true;
+  }
+}
+
+/** Pick the obligation's latest cycle file. If it's closed (per
+ *  closure derivation), provision the next cycle and return that
+ *  instead. Returns null if the obligation has no cycle files at
+ *  all (shouldn't happen — setup writes the first). */
+async function ensureOpenCycle(
+  obligationId: string,
+  dsl: EncoreDsl,
+  log: typeof defaultLog,
+): Promise<{ cycleRel: string; state: CycleState; body: string } | null> {
+  const latest = await pickCurrentCycle(obligationId);
+  if (!latest) return null;
+  const raw = await readTextOrNull(latest);
+  if (raw === null) return null;
+  const { state, body } = parseCycleFile(raw);
+
+  if (!isCycleClosed(state, dsl)) {
+    return { cycleRel: latest, state, body };
   }
 
-  if (dirty) {
-    await writeText(cycleRel, serializeCycleFile(state, body));
+  // Closed → provision the next cycle (if not already on disk) and
+  // operate on it instead. This is where "stuck obligations"
+  // unstick: the closure is derived, so even cycles that closed
+  // under the old shape (or that never had status flags set
+  // explicitly) get a successor on the next tick.
+  const slot = slotFromCycleId(dsl.cadence, state.cycleId);
+  if (!slot) {
+    log.warn("encore", "tick: could not parse cycleId for next-slot", { obligationId, cycleId: state.cycleId });
+    return null;
   }
+  const next = nextSlot(dsl.cadence, slot);
+  const nextRel = cycleFilePath(obligationId, formatCycleId(next));
+  if (!(await exists(nextRel))) {
+    await writeText(nextRel, serializeCycleFile(buildCycleState(dsl, next), ""));
+    log.info("encore", "tick: provisioned next cycle", { obligationId, fromCycleId: state.cycleId, toCycleId: formatCycleId(next) });
+  }
+  const nextRaw = await readTextOrNull(nextRel);
+  if (nextRaw === null) return null;
+  const nextParsed = parseCycleFile(nextRaw);
+  return { cycleRel: nextRel, state: nextParsed.state, body: nextParsed.body };
 }
 
 async function pickCurrentCycle(obligationId: string): Promise<string | null> {
   const entries = await readDir(obligationDir(obligationId));
   const cycleFiles = entries.filter((name) => name !== "index.md" && name.endsWith(".md")).sort();
   if (cycleFiles.length === 0) return null;
-  // The latest file alphabetically is the current cycle (cycle ids
-  // are zero-padded date-like strings: 2026-05, 2026-W19, 2026-h1).
   return path.join(obligationDir(obligationId), cycleFiles[cycleFiles.length - 1]);
+}
+
+/** Cycle id → slot. Reverse of `formatCycleId`. */
+function slotFromCycleId(cadence: EncoreDsl["cadence"], cycleId: string): CycleSlot | null {
+  if (cadence.type === "annual") {
+    const year = Number.parseInt(cycleId, 10);
+    if (!Number.isFinite(year)) return null;
+    return { kind: "annual", year };
+  }
+  if (cadence.type === "biannual") {
+    const match = cycleId.match(/^(\d{4})-h([12])$/);
+    if (!match) return null;
+    return { kind: "biannual", year: Number.parseInt(match[1], 10), half: Number.parseInt(match[2], 10) as 1 | 2 };
+  }
+  if (cadence.type === "monthly") {
+    const match = cycleId.match(/^(\d{4})-(\d{2})$/);
+    if (!match) return null;
+    return { kind: "monthly", year: Number.parseInt(match[1], 10), month: Number.parseInt(match[2], 10) };
+  }
+  if (cadence.type === "weekly") {
+    const match = cycleId.match(/^(\d{4})-W(\d{2})$/);
+    if (!match) return null;
+    return { kind: "weekly", year: Number.parseInt(match[1], 10), week: Number.parseInt(match[2], 10) };
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(cycleId)) return null;
+  return { kind: "daily", iso: cycleId };
 }
 
 // ── escalation ────────────────────────────────────────────────────
 
-interface ActiveMember {
-  targetId: string;
-  stepId: string;
-  step: StepState;
-}
-
-function groupByActiveId(state: CycleState): Map<string, ActiveMember[]> {
-  const byId = new Map<string, ActiveMember[]>();
-  for (const [targetId, record] of Object.entries(state.records)) {
-    if (record.status !== "open") continue;
-    for (const [stepId, step] of Object.entries(record.steps)) {
-      if (step.status !== "open") continue;
-      if (!step.activeNotificationId) continue;
-      const list = byId.get(step.activeNotificationId) ?? [];
-      list.push({ targetId, stepId, step });
-      byId.set(step.activeNotificationId, list);
-    }
+function dedupeTickets(tickets: PendingClearTicket[]): PendingClearTicket[] {
+  const seen = new Set<string>();
+  const out: PendingClearTicket[] = [];
+  for (const ticket of tickets) {
+    if (seen.has(ticket.pendingId)) continue;
+    seen.add(ticket.pendingId);
+    out.push(ticket);
   }
-  return byId;
+  return out;
 }
 
-async function maybeEscalate(
-  dsl: EncoreDsl,
-  state: CycleState,
-  members: ActiveMember[],
-  todayIso: string,
-  notificationId: string,
-  log: typeof defaultLog,
-): Promise<boolean> {
-  if (members.length === 0) return false;
-  const [firstMember] = members;
-  const stepDef = dsl.steps.find((step) => step.id === firstMember.stepId);
+async function maybeEscalate(dsl: EncoreDsl, state: CycleState, ticket: PendingClearTicket, todayIso: string, log: typeof defaultLog): Promise<boolean> {
+  const stepDef = dsl.steps.find((step) => step.id === ticket.stepId);
   if (!stepDef) return false;
-  const phase = currentPhaseFor(stepDef, firstMember.step, state, todayIso);
-  if (!phase) return false;
-  // All members of the same notification share the same step (one
-  // notification fires for one stepId), so the severity comparison
-  // is uniform.
-  const lastSeverity = firstMember.step.lastPublishedSeverity;
-  if (phase.severity === lastSeverity) return false;
-
-  // Severity transition → escalate by clear+publish (host doesn't
-  // expose an `update` op).
-  const ticket = await readTicketForNotification(notificationId);
-  if (!ticket) {
-    log.warn("encore", "escalate: pending-clear ticket missing; skipping", { notificationId });
-    return false;
+  // Use the first still-open target as the reference for anchoring
+  // step deadlines (they share the same step.deadline expression).
+  const liveTarget = ticket.targets.find((targetId) => !isStepClosed(state.records[targetId], stepDef));
+  if (!liveTarget) {
+    // Every target in the bundle has closed — the handler-side
+    // ticket trimming should have already run, but if a heartbeat
+    // races ahead of `clearPendingNotification`, clean up here.
+    await encoreNotifier.clear(ticket.notificationId);
+    await unlink(pendingClearPath(ticket.pendingId));
+    log.info("encore", "tick: cleared fully-resolved bundle", { pendingId: ticket.pendingId, notificationId: ticket.notificationId });
+    return true;
   }
+  const phase = currentPhaseFor(stepDef, state, todayIso);
+  if (!phase || phase.severity === ticket.severity) return false;
 
-  await encoreNotifier.clear(notificationId);
+  // Severity transition → clear + republish, rewrite ticket.
+  await encoreNotifier.clear(ticket.notificationId);
   const navigateTarget = encoreUrlFor(ticket.pendingId);
-  const title = bundleTitle(dsl, stepDef, members);
-  const body = bundleBody(dsl, stepDef, members);
-  const { id: newId } = await encoreNotifier.publish({
-    severity: phase.severity,
-    title,
-    body,
-    navigateTarget,
-  });
-
-  await writeTicket({ ...ticket, notificationId: newId, severity: phase.severity });
-
-  // Mutate the step references in place; the caller will persist.
-  for (const member of members) {
-    member.step.activeNotificationId = newId;
-    member.step.lastPublishedSeverity = phase.severity;
-  }
-
+  const liveMembers = ticket.targets.filter((targetId) => !isStepClosed(state.records[targetId], stepDef)).map((targetId) => ({ targetId }));
+  const title = bundleTitle(dsl, stepDef, liveMembers);
+  const body = bundleBody(dsl, stepDef, liveMembers);
+  const { id: newId } = await encoreNotifier.publish({ severity: phase.severity, title, body, navigateTarget });
+  await writeTicket({ ...ticket, notificationId: newId, severity: phase.severity, targets: liveMembers.map((entry) => entry.targetId) });
   log.info("encore", "tick: escalated notification", {
     obligationId: dsl.id,
     cycleId: state.cycleId,
-    stepId: firstMember.stepId,
-    from: lastSeverity,
+    stepId: stepDef.id,
+    from: ticket.severity,
     to: phase.severity,
     notificationId: newId,
-    pendingId: ticket.pendingId,
   });
   return true;
 }
@@ -215,39 +255,25 @@ async function maybeEscalate(
 interface UnfiredPair {
   targetId: string;
   stepId: string;
-  step: StepState;
   stepDef: StepDef;
   severity: Severity;
   fireDate: string;
 }
 
-function collectUnfired(dsl: EncoreDsl, state: CycleState, todayIso: string): UnfiredPair[] {
+function collectUnfired(dsl: EncoreDsl, state: CycleState, activeByStepTarget: Map<string, PendingClearTicket>, todayIso: string): UnfiredPair[] {
   const out: UnfiredPair[] = [];
-  const stepDefById = new Map(dsl.steps.map((step) => [step.id, step] as const));
-  for (const [targetId, record] of Object.entries(state.records)) {
-    if (record.status !== "open") continue;
-    collectUnfiredForTarget(out, targetId, record.steps, stepDefById, state, todayIso);
+  for (const target of dsl.targets) {
+    const record = state.records[target.id];
+    if (record?.skipped) continue;
+    for (const step of dsl.steps) {
+      if (isStepClosed(record, step)) continue;
+      if (activeByStepTarget.has(`${step.id}:${target.id}`)) continue;
+      const phase = currentPhaseFor(step, state, todayIso);
+      if (!phase) continue;
+      out.push({ targetId: target.id, stepId: step.id, stepDef: step, severity: phase.severity, fireDate: phase.fireDate });
+    }
   }
   return out;
-}
-
-function collectUnfiredForTarget(
-  out: UnfiredPair[],
-  targetId: string,
-  steps: Record<string, StepState>,
-  stepDefById: Map<string, StepDef>,
-  state: CycleState,
-  todayIso: string,
-): void {
-  for (const [stepId, step] of Object.entries(steps)) {
-    if (step.status !== "open") continue;
-    if (step.activeNotificationId) continue;
-    const stepDef = stepDefById.get(stepId);
-    if (!stepDef) continue;
-    const phase = currentPhaseFor(stepDef, step, state, todayIso);
-    if (!phase) continue;
-    out.push({ targetId, stepId, step, stepDef, severity: phase.severity, fireDate: phase.fireDate });
-  }
 }
 
 interface BundleGroup {
@@ -255,7 +281,7 @@ interface BundleGroup {
   stepDef: StepDef;
   severity: Severity;
   fireDate: string;
-  members: { targetId: string; step: StepState }[];
+  members: { targetId: string }[];
 }
 
 function groupForBundling(unfired: UnfiredPair[]): BundleGroup[] {
@@ -264,14 +290,14 @@ function groupForBundling(unfired: UnfiredPair[]): BundleGroup[] {
     const key = `${pair.stepId} ${pair.severity} ${pair.fireDate}`;
     const existing = byKey.get(key);
     if (existing) {
-      existing.members.push({ targetId: pair.targetId, step: pair.step });
+      existing.members.push({ targetId: pair.targetId });
     } else {
       byKey.set(key, {
         stepId: pair.stepId,
         stepDef: pair.stepDef,
         severity: pair.severity,
         fireDate: pair.fireDate,
-        members: [{ targetId: pair.targetId, step: pair.step }],
+        members: [{ targetId: pair.targetId }],
       });
     }
   }
@@ -281,16 +307,10 @@ function groupForBundling(unfired: UnfiredPair[]): BundleGroup[] {
 async function fireGroup(dsl: EncoreDsl, state: CycleState, group: BundleGroup, log: typeof defaultLog): Promise<void> {
   const pendingId = randomUUID();
   const navigateTarget = encoreUrlFor(pendingId);
-  const members = group.members.map((member) => ({ targetId: member.targetId, stepId: group.stepId, step: member.step }));
-  const title = bundleTitle(dsl, group.stepDef, members);
-  const body = bundleBody(dsl, group.stepDef, members);
+  const title = bundleTitle(dsl, group.stepDef, group.members);
+  const body = bundleBody(dsl, group.stepDef, group.members);
 
-  const { id: notificationId } = await encoreNotifier.publish({
-    severity: group.severity,
-    title,
-    body,
-    navigateTarget,
-  });
+  const { id: notificationId } = await encoreNotifier.publish({ severity: group.severity, title, body, navigateTarget });
 
   const ticket: PendingClearTicket = {
     pendingId,
@@ -304,13 +324,6 @@ async function fireGroup(dsl: EncoreDsl, state: CycleState, group: BundleGroup, 
     createdAt: new Date().toISOString(),
   };
   await writeTicket(ticket);
-
-  // Mutate the live step objects so the cycle state we return
-  // carries the new ids.
-  for (const member of group.members) {
-    member.step.activeNotificationId = notificationId;
-    member.step.lastPublishedSeverity = group.severity;
-  }
 
   log.info("encore", "tick: fired bundled notification", {
     obligationId: dsl.id,
@@ -330,29 +343,31 @@ interface ResolvedPhase {
   fireDate: string;
 }
 
-function currentPhaseFor(stepDef: StepDef, stepState: StepState, cycleState: CycleState, todayIso: string): ResolvedPhase | null {
-  // Resolve each phase's `at` against the cycle + step anchors,
-  // walking firingPlan in declared order (which the schema
-  // validates is chronological) and picking the latest whose date
-  // is ≤ today.
-  const anchors = {
-    cycleStart: cycleState.cycleStart,
-    cycleDeadline: cycleState.cycleDeadline,
-    stepDeadline: stepState.stepDeadline,
-  };
+function currentPhaseFor(stepDef: StepDef, cycleState: CycleState, todayIso: string): ResolvedPhase | null {
+  // Resolve the step's own deadline first (step.deadline can't use
+  // step-deadline anchor — only firingPlan phases can).
+  let stepDeadline: string;
+  try {
+    stepDeadline = resolveAtExpression(parseAtExpression(stepDef.deadline, { allowStepDeadline: false }), {
+      cycleStart: cycleState.cycleStart,
+      cycleDeadline: cycleState.cycleDeadline,
+    });
+  } catch {
+    return null;
+  }
+  const anchors = { cycleStart: cycleState.cycleStart, cycleDeadline: cycleState.cycleDeadline, stepDeadline };
   let latest: ResolvedPhase | null = null;
   for (const phase of stepDef.firingPlan) {
     let resolved: string;
     try {
-      const expr = parseAtExpression(phase.at, { allowStepDeadline: true });
-      resolved = resolveAtExpression(expr, anchors);
+      resolved = resolveAtExpression(parseAtExpression(phase.at, { allowStepDeadline: true }), anchors);
     } catch {
       continue;
     }
     if (compareIsoDates(resolved, todayIso) <= 0) {
       latest = { severity: phase.severity, fireDate: resolved };
     } else {
-      break; // phases are chronological; no later phase fires
+      break; // firingPlan is chronological; nothing later fires
     }
   }
   return latest;
@@ -369,15 +384,14 @@ function bundleTitle(dsl: EncoreDsl, stepDef: StepDef, members: { targetId: stri
   return `${dsl.displayName} — ${stepDef.displayName} (${members.length} targets)`;
 }
 
-function bundleBody(dsl: EncoreDsl, stepDef: StepDef, members: { targetId: string }[]): string {
+function bundleBody(dsl: EncoreDsl, _stepDef: StepDef, members: { targetId: string }[]): string {
   if (members.length === 1) return "";
-  const names = members
+  return members
     .map((member) => {
       const target = dsl.targets.find((entry) => entry.id === member.targetId);
       return target?.displayName ?? member.targetId;
     })
     .join(", ");
-  return names;
 }
 
 function buildSeedPrompt(dsl: EncoreDsl, group: BundleGroup, pendingId: string, cycleId: string): string {
@@ -390,11 +404,6 @@ function buildSeedPrompt(dsl: EncoreDsl, group: BundleGroup, pendingId: string, 
   const fieldList = group.stepDef.fields.length === 0 ? "(no fields to record for this step)" : group.stepDef.fields.map((name) => `- ${name}`).join("\n");
   const firstTargetId = group.members[0]?.targetId ?? "<targetId>";
   const obligationId = dsl.id ?? "";
-
-  // Concrete sample call to anchor the LLM on the singular
-  // `targetId` shape + flat `values` map. Past mistakes the LLM
-  // has made: `targetIds: ["..."]` (plural array), and
-  // `values: { <targetId>: { ... } }` (nested under target).
   const exampleCall = JSON.stringify(
     {
       kind: "markStepDone",
@@ -408,7 +417,6 @@ function buildSeedPrompt(dsl: EncoreDsl, group: BundleGroup, pendingId: string, 
     null,
     2,
   );
-
   return [
     `An Encore reminder for the obligation "${dsl.displayName}" (id: ${obligationId}, cycle: ${cycleId}).`,
     "",
@@ -445,23 +453,26 @@ async function writeTicket(ticket: PendingClearTicket): Promise<void> {
   await writeText(pendingClearPath(ticket.pendingId), JSON.stringify(ticket, null, 2));
 }
 
-async function readTicketForNotification(notificationId: string): Promise<PendingClearTicket | null> {
-  // We don't index tickets by notificationId; scan the
-  // pending-clear directory. Cardinality is small (one per
-  // outstanding bell entry), so a linear scan is fine.
+/** Read all pending-clear tickets that match (obligationId,
+ *  cycleId). Tolerates unparsable entries (skipped silently;
+ *  pruneOrphanTickets cleans them up eventually). */
+async function ticketsForCycle(obligationId: string, cycleId: string): Promise<PendingClearTicket[]> {
   const entries = await readDir(PENDING_CLEAR_DIRNAME);
+  const out: PendingClearTicket[] = [];
   for (const entry of entries) {
     if (!entry.endsWith(".json")) continue;
     const raw = await readTextOrNull(path.join(PENDING_CLEAR_DIRNAME, entry));
     if (!raw) continue;
     try {
       const ticket = JSON.parse(raw) as PendingClearTicket;
-      if (ticket.notificationId === notificationId) return ticket;
+      if (ticket.obligationId === obligationId && ticket.cycleId === cycleId) {
+        out.push(ticket);
+      }
     } catch {
       continue;
     }
   }
-  return null;
+  return out;
 }
 
 async function pruneOrphanTickets(now: Date, log: typeof defaultLog): Promise<void> {
@@ -475,7 +486,6 @@ async function pruneOrphanTickets(now: Date, log: typeof defaultLog): Promise<vo
     try {
       ticket = JSON.parse(raw) as PendingClearTicket;
     } catch {
-      // Unparsable ticket — remove.
       await unlink(rel);
       continue;
     }
@@ -486,8 +496,6 @@ async function pruneOrphanTickets(now: Date, log: typeof defaultLog): Promise<vo
     }
   }
 }
-
-// ── helpers ───────────────────────────────────────────────────────
 
 function encoreUrlFor(pendingId: string): string {
   return `/encore?pendingId=${encodeURIComponent(pendingId)}`;

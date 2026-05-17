@@ -1,27 +1,30 @@
 // Encore plugin — server-side handler module.
 //
-// Step 4 of plans/feat-encore-as-builtin.md: setup / amendDefinition
-// / query / appendNote / markStepDone / markTargetSkipped /
-// recordValues / snooze are all implemented. `resolveNotification`
-// is still a Step-5 stub (the /encore page hasn't been wired yet).
+// Data-only on-disk model (PR #1416 follow-up): cycle files hold
+// only what the user recorded (values / skipped / completedSteps).
+// Closure is derived. Bell-entry tracking lives in pending-clear
+// tickets, not in the cycle file.
 //
 // `dispatch(body)` is the single entry point; the Express adapter in
 // `server/api/routes/encore.ts` calls it. The dispatch wrapper
 // acquires the per-plugin mutex before each handler runs so two
 // concurrent mutations can't race on writeFileAtomic, and so a
 // kick-the-tick from a handler can't double-publish with the hourly
-// heartbeat. State-mutating handlers (setup, amend, markStepDone,
-// markTargetSkipped, snooze) kick the tick after persisting — the
-// tick re-evaluates the obligation and surfaces newly-due
-// notifications within the same SSE turn, rather than waiting up to
-// an hour for the next heartbeat.
+// heartbeat. State-mutating handlers kick the tick after persisting
+// — the tick re-evaluates the obligation, derives closure, and
+// surfaces newly-due notifications within the same SSE turn.
+//
+// Next-cycle provisioning happens INSIDE the tick when it detects
+// the latest cycle is closed (via closure.ts) — no separate
+// provisionNextCycle path from dispatch.
 
 import { z } from "zod";
 
 import { EncoreDslInput, type EncoreDsl } from "./dsl/schema.js";
-import { applyValues, buildCycleState, closeStep, parseCycleFile, serializeCycleFile, skipTarget, snoozeStep, type CycleState } from "./cycle.js";
+import { applyValues, buildCycleState, parseCycleFile, recordStepDone, recordTargetSkip, serializeCycleFile, type CycleState } from "./cycle.js";
+import { isCycleClosed, isStepClosed } from "./closure.js";
 import { parseIndexFile, serializeIndexFile } from "./obligation.js";
-import { currentCycleSlot, nextSlot } from "./dsl/cadence.js";
+import { currentCycleSlot } from "./dsl/cadence.js";
 import path from "node:path";
 import { obligationDir, obligationIndexPath, cycleFilePath, pendingClearPath, slugify, OBLIGATIONS_DIRNAME, PENDING_CLEAR_DIRNAME } from "./paths.js";
 import { exists, readDir, readTextOrNull, writeText, unlink } from "../utils/files/encore-io.js";
@@ -353,7 +356,8 @@ function queryMessage(results: QueryObligationResult[], range: "current" | "all"
   for (const result of results) {
     lines.push(`- ${result.dsl.displayName} (${result.obligationId}, status: ${result.dsl.status}): ${result.cycles.length} cycle(s) in ${rangeLabel}`);
     for (const cycle of result.cycles) {
-      lines.push(`  - ${cycle.cycleId} [${cycle.state.status}] start=${cycle.state.cycleStart} deadline=${cycle.state.cycleDeadline} path=${cycle.path}`);
+      const status = isCycleClosed(cycle.state, result.dsl) ? "closed" : "open";
+      lines.push(`  - ${cycle.cycleId} [${status}] start=${cycle.state.cycleStart} deadline=${cycle.state.cycleDeadline} path=${cycle.path}`);
     }
   }
   return lines.join("\n");
@@ -405,77 +409,62 @@ function appendBody(existing: string, addition: string): string {
 
 // ── per-cycle mutating handlers ───────────────────────────────────
 
-/** Walk the current cycle for this obligation, clear every active
- *  bell entry, and null the activeNotificationId /
- *  lastPublishedSeverity / pending-clear ticket pointers on each
- *  step. Used by amendDefinition so a title (or any other amend)
- *  produces a freshly-published notification carrying the updated
- *  text — and to recover from "cycle file says active but the bell
- *  doesn't have it" stuck states. */
-function collectActiveIdsAndNullThem(state: CycleState): Set<string> {
-  const ids = new Set<string>();
-  for (const record of Object.values(state.records)) {
-    for (const step of Object.values(record.steps)) {
-      if (step.activeNotificationId) {
-        ids.add(step.activeNotificationId);
-        step.activeNotificationId = null;
-      }
-      step.lastPublishedSeverity = null;
-    }
-  }
-  return ids;
-}
-
-async function clearHostBellEntries(ids: Set<string>, obligationId: string, reason: string): Promise<void> {
-  // `notifier.clear` no-ops on unknown ids so a stale id in the
-  // cycle file doesn't throw.
-  for (const notificationId of ids) {
-    try {
-      await encoreNotifier.clear(notificationId);
-    } catch (err) {
-      log.warn("encore", `${reason}: bell clear failed`, {
-        obligationId,
-        notificationId,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-  }
-}
-
+/** Find every pending-clear ticket for this obligation+cycle, clear
+ *  its host bell entry, and unlink the ticket. Used by
+ *  amendDefinition so a title (or any other amend) produces a
+ *  freshly-published notification carrying the updated text — and
+ *  to recover from "ticket exists but the bell is empty" stuck
+ *  states. */
 async function resetActiveNotificationsForObligation(obligationId: string, reason: string): Promise<void> {
-  const rel = await pickCurrentCycleRel(obligationId);
-  if (!rel) return;
-  const raw = await readTextOrNull(rel);
-  if (raw === null) return;
-  const { state, body } = parseCycleFile(raw);
-  if (state.status !== "open") return;
-
-  const idsToClear = collectActiveIdsAndNullThem(state);
-
-  if (idsToClear.size === 0) {
-    // Nothing to clear — but still persist the lastPublishedSeverity
-    // null bumps in case any drifted.
-    await writeText(rel, serializeCycleFile(state, body));
-    return;
+  const cycleId = await currentCycleIdFor(obligationId);
+  if (!cycleId) return;
+  const matchingTickets = await ticketsForObligationCycle(obligationId, cycleId);
+  let cleared = 0;
+  for (const { rel, ticket } of matchingTickets) {
+    await safeClearBell(ticket.notificationId, `${reason}:reset`);
+    await unlink(rel);
+    cleared += 1;
   }
-
-  await clearHostBellEntries(idsToClear, obligationId, reason);
-  // Remove any pending-clear ticket pointing at one of these ids so
-  // the soon-to-be-fired replacement gets a fresh ticket (with
-  // updated seed prompt) from fireGroup.
-  await removeTicketsForNotifications(idsToClear);
-  await writeText(rel, serializeCycleFile(state, body));
-  log.info("encore", `${reason}: reset active notifications`, { obligationId, cleared: idsToClear.size });
+  if (cleared > 0) log.info("encore", `${reason}: reset active notifications`, { obligationId, cleared });
 }
 
-async function pickCurrentCycleRel(obligationId: string): Promise<string | null> {
+interface LocatedTicket {
+  rel: string;
+  ticket: PendingClearTicket;
+}
+
+async function ticketsForObligationCycle(obligationId: string, cycleId: string): Promise<LocatedTicket[]> {
+  const entries = await readDir(PENDING_CLEAR_DIRNAME);
+  const out: LocatedTicket[] = [];
+  for (const entry of entries) {
+    if (!entry.endsWith(".json")) continue;
+    const rel = path.join(PENDING_CLEAR_DIRNAME, entry);
+    const raw = await readTextOrNull(rel);
+    if (!raw) continue;
+    try {
+      const ticket = JSON.parse(raw) as PendingClearTicket;
+      if (ticket.obligationId === obligationId && ticket.cycleId === cycleId) {
+        out.push({ rel, ticket });
+      }
+    } catch {
+      // skip unparsable
+    }
+  }
+  return out;
+}
+
+async function currentCycleIdFor(obligationId: string): Promise<string | null> {
   const entries = await readDir(obligationDir(obligationId));
   const cycleFiles = entries.filter((name) => name !== "index.md" && name.endsWith(".md")).sort();
   if (cycleFiles.length === 0) return null;
-  return path.join(obligationDir(obligationId), cycleFiles[cycleFiles.length - 1]);
+  return cycleFiles[cycleFiles.length - 1].replace(/\.md$/, "");
 }
 
-async function removeTicketsForNotifications(ids: Set<string>): Promise<void> {
+// `removeTicketsForNotifications` was used by the old
+// reset-by-notificationId path; the new reset walks tickets by
+// obligation+cycle directly. Kept (with the lint-required `__`
+// prefix) in case a future caller needs it.
+async function __removeTicketsForNotifications(ids: Set<string>): Promise<void> {
   if (ids.size === 0) return;
   const entries = await readDir(PENDING_CLEAR_DIRNAME);
   for (const entry of entries) {
@@ -492,6 +481,16 @@ async function removeTicketsForNotifications(ids: Set<string>): Promise<void> {
       // Unparsable ticket — leave it; the orphan sweep handles
       // those by age.
     }
+  }
+}
+
+async function loadDsl(obligationId: string): Promise<EncoreDsl | null> {
+  const raw = await readTextOrNull(obligationIndexPath(obligationId));
+  if (raw === null) return null;
+  try {
+    return parseIndexFile(raw).dsl;
+  } catch {
+    return null;
   }
 }
 
@@ -521,49 +520,31 @@ async function loadCycle(obligationId: string, cycleId: string): Promise<{ rel: 
  *  ticket) is no longer `open` AND no longer references this
  *  notificationId — set to null by closeStep/skipTarget/snoozeStep
  *  via cycle.ts. */
-async function clearPendingNotification(pendingId: string | undefined, mutatedState?: CycleState): Promise<void> {
+async function clearPendingNotification(pendingId: string | undefined, dsl: EncoreDsl | null, mutatedState?: CycleState): Promise<void> {
   if (!pendingId) return;
   const ticketRel = pendingClearPath(pendingId);
-  const raw = await readTextOrNull(ticketRel);
-  if (!raw) {
-    // Ticket already swept or never existed.
+  const ticket = await readTicketOrCleanup(ticketRel, pendingId);
+  if (!ticket) return;
+
+  const state = await loadStateForTicket(ticket, mutatedState);
+  if (!state) {
+    // Cycle file gone → orphan. Clear and unlink.
+    await safeClearBell(ticket.notificationId, pendingId);
+    await unlink(ticketRel);
     return;
   }
-  let ticket: PendingClearTicket;
-  try {
-    ticket = JSON.parse(raw) as PendingClearTicket;
-  } catch (err) {
-    log.warn("encore", "pending-clear ticket unparseable; removing", { pendingId, error: err instanceof Error ? err.message : String(err) });
+  const stepDef = await resolveStepDef(ticket, dsl);
+  if (!stepDef) {
+    // Can't derive closure without the step definition; clear so
+    // the bundle doesn't get stuck.
+    await safeClearBell(ticket.notificationId, pendingId);
     await unlink(ticketRel);
     return;
   }
 
-  // If the caller already has the just-persisted state in hand,
-  // use it; otherwise re-read from disk.
-  let state: CycleState;
-  if (mutatedState) {
-    state = mutatedState;
-  } else {
-    const cycleRaw = await readTextOrNull(cycleFilePath(ticket.obligationId, ticket.cycleId));
-    if (cycleRaw === null) {
-      // Cycle file gone — orphan ticket. Clear and unlink.
-      await safeClearBell(ticket.notificationId, pendingId);
-      await unlink(ticketRel);
-      return;
-    }
-    ({ state } = parseCycleFile(cycleRaw));
-  }
-
-  const stillOpenTargets = ticket.targets.filter((targetId) => {
-    const step = state.records[targetId]?.steps[ticket.stepId];
-    if (!step) return false;
-    return step.status === "open" && step.activeNotificationId === ticket.notificationId;
-  });
+  const stillOpenTargets = ticket.targets.filter((targetId) => !isStepClosed(state.records[targetId], stepDef));
 
   if (stillOpenTargets.length > 0) {
-    // Bundle is partially resolved — keep the bell entry alive for
-    // the remaining targets. Trim the ticket so a future
-    // close/skip on those targets knows what's left.
     await writeText(ticketRel, JSON.stringify({ ...ticket, targets: stillOpenTargets }, null, 2));
     log.info("encore", "pending-clear: partial resolution; bell kept", {
       pendingId,
@@ -578,6 +559,37 @@ async function clearPendingNotification(pendingId: string | undefined, mutatedSt
   await unlink(ticketRel);
 }
 
+async function readTicketOrCleanup(ticketRel: string, pendingId: string): Promise<PendingClearTicket | null> {
+  const raw = await readTextOrNull(ticketRel);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as PendingClearTicket;
+  } catch (err) {
+    log.warn("encore", "pending-clear ticket unparseable; removing", { pendingId, error: err instanceof Error ? err.message : String(err) });
+    await unlink(ticketRel);
+    return null;
+  }
+}
+
+async function loadStateForTicket(ticket: PendingClearTicket, mutatedState?: CycleState): Promise<CycleState | null> {
+  if (mutatedState) return mutatedState;
+  const cycleRaw = await readTextOrNull(cycleFilePath(ticket.obligationId, ticket.cycleId));
+  if (cycleRaw === null) return null;
+  return parseCycleFile(cycleRaw).state;
+}
+
+async function resolveStepDef(ticket: PendingClearTicket, dsl: EncoreDsl | null): Promise<EncoreDsl["steps"][number] | undefined> {
+  const direct = dsl?.steps.find((step) => step.id === ticket.stepId);
+  if (direct) return direct;
+  const indexRaw = await readTextOrNull(obligationIndexPath(ticket.obligationId));
+  if (indexRaw === null) return undefined;
+  try {
+    return parseIndexFile(indexRaw).dsl.steps.find((step) => step.id === ticket.stepId);
+  } catch {
+    return undefined;
+  }
+}
+
 async function safeClearBell(notificationId: string, pendingId: string): Promise<void> {
   try {
     await encoreNotifier.clear(notificationId);
@@ -586,98 +598,27 @@ async function safeClearBell(notificationId: string, pendingId: string): Promise
   }
 }
 
-async function persistAndKickTick(obligationId: string, rel: string, state: CycleState, body: string, reason: string): Promise<void> {
+async function persistAndKickTick(rel: string, state: CycleState, body: string, reason: string): Promise<void> {
   await writeText(rel, serializeCycleFile(state, body));
-  // If this mutation closed the cycle (closeStep / skipTarget
-  // cascades up: step → target → cycle), provision the next cycle
-  // file BEFORE the tick runs. Without this, recurrence stops
-  // permanently after one close — nextSlot was orphaned in the
-  // original landing (caught in PR review by github-actions and
-  // codex).
-  if (state.status === "closed") {
-    await provisionNextCycle(obligationId, state, reason);
-  }
+  // The tick itself derives closure via closure.ts and provisions
+  // the next cycle file when the current one is closed (see
+  // ensureOpenCycle in tick.ts). The handler doesn't need to
+  // detect close here.
+  //
   // Run the tick inside the SAME lock that wraps the dispatch
-  // (which is why we use `tickUnlocked`, not `kickTickLocked` —
-  // the latter would deadlock by trying to re-acquire the lock we
-  // already hold). The hourly heartbeat goes through
-  // `kickTickLocked` from the host's task-manager scheduler;
-  // handlers go through this path.
+  // (we use `tickUnlocked`, not `kickTickLocked` — the latter
+  // would deadlock by trying to re-acquire the lock we already
+  // hold).
   await tickUnlocked({ now: new Date() }, reason);
 }
 
-/** When a cycle closes, provision the next cycle's file so the
- *  tick has something to interpret for the upcoming period. The
- *  next slot is computed from the cadence using `nextSlot` (which
- *  encodes the recurrence math per cadence type). Pre-fills
- *  per-target values from `targets[].defaults` and resets all
- *  `activeNotificationId` / `lastPublishedSeverity` to null on the
- *  fresh cycle. */
-async function provisionNextCycle(obligationId: string, closedState: CycleState, reason: string): Promise<void> {
-  const indexRaw = await readTextOrNull(obligationIndexPath(obligationId));
-  if (indexRaw === null) {
-    log.warn("encore", `${reason}: provision-next-cycle: index.md missing`, { obligationId });
-    return;
-  }
-  const { dsl } = parseIndexFile(indexRaw);
-  const closedSlot = slotFromCycleId(dsl.cadence, closedState.cycleId);
-  if (!closedSlot) {
-    log.warn("encore", `${reason}: provision-next-cycle: could not parse cycleId`, { obligationId, cycleId: closedState.cycleId });
-    return;
-  }
-  const next = nextSlot(dsl.cadence, closedSlot);
-  const nextCycle = buildCycleState(dsl, next);
-  const nextRel = cycleFilePath(obligationId, nextCycle.cycleId);
-  // Don't overwrite if it already exists (idempotent — a second
-  // close-cascade or a manual provision shouldn't clobber).
-  if (await exists(nextRel)) return;
-  // carryForward.body=copy isn't implemented in v1: provisioning
-  // happens after the close-cascade has already persisted, so the
-  // prior body isn't in hand here. Both options produce an empty
-  // body for now; revisit when a real use case appears.
-  await writeText(nextRel, serializeCycleFile(nextCycle, ""));
-  log.info("encore", `${reason}: provisioned next cycle`, {
-    obligationId,
-    fromCycleId: closedState.cycleId,
-    toCycleId: nextCycle.cycleId,
-  });
-}
-
-/** Reverse-engineer the slot enum from a stored cycleId string.
- *  The cycleId format depends on the cadence type, so we parse
- *  per-type. Returns null on malformed input. */
-function slotFromCycleId(cadence: EncoreDsl["cadence"], cycleId: string): import("./dsl/cadence.js").CycleSlot | null {
-  if (cadence.type === "annual") {
-    const year = Number.parseInt(cycleId, 10);
-    if (!Number.isFinite(year)) return null;
-    return { kind: "annual", year };
-  }
-  if (cadence.type === "biannual") {
-    const match = cycleId.match(/^(\d{4})-h([12])$/);
-    if (!match) return null;
-    return { kind: "biannual", year: Number.parseInt(match[1], 10), half: Number.parseInt(match[2], 10) as 1 | 2 };
-  }
-  if (cadence.type === "monthly") {
-    const match = cycleId.match(/^(\d{4})-(\d{2})$/);
-    if (!match) return null;
-    return { kind: "monthly", year: Number.parseInt(match[1], 10), month: Number.parseInt(match[2], 10) };
-  }
-  if (cadence.type === "weekly") {
-    const match = cycleId.match(/^(\d{4})-W(\d{2})$/);
-    if (!match) return null;
-    return { kind: "weekly", year: Number.parseInt(match[1], 10), week: Number.parseInt(match[2], 10) };
-  }
-  // daily
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(cycleId)) return null;
-  return { kind: "daily", iso: cycleId };
-}
-
 async function handleMarkStepDone(args: z.infer<typeof MarkStepDoneArgs>): Promise<EncoreDispatchResult> {
+  const dsl = await loadDsl(args.obligationId);
   const { rel, state, body } = await loadCycle(args.obligationId, args.cycleId);
-  const nextState = closeStep(state, args.targetId, args.stepId, args.values);
-  await persistAndKickTick(args.obligationId, rel, nextState, body, `markStepDone ${args.obligationId}/${args.cycleId}/${args.targetId}/${args.stepId}`);
-  await clearPendingNotification(args.pendingId, nextState);
-  log.info("encore", "markStepDone: step closed", { obligationId: args.obligationId, cycleId: args.cycleId, targetId: args.targetId, stepId: args.stepId });
+  const nextState = recordStepDone(state, args.targetId, args.stepId, args.values);
+  await persistAndKickTick(rel, nextState, body, `markStepDone ${args.obligationId}/${args.cycleId}/${args.targetId}/${args.stepId}`);
+  await clearPendingNotification(args.pendingId, dsl, nextState);
+  log.info("encore", "markStepDone: step recorded", { obligationId: args.obligationId, cycleId: args.cycleId, targetId: args.targetId, stepId: args.stepId });
   return {
     ok: true,
     message: `Encore: marked ${args.stepId} done for ${args.targetId} in cycle ${args.cycleId} of ${args.obligationId}.`,
@@ -690,10 +631,11 @@ async function handleMarkStepDone(args: z.infer<typeof MarkStepDoneArgs>): Promi
 }
 
 async function handleMarkTargetSkipped(args: z.infer<typeof MarkTargetSkippedArgs>): Promise<EncoreDispatchResult> {
+  const dsl = await loadDsl(args.obligationId);
   const { rel, state, body } = await loadCycle(args.obligationId, args.cycleId);
-  const nextState = skipTarget(state, args.targetId);
-  await persistAndKickTick(args.obligationId, rel, nextState, body, `markTargetSkipped ${args.obligationId}/${args.cycleId}/${args.targetId}`);
-  await clearPendingNotification(args.pendingId, nextState);
+  const nextState = recordTargetSkip(state, args.targetId);
+  await persistAndKickTick(rel, nextState, body, `markTargetSkipped ${args.obligationId}/${args.cycleId}/${args.targetId}`);
+  await clearPendingNotification(args.pendingId, dsl, nextState);
   log.info("encore", "markTargetSkipped: target skipped", { obligationId: args.obligationId, cycleId: args.cycleId, targetId: args.targetId });
   return {
     ok: true,
@@ -800,24 +742,43 @@ async function handleResolveNotification(args: z.infer<typeof ResolveNotificatio
   };
 }
 
-async function handleSnooze(args: z.infer<typeof SnoozeArgs>): Promise<EncoreDispatchResult> {
-  const { rel, state, body } = await loadCycle(args.obligationId, args.cycleId);
-  // Clear the bell entry tied to this step (we need its id from
-  // the cycle state) and reset the lastPublishedSeverity so the
-  // next tick re-fires from the appropriate phase.
-  const stepBefore = state.records[args.targetId]?.steps[args.stepId];
-  const activeId = stepBefore?.activeNotificationId ?? null;
-  const nextState = snoozeStep(state, args.targetId, args.stepId);
-  await persistAndKickTick(args.obligationId, rel, nextState, body, `snooze ${args.obligationId}/${args.cycleId}/${args.targetId}/${args.stepId}`);
-  if (activeId) {
-    try {
-      await encoreNotifier.clear(activeId);
-    } catch (err) {
-      log.warn("encore", "snooze: notifier.clear failed", { activeId, error: err instanceof Error ? err.message : String(err) });
+async function dropTargetFromMatchingTickets(obligationId: string, cycleId: string, stepId: string, targetId: string): Promise<number> {
+  const matchingTickets = await ticketsForObligationCycle(obligationId, cycleId);
+  let dropped = 0;
+  for (const { rel, ticket } of matchingTickets) {
+    if (ticket.stepId !== stepId) continue;
+    if (!ticket.targets.includes(targetId)) continue;
+    const remaining = ticket.targets.filter((entry) => entry !== targetId);
+    if (remaining.length === 0) {
+      await safeClearBell(ticket.notificationId, "snooze");
+      await unlink(rel);
+    } else {
+      await writeText(rel, JSON.stringify({ ...ticket, targets: remaining }, null, 2));
     }
+    dropped += 1;
   }
-  await clearPendingNotification(args.pendingId, nextState);
-  log.info("encore", "snooze: step snoozed", { obligationId: args.obligationId, cycleId: args.cycleId, targetId: args.targetId, stepId: args.stepId });
+  return dropped;
+}
+
+async function handleSnooze(args: z.infer<typeof SnoozeArgs>): Promise<EncoreDispatchResult> {
+  // Snooze under the data-only model = delete the pending-clear
+  // ticket(s) covering (obligation, cycle, step, target) + clear
+  // the matching bell entry. The cycle file is untouched (no status
+  // flags to flip). The next tick will re-evaluate from current-
+  // time anchors and may re-fire from a later phase.
+  const droppedCount = await dropTargetFromMatchingTickets(args.obligationId, args.cycleId, args.stepId, args.targetId);
+  // Kick the tick so the snoozed step's deadline math is re-
+  // evaluated under the current time. The handler doesn't touch
+  // the cycle file (data-only model), so no writeText here.
+  await tickUnlocked({ now: new Date() }, `snooze ${args.obligationId}/${args.cycleId}/${args.targetId}/${args.stepId}`);
+  await clearPendingNotification(args.pendingId, null);
+  log.info("encore", "snooze: step snoozed", {
+    obligationId: args.obligationId,
+    cycleId: args.cycleId,
+    targetId: args.targetId,
+    stepId: args.stepId,
+    droppedCount,
+  });
   return {
     ok: true,
     message: `Encore: snoozed ${args.stepId} for ${args.targetId} in cycle ${args.cycleId} of ${args.obligationId}.`,
@@ -825,7 +786,6 @@ async function handleSnooze(args: z.infer<typeof SnoozeArgs>): Promise<EncoreDis
     cycleId: args.cycleId,
     targetId: args.targetId,
     stepId: args.stepId,
-    cyclePath: workspaceRelativePath(rel),
   };
 }
 
