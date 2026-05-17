@@ -120,6 +120,17 @@ export const env = Object.freeze({
   relayUrl: process.env.RELAY_URL,
   relayToken: process.env.RELAY_TOKEN,
 
+  // CSRF guard — opt-in trusted Origin allowlist for cross-origin
+  // state-changing requests. `requireSameOrigin` allows localhost +
+  // anything in this list and 403s every other Origin. Use case:
+  // the user accesses the Vite dev server from another LAN device
+  // (iPad on `http://192.168.x.x:5173`) where the browser sends the
+  // LAN-IP Origin and the localhost-only check would otherwise fail.
+  // Values are matched verbatim against the request `Origin` header
+  // (scheme + host + port, no trailing slash). Comma-separated for
+  // multiple entries.
+  trustedOrigins: asCsv(process.env.MULMOCLAUDE_TRUSTED_ORIGINS),
+
   // MCP subprocess: set by the parent server when spawning
   // mcp-server.ts. The MCP process reads them via this same module —
   // OS-level env vars are shared across both processes.

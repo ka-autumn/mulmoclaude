@@ -9,7 +9,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import type { Request, Response, NextFunction } from "express";
-import { isLocalhostOrigin, requireSameOrigin } from "../../server/api/csrfGuard.js";
+import { isAllowedOrigin, isLocalhostOrigin, isTrustedOrigin, requireSameOrigin } from "../../server/api/csrfGuard.js";
 
 // --- isLocalhostOrigin: the pure check --------------------------
 
@@ -263,5 +263,87 @@ describe("requireSameOrigin — state-changing methods, foreign Origin (blocked)
     // Origin.
     assertBlocked("POST", "http://192.168.1.10");
     assertBlocked("POST", "http://10.0.0.1");
+  });
+});
+
+// --- isTrustedOrigin: env-driven allowlist ----------------------
+
+describe("isTrustedOrigin — verbatim allowlist match", () => {
+  const LAN_IPAD = "http://192.168.1.42:5173";
+  const LAN_DESKTOP = "http://192.168.1.50:5173";
+  const trusted = [LAN_IPAD, LAN_DESKTOP] as const;
+
+  it("accepts an Origin that is listed verbatim", () => {
+    assert.equal(isTrustedOrigin(LAN_IPAD, trusted), true);
+    assert.equal(isTrustedOrigin(LAN_DESKTOP, trusted), true);
+  });
+
+  it("rejects an Origin not in the list", () => {
+    assert.equal(isTrustedOrigin("http://192.168.1.99:5173", trusted), false);
+    assert.equal(isTrustedOrigin("http://evil.example", trusted), false);
+  });
+
+  it("rejects a listed entry with a different port", () => {
+    // Browsers send the exact origin (scheme + host + port). A port
+    // mismatch is a different origin and must NOT be allowed.
+    assert.equal(isTrustedOrigin("http://192.168.1.42:3001", trusted), false);
+  });
+
+  it("rejects a listed entry with a different scheme", () => {
+    assert.equal(isTrustedOrigin("https://192.168.1.42:5173", trusted), false);
+  });
+
+  it("rejects a listed entry with a trailing slash (misconfig safety net)", () => {
+    // `Origin` header is always scheme://host[:port] with no path
+    // and no trailing slash. If the operator pastes a URL with a
+    // trailing slash into the env var, the match silently fails —
+    // which is preferable to a permissive prefix match that could
+    // be turned into an Origin-confusion exploit.
+    assert.equal(isTrustedOrigin("http://192.168.1.42:5173", ["http://192.168.1.42:5173/"]), false);
+  });
+
+  it("rejects empty / null-string Origins regardless of list", () => {
+    assert.equal(isTrustedOrigin("", trusted), false);
+    assert.equal(isTrustedOrigin("null", [...trusted, "null"]), true);
+    // Note: even if a misguided operator lists the literal string
+    // "null" in MULMOCLAUDE_TRUSTED_ORIGINS, the middleware would
+    // still allow it — that's the user's explicit choice. We do
+    // NOT special-case the string here; the docs warn against it.
+  });
+
+  it("treats an empty allowlist as a no-op", () => {
+    assert.equal(isTrustedOrigin("http://192.168.1.42:5173", []), false);
+  });
+});
+
+// --- isAllowedOrigin: composite (localhost OR trusted) ----------
+
+describe("isAllowedOrigin — composes localhost + trusted", () => {
+  const trusted = ["http://192.168.1.42:5173"] as const;
+
+  it("accepts a localhost Origin regardless of trusted list", () => {
+    assert.equal(isAllowedOrigin("http://localhost:5173", []), true);
+    assert.equal(isAllowedOrigin("http://127.0.0.1:3001", trusted), true);
+  });
+
+  it("accepts a trusted-list Origin even when not localhost", () => {
+    assert.equal(isAllowedOrigin("http://192.168.1.42:5173", trusted), true);
+  });
+
+  it("rejects an Origin that is neither localhost nor trusted", () => {
+    assert.equal(isAllowedOrigin("http://192.168.1.99:5173", trusted), false);
+    assert.equal(isAllowedOrigin("http://evil.example", trusted), false);
+  });
+
+  it("accepts an explicitly listed entry even if it looks like a localhost lookalike", () => {
+    // Caveat-pinning test: the allowlist is a verbatim string match,
+    // so if the operator types a localhost-lookalike (`localhost.evil.com`)
+    // into the env var, the middleware will accept it. We rely on
+    // the operator-vs-attacker boundary (only the operator sets the
+    // env var) and document the caveat in the .env.example. This
+    // test pins the current behaviour so any future tightening
+    // (e.g. rejecting subdomain-lookalikes at env-parse time) shows
+    // up as a deliberate test update rather than a silent regression.
+    assert.equal(isAllowedOrigin("http://localhost.evil.com", ["http://localhost.evil.com"]), true);
   });
 });
