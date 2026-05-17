@@ -58,27 +58,13 @@ export const ROLES: Role[] = [
       "- **Browse / lint**: direct the user to the `/wiki` UI — catalog at `/wiki`, a specific page at `/wiki/pages/<slug>`, activity log at `/wiki/log`, or the Lint button on `/wiki` for a health check.\n\n" +
       "Page format: YAML frontmatter (title, created, updated, tags) + markdown body + `[[wiki links]]` for cross-references. Slugs are lowercase hyphen-separated. Always keep `data/wiki/index.md` current and append to `data/wiki/log.md` after any change. The page-list section of `index.md` is a flat, recency-ordered log: prepend new pages at the top, and when a page is updated (content, description, tags, or rename) move its entry to the top — don't group by category. The Tags section (if present) still needs its per-tag page lists updated on add / rename / delete, but the tag order itself is not reordered by recency. Read `config/helps/wiki.md` for full details.",
     availablePlugins: [
-      TOOL_NAMES.manageCalendar,
-      TOOL_NAMES.manageEncore,
       TOOL_NAMES.presentDocument,
       TOOL_NAMES.presentForm,
       TOOL_NAMES.presentMulmoScript,
       TOOL_NAMES.generateImage,
       TOOL_NAMES.presentHtml,
-      TOOL_NAMES.mapControl,
-      TOOL_NAMES.managePhotoLocations,
       TOOL_NAMES.readXPost,
       TOOL_NAMES.searchX,
-      TOOL_NAMES.notify,
-      // Preset runtime plugins (server/plugins/preset-list.ts).
-      // Runtime plugins are gated by `availablePlugins` like the
-      // static-GUI / static-MCP entries above; listed here so the
-      // out-of-the-box "general" role keeps exposing them. User-
-      // installed runtime plugins (`~/mulmoclaude/plugins/*`) are
-      // added to roles via Settings → Roles.
-      TOOL_NAMES.manageBookmarks,
-      TOOL_NAMES.manageTodoList,
-      TOOL_NAMES.manageSpotify,
     ],
     queries: [
       "Tell me about this app, MulmoClaude.",
@@ -88,8 +74,43 @@ export const ROLES: Role[] = [
       "How do I use the Telegram bridge to talk to MulmoClaude from my phone?",
       "Show my wiki index",
       "Lint my wiki",
-      "Show my todo list",
+    ],
+  },
+  {
+    id: "personal",
+    name: "Personal",
+    icon: "person",
+    prompt:
+      "You are a personal assistant focused on the user's daily life — calendar, todos, recurring obligations (Encore), bookmarks, music, places, and notifications. Help the user organize, track, and recall personal information.\n\n" +
+      "## Asking the user to choose\n\n" +
+      "When the user must pick from a small set of options, toggle features, or answer yes/no, call presentForm with the appropriate fields (radio for one-of, checkbox for many-of, text/textarea for free-form). Group related questions into one form. Prefer this strongly over phrasing the choice in plain prose — the form gives the user clickable controls and sends the answers back as a markdown bullet list.\n\n" +
+      "Mark every field the user must answer as `required: true`. The form blocks submission until required fields are filled, which prevents the LLM from receiving partial responses.",
+    availablePlugins: [
+      TOOL_NAMES.manageCalendar,
+      TOOL_NAMES.manageEncore,
+      TOOL_NAMES.managePhotoLocations,
+      TOOL_NAMES.mapControl,
+      TOOL_NAMES.notify,
+      TOOL_NAMES.presentDocument,
+      TOOL_NAMES.presentForm,
+      // Preset runtime plugins (server/plugins/preset-list.ts).
+      // Runtime plugins are gated by `availablePlugins` like the
+      // static-GUI / static-MCP entries above; listed here so the
+      // out-of-the-box "personal" role keeps exposing them. User-
+      // installed runtime plugins (`~/mulmoclaude/plugins/*`) are
+      // added to roles via Settings → Roles.
+      TOOL_NAMES.manageBookmarks,
+      TOOL_NAMES.manageTodoList,
+      TOOL_NAMES.manageSpotify,
+    ],
+    queries: [
       "Show me my calendar",
+      "Show my todo list",
+      "What recurring obligations do I have?",
+      "Add a bookmark for this URL",
+      "Where are the photos I took last weekend?",
+      "Play some focus music on Spotify",
+      "Remind me to call mom this evening",
     ],
   },
   {
@@ -398,6 +419,7 @@ export const BUILTIN_ROLES = ROLES;
 // updating this map fails the test.
 export const BUILTIN_ROLE_IDS = {
   general: "general",
+  personal: "personal",
   office: "office",
   guide: "guide",
   artist: "artist",
@@ -416,6 +438,15 @@ export const BUILTIN_ROLE_IDS = {
 export type BuiltInRoleId = (typeof BUILTIN_ROLE_IDS)[keyof typeof BUILTIN_ROLE_IDS];
 
 export const DEFAULT_ROLE_ID: BuiltInRoleId = BUILTIN_ROLE_IDS.general;
+
+// Role id that Encore's `resolveNotification` flow seeds new chats
+// with. Pinned to `personal` because that role owns `manageEncore` —
+// seeding into a role without the tool leaves the agent unable to
+// drive the obligation it was just woken up for. Guarded by
+// `test/roles/test_encore_seed_role.ts` so renaming the role or
+// dropping `manageEncore` from its `availablePlugins` fails CI
+// rather than silently breaking the seeded chat.
+export const ENCORE_SEED_ROLE_ID: BuiltInRoleId = BUILTIN_ROLE_IDS.personal;
 
 export function getRole(roleId: string): Role {
   return ROLES.find((role) => role.id === roleId) ?? ROLES[0];

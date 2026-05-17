@@ -46,6 +46,7 @@ import { ENCORE_PLUGIN_PKG } from "./notifier.js";
 import type { PendingClearTicket } from "./tick.js";
 import { startChat } from "../api/routes/agent.js";
 import { PLUGIN_SESSION_ORIGIN_PREFIX } from "../../src/types/session.js";
+import { ENCORE_SEED_ROLE_ID } from "../../src/config/roles.js";
 import { randomUUID } from "node:crypto";
 
 function makeUuid(): string {
@@ -755,7 +756,7 @@ async function seedChatForTicket(ticket: PendingClearTicket, ticketRel: string, 
   const chatSessionId = makeUuid();
   const result = await startChat({
     message: ticket.seedPrompt,
-    roleId: "general",
+    roleId: ENCORE_SEED_ROLE_ID,
     chatSessionId,
     origin: `${PLUGIN_SESSION_ORIGIN_PREFIX}${ENCORE_PLUGIN_PKG}`,
   });

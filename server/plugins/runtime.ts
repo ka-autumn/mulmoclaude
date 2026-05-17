@@ -30,6 +30,7 @@ import type { TasksRuntimeApi } from "./runtime-tasks-api.js";
 import type { ChatRuntimeApi } from "./runtime-chat-api.js";
 import { startChat } from "../api/routes/agent.js";
 import { PLUGIN_SESSION_ORIGIN_PREFIX } from "../../src/types/session.js";
+import { BUILTIN_ROLE_IDS } from "../../src/config/roles.js";
 
 const DEFAULT_FETCH_TIMEOUT_MS = 10 * ONE_SECOND_MS;
 
@@ -304,7 +305,7 @@ function makeScopedTasks(pkgName: string, taskManager: ITaskManager): TasksRunti
 // Scoped chat (host extension — Phase 1 of Encore plan)
 // ─────────────────────────────────────────────────────────────────────
 
-const DEFAULT_PLUGIN_CHAT_ROLE = "general";
+const DEFAULT_PLUGIN_CHAT_ROLE = BUILTIN_ROLE_IDS.general;
 
 function makeScopedChat(pkgName: string): ChatRuntimeApi {
   return {
