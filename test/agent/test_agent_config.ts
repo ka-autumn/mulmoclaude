@@ -163,6 +163,22 @@ describe("buildCliArgs", () => {
 
     assert.ok(!args.includes("--effort"));
   });
+
+  it("disallows the Skill tool to force inline slash-command resolution", async () => {
+    // The Skill tool regressed in claude CLI 2.1.141+ (see config.ts
+    // for the survey). Forcing it off via --disallowedTools keeps
+    // /<slug> invocations on the inline-resolution path that works
+    // across all observed CLI versions. If this gets dropped, L-22
+    // and any user with claude CLI 2.1.141+ regresses to "Execute
+    // skill: <slug>" tool-result errors.
+    const args = buildCliArgs({
+      systemPrompt: "test",
+      activePlugins: [],
+    });
+    const disallowedIdx = args.indexOf("--disallowedTools");
+    assert.ok(disallowedIdx >= 0, "--disallowedTools must be passed");
+    assert.equal(args[disallowedIdx + 1], "Skill");
+  });
 });
 
 describe("resolveMcpConfigPaths", () => {
