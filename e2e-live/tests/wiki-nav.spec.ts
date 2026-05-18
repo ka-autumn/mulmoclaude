@@ -153,17 +153,20 @@ test.describe("wiki navigation (real workspace)", () => {
   });
 
   test("L-15b: 非 ASCII slug fuzzy resolve が衝突候補から正しい target を決定的に選ぶ (#1194)", async ({ page }, testInfo) => {
-    // Expected-fail in fresh-workspace CI: the wiki POST returns
-    // "not found" for the multibyte target slug even though
-    // placeWikiPage wrote the file — likely a server-side quirk in
-    // `wikiSlugify` / `getPageIndex` when `data/wiki/index.md` has
-    // no entries yet, so the title-match fallback can't fire.
-    // Marked test.fail() so the job stays green AND the run
-    // actively probes: if root cause gets fixed, this case starts
-    // passing → playwright flags it as "unexpected pass" → forces a
-    // visit to remove the marker. Replaces an earlier `test.skip`
-    // which silently dropped #1194 coverage (codex review on #1364).
-    test.fail(process.env.CI === "true", "TODO: fresh-workspace fuzzy resolve fails in CI — see comment");
+    // Previously test.fail()'d on CI under the theory that the
+    // server-side resolver had a fresh-workspace quirk. The real
+    // root cause was in this spec: `testInfo.title.split(":")[0]`
+    // returns "L-15b" with an uppercase L, which then landed in the
+    // slug via `nonce`. Wiki filenames are conventionally all
+    // lowercase (every real page goes through `wikiSlugify` whose
+    // output is `[a-z0-9-]+`), so when the resolver did
+    // `wikiSlugify(target) = "...-l-15b-..."` and tried to fuzzy-
+    // match against the on-disk key `...-L-15b-...`, neither
+    // `slug.includes(key)` nor `key.includes(slug)` succeeded — the
+    // case mismatch killed the substring match. The fix below
+    // lowercases `testLabel` before splicing it into the slug, so
+    // the seeded filename matches the slug-form output of
+    // `wikiSlugify` and the resolver lands on the target page.
     // L-15 と同じ shape のテストなので timeout 定数も共用 (plan
     // file の方針)。
     test.setTimeout(L15_TIMEOUT_MS);
@@ -209,8 +212,11 @@ test.describe("wiki navigation (real workspace)", () => {
     // で「どのテストが書いた fixture か」が分かるため、parallel
     // 実行中の triage と stale 検出が楽になる。`.split(":")[0]` で
     // テスト名先頭の short id (例: "L-15b") だけ取り出して slug に
-    // 安全な ASCII プレフィックスに揃える。
-    const testLabel = testInfo.title.split(":")[0].trim();
+    // 安全な ASCII プレフィックスに揃える。`.toLowerCase()` は必須:
+    // wiki page filename の規約は `[a-z0-9-]+` (`wikiSlugify` 出力)
+    // で、大文字が混ざると resolver の `wikiSlugify(target)` と
+    // on-disk key の case mismatch で fuzzy match が全滅する。
+    const testLabel = testInfo.title.split(":")[0].trim().toLowerCase();
     const nonce = `${testLabel}-${Date.now()}-${randomUUID().slice(0, 6)}`;
     const targetSlug = `日本語タイトル-${projectSlug}-${nonce}`;
     const sourceSlug = `e2e-live-l15b-source-${projectSlug}-${nonce}`;
