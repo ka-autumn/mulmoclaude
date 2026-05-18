@@ -20,7 +20,7 @@ import path from "node:path";
 
 import { log as defaultLog } from "../system/logger/index.js";
 import { ONE_DAY_MS } from "../utils/time.js";
-import type { Severity } from "./dsl/schema.js";
+import type { Severity } from "../../src/types/encore-dsl/schema.js";
 import { PENDING_CLEAR_DIRNAME, OBLIGATIONS_DIRNAME } from "./paths.js";
 import { readDir, readTextOrNull, unlink } from "../utils/files/encore-io.js";
 import * as encoreNotifier from "./notifier.js";

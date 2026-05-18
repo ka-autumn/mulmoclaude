@@ -22,7 +22,7 @@
 
 import { z } from "zod";
 
-import { EncoreDslInput, type EncoreDsl } from "./dsl/schema.js";
+import { EncoreDslInput, type EncoreDsl } from "../../src/types/encore-dsl/schema.js";
 import {
   applyValues,
   buildCycleState,
@@ -37,7 +37,7 @@ import {
 import { ONE_HOUR_MS } from "../utils/time.js";
 import { isCycleClosed } from "./closure.js";
 import { parseIndexFile, serializeIndexFile } from "./obligation.js";
-import { currentCycleSlot } from "./dsl/cadence.js";
+import { currentCycleSlot } from "../../src/types/encore-dsl/cadence.js";
 import path from "node:path";
 import { obligationDir, obligationIndexPath, cycleFilePath, pendingClearPath, slugify, OBLIGATIONS_DIRNAME } from "./paths.js";
 import { exists, readDir, readTextOrNull, writeText } from "../utils/files/encore-io.js";

@@ -18,7 +18,7 @@
 // reaching for the raw host engine.
 
 import * as engine from "../notifier/engine.js";
-import type { Severity } from "./dsl/schema.js";
+import type { Severity } from "../../src/types/encore-dsl/schema.js";
 
 /** Identity string used as `pluginPkg` on every Encore bell entry.
  *  Stable across versions; lives next to the apiNamespace ("encore")

@@ -2,7 +2,7 @@
 // free-form body). Symmetric with cycle.ts's parse/serialize.
 
 import { parseEncoreFrontmatter, serializeEncoreFrontmatter } from "./yaml-fm.js";
-import { EncoreDslInput, type EncoreDsl } from "./dsl/schema.js";
+import { EncoreDslInput, type EncoreDsl } from "../../src/types/encore-dsl/schema.js";
 
 /** Parse an obligation's index.md raw markdown into (dsl, body).
  *  Re-runs the Zod validator so a hand-edited / corrupted file

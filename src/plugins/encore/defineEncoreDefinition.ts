@@ -12,23 +12,26 @@
 // natural mental model: "I have an id" / "I don't". The setup vs
 // amend intent IS the parameter shape, no redundant flag.
 //
-// `dsl` is declared as `{ type: "object" }` here — telling the LLM
-// "this is an object literal, not a JSON-encoded string" without
-// embedding the full nested schema. Field-level shape is documented
-// in `helps/encore-dsl.md` and validated server-side via Zod
-// (`EncoreDslInput.parse`).
-//
-// A fully-typed `dsl` JSON Schema (auto-derived from the Zod
-// validator via `z.toJSONSchema(EncoreDslInput)`) would be the ideal
-// next step, but the eslint `no-restricted-imports` rule forbids
-// plugin code from importing server-side modules. Moving the DSL
-// schema to a plugin-safe shared package is its own follow-up; see
-// plans/feat-encore-define-tool.md "Out of scope".
+// The `dsl` JSON Schema is AUTO-DERIVED from the runtime Zod
+// validator (`z.toJSONSchema(EncoreDslInput)`) — so the LLM sees
+// the same field names, types, and oneOf branches the server
+// enforces, with zero drift risk. The schema lives at
+// `src/types/encore-dsl/` (was `server/encore/dsl/`) so plugin
+// code can import it without crossing the no-server-imports lint
+// boundary.
 
+import { z } from "zod";
 import type { ToolDefinition } from "gui-chat-protocol";
+import { EncoreDslInput } from "../../types/encore-dsl/schema";
 import { META } from "./defineEncoreMeta";
 
 export const TOOL_NAME = META.toolName;
+
+// Strip `$schema` — that's a top-level JSON Schema declaration, not
+// valid as a property subschema. The rest (`oneOf` / `type` /
+// `properties` / ...) is what we want inside `parameters.dsl`.
+const generatedDslSchema = z.toJSONSchema(EncoreDslInput) as Record<string, unknown>;
+const { $schema: __ignored, ...dslJsonSchema } = generatedDslSchema;
 
 const toolDefinition: ToolDefinition = {
   type: "function",
@@ -50,13 +53,12 @@ const toolDefinition: ToolDefinition = {
         description: "Fixed value; the tool's only kind.",
       },
       dsl: {
-        type: "object",
+        ...dslJsonSchema,
         description:
           "Encore DSL document (OBJECT LITERAL — do NOT pass a JSON-encoded string). " +
-          "For setup (no obligationId): provide the full DSL (version / displayName / type / cadence / targets / steps / formSchema). " +
+          "For setup (no obligationId): provide every required field shown in the schema. " +
           "For amend (with obligationId): provide ONLY the top-level fields you want to change — others are preserved from the existing DSL. " +
-          "See `helps/encore-dsl.md` for the field-level grammar and worked examples. Field-level validation runs on the server; missing or malformed fields surface as 400 errors with field-path-aware messages.",
-        additionalProperties: true,
+          "See `helps/encore-dsl.md` for cross-field rules and worked examples.",
       },
       obligationId: {
         type: "string",

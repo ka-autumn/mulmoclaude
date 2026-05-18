@@ -29,14 +29,23 @@ parameters: {
   type: "object",
   properties: {
     kind: { type: "string", enum: ["defineEncore"] }, // fixed-value, MCP single-enum
-    dsl: z.toJSONSchema(EncoreDslInput.partial()),    // typed DSL document
+    dsl: z.toJSONSchema(EncoreDslInput),              // typed DSL document, auto-derived
     obligationId: { type: "string", description: "Present → amend. Absent → setup." }
   },
   required: ["kind", "dsl"]
 }
 ```
 
-The `dsl` schema is **derived from Zod** (`EncoreDslInput.partial()`) so the JSON Schema can't drift from the runtime validator. `partial()` keeps every field optional at the schema level — full vs partial document is enforced by handleSetup vs handleAmend in the server. (Setup requires the full DSL via the non-partial `EncoreDslInput.parse(...)`, amend merges the patch onto the existing DSL and then runs the non-partial validator on the merge.)
+The `dsl` schema is **derived from Zod** (`z.toJSONSchema(EncoreDslInput)`) so the JSON Schema can't drift from the runtime validator. The full (non-partial) shape is exposed; for amend the parameter description tells the LLM to only fill the fields it wants to change. The server merges the patch onto the existing DSL and runs the full validator on the merge — so partial inputs are semantically OK even though the schema marks fields as required.
+
+### DSL schema location
+
+The Zod source of truth moves from `server/encore/dsl/` to `src/types/encore-dsl/`. Both server (validation) and plugin tool definition (JSON Schema generation) import it as a value. Justification:
+
+- The schema is pure Zod (no Node-only imports — verified). Browser-bundle-safe.
+- The existing eslint rule `no-restricted-imports` blocks plugin code from importing `**/server/**` at value level. Moving the schema out of `server/` removes that boundary.
+- `src/types/` already houses cross-cutting shapes both sides consume (e.g., `session.ts`, `events.ts`). The DSL schema fits the same role — a contract both sides reference.
+- No new workspace package needed (lighter than `packages/encore-dsl/` would have been).
 
 ### Discriminator: `obligationId` presence
 
@@ -72,9 +81,14 @@ The LLM reads the message → either fills in `obligationId` (recovers as amend)
 - `src/plugins/encore/meta.ts` → **rename** to `manageEncoreMeta.ts` (carries the full META: toolName, apiNamespace, apiRoutes, mcpDispatch, workspaceDirs).
 - `src/plugins/encore/definition.ts` → **rename** to `manageEncoreDefinition.ts` (drop setup/amend from `LLM_ENCORE_KINDS`; slim `description` and `prompt`).
 - **New** `src/plugins/encore/defineEncoreMeta.ts` — toolName-only META.
-- **New** `src/plugins/encore/defineEncoreDefinition.ts` — the new tool with `kind: "defineEncore"` + typed `dsl` + optional `obligationId`.
+- **New** `src/plugins/encore/defineEncoreDefinition.ts` — the new tool with `kind: "defineEncore"` + typed `dsl` (auto-derived via `z.toJSONSchema(EncoreDslInput)`) + optional `obligationId`.
 - `src/plugins/encore/index.ts` — switch from `REGISTRATION` (singular) to `REGISTRATIONS` (plural array): two `{ toolName, entry }` rows, two `execute` functions (both POST to the shared dispatch endpoint, no transformation needed since the body already carries `kind`).
 - Run `yarn plugins:codegen` to regenerate `_generated/{metas,registrations,server-bindings}.ts`.
+
+### DSL schema relocation
+
+- **Move** `server/encore/dsl/{at-expression,at-resolver,cadence,schema}.ts` → `src/types/encore-dsl/`. Pure Zod files with no Node-only deps; both server and plugin can import.
+- Update import paths in `server/encore/{closure,cycle,dispatch,notifier,obligation,reconcile,tick}.ts`.
 
 ### Help file
 
@@ -94,7 +108,6 @@ New tests in `test/plugins/test_encore_dispatch.ts`:
 - **Per-field type hints for `manageEncore`'s remaining kinds** (`cycleId: { type: "string" }`, `targetId: { type: "string" }`, etc.). Smaller ROI; separate PR if needed.
 - **Removing `setup` and `amendDefinition` from the dispatch switch.** They stay as the backward-compat path the new `handleDefineEncore` translates to. Removing them is a separate cleanup.
 - **Renaming the `definition` field to `dsl` in the underlying `SetupArgs` / `AmendArgs`.** Internal-only naming; not worth the diff churn.
-- **Fully-typed `dsl` JSON Schema** (auto-derived from `EncoreDslInput` via `z.toJSONSchema`). The Zod schema lives in `server/encore/dsl/schema.ts`; the eslint `no-restricted-imports` rule blocks plugin code from importing it (`**/server/**` is restricted to type imports only). Moving the DSL schema to a plugin-safe shared location (`packages/encore-dsl/` or `src/lib/encore-dsl/`) is a separate refactor. Until then, `dsl` is declared as `{ type: "object" }` — the LLM gets the "object, not string" hint but has to read the help file for field-level shape.
 
 ## Dependencies
 
