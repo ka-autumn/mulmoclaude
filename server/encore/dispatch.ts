@@ -30,6 +30,9 @@ import { handleRecordValues, RecordValuesArgs } from "./handlers/recordValues.js
 import { handleResolveNotification, ResolveNotificationArgs } from "./handlers/resolveNotification.js";
 import { handleSetup, SetupArgs } from "./handlers/setup.js";
 import { handleSnooze, handleUnsnooze, SnoozeArgs, UnsnoozeArgs } from "./handlers/snooze.js";
+import { handleStartObligationChat, StartObligationChatArgs } from "./handlers/startObligationChat.js";
+import { handleListTickets, ListTicketsArgs } from "./handlers/listTickets.js";
+import { handleStartSetupChat, StartSetupChatArgs } from "./handlers/startSetupChat.js";
 import { EncoreError } from "./handlers/shared.js";
 import type { EncoreDispatchBody, EncoreDispatchResult } from "./handlers/shared.js";
 
@@ -68,6 +71,21 @@ async function dispatchInner(body: EncoreDispatchBody): Promise<EncoreDispatchRe
   if (kind === "unsnooze") return handleUnsnooze(safeParse(UnsnoozeArgs, body, kind));
   if (kind === "defineEncore") return handleDefineEncore(safeParse(DefineArgs, body, kind));
   if (kind === "resolveNotification") return handleResolveNotification(safeParse(ResolveNotificationArgs, body, kind));
+  // UI-only verb (dashboard chat button). Deliberately NOT in the
+  // LLM-facing tool schema — the LLM gets to chat via the normal
+  // session start path, this one is for users.
+  if (kind === "startObligationChat") return handleStartObligationChat(safeParse(StartObligationChatArgs, body, kind));
+  // UI-only verb (dashboard bell badge). Lists live tickets so the
+  // dashboard can show a clickable bell on obligations that have a
+  // pending notification. Same rationale as startObligationChat —
+  // not in the LLM schema, because the LLM learns about pending
+  // work through cycle state, not tickets.
+  if (kind === "listTickets") return handleListTickets(safeParse(ListTicketsArgs, body, kind));
+  // UI-only verb (dashboard "+ Add" button). Seeds a new chat for
+  // composing a fresh obligation. Same rationale as the other UI
+  // kinds — the LLM doesn't need to call this; it gets the same
+  // capability through normal chat session creation.
+  if (kind === "startSetupChat") return handleStartSetupChat(safeParse(StartSetupChatArgs, body, kind));
   throw new EncoreError(400, `unknown kind ${JSON.stringify(kind)}`);
 }
 
