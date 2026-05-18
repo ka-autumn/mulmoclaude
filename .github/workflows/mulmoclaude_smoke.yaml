@@ -117,7 +117,6 @@ jobs:
       - name: Run publish smoke
         env:
           DISABLE_SANDBOX: "1"
-          PUPPETEER_SKIP_DOWNLOAD: "1"
         run: node scripts/mulmoclaude/smoke.mjs
 
       # Preserve the smoke-verified tarball as a downloadable
