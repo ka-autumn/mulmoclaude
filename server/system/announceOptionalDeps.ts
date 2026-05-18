@@ -6,7 +6,7 @@
 
 import { BUILT_IN_PLUGIN_METAS } from "../../src/plugins/metas.js";
 import type { PluginMeta } from "../../src/plugins/meta-types.js";
-import { NOTIFICATION_PRIORITIES } from "../../src/types/notification.js";
+import { NOTIFICATION_KINDS, NOTIFICATION_PRIORITIES } from "../../src/types/notification.js";
 import { log } from "./logger/index.js";
 import { publishNotification, type PublishNotificationOpts } from "../events/notifications.js";
 import { probeOptionalDeps, optionalDeps, type OptionalDep, type DepStatus } from "./optionalDeps.js";
@@ -26,7 +26,7 @@ export function buildOptionalDepNotification(dep: OptionalDep, status: DepStatus
   const notFound = status.reason === "not-on-path";
   return {
     id: `optional-dep-missing:${dep.id}`,
-    kind: "system",
+    kind: NOTIFICATION_KINDS.system,
     priority: NOTIFICATION_PRIORITIES.normal,
     title: notFound ? `${dep.command} not installed` : `${dep.command} not running`,
     body: notFound
