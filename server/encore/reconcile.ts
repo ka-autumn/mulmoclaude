@@ -18,10 +18,10 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 
 import { log as defaultLog } from "../system/logger/index.js";
-import { compareIsoDates, formatCycleId, isoDate, nextSlot, type CycleSlot } from "./dsl/cadence.js";
-import { parseAtExpression } from "./dsl/at-expression.js";
-import { resolveAtExpression } from "./dsl/at-resolver.js";
-import type { EncoreDsl, Severity, StepDef } from "./dsl/schema.js";
+import { compareIsoDates, formatCycleId, isoDate, nextSlot, type CycleSlot } from "../../src/types/encore-dsl/cadence.js";
+import { parseAtExpression } from "../../src/types/encore-dsl/at-expression.js";
+import { resolveAtExpression } from "../../src/types/encore-dsl/at-resolver.js";
+import type { EncoreDsl, Severity, StepDef } from "../../src/types/encore-dsl/schema.js";
 import { parseIndexFile } from "./obligation.js";
 import { buildCycleState, isStepSnoozed, parseCycleFile, serializeCycleFile, type CycleState, type TargetRecord } from "./cycle.js";
 import { isCycleClosed, isStepClosed } from "./closure.js";

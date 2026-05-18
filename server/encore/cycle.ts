@@ -18,9 +18,9 @@
 // `pending-clear/*.json` to know what's active.
 
 import { parseEncoreFrontmatter as parseFrontmatter, serializeEncoreFrontmatter as serializeWithFrontmatter } from "./yaml-fm.js";
-import type { EncoreDsl } from "./dsl/schema.js";
-import type { CycleSlot } from "./dsl/cadence.js";
-import { cycleDeadline, cycleStart, formatCycleId } from "./dsl/cadence.js";
+import type { EncoreDsl } from "../../src/types/encore-dsl/schema.js";
+import type { CycleSlot } from "../../src/types/encore-dsl/cadence.js";
+import { cycleDeadline, cycleStart, formatCycleId } from "../../src/types/encore-dsl/cadence.js";
 
 export interface TargetRecord {
   /** Per-cycle field values keyed by formSchema field name.

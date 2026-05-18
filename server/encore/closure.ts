@@ -10,7 +10,7 @@
 // field anywhere; if there were, it could disagree with the data
 // (and did, in the original landing — bug fixed by this refactor).
 
-import type { EncoreDsl, StepDef } from "./dsl/schema.js";
+import type { EncoreDsl, StepDef } from "../../src/types/encore-dsl/schema.js";
 import type { TargetRecord, CycleState } from "./cycle.js";
 
 /** A step is closed if the target is skipped, OR if markStepDone

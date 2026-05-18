@@ -28,7 +28,7 @@ const toolDefinition: ToolDefinition = {
   type: "function",
   name: TOOL_NAME,
   description: "Display an Excel-like spreadsheet with formulas and calculations.",
-  prompt: `Use ${TOOL_NAME} when the user asks for a spreadsheet, table with calculations, or what-if analysis. Use formulas and cell references instead of pre-calculated values so the spreadsheet stays interactive. For cell format details and available functions, read \`helps/spreadsheet.md\` in the workspace.`,
+  prompt: `Use ${TOOL_NAME} when the user asks for a spreadsheet, table with calculations, or what-if analysis. Use formulas and cell references instead of pre-calculated values so the spreadsheet stays interactive. For cell format details and available functions, read \`config/helps/spreadsheet.md\` in the workspace.`,
   parameters: {
     type: "object",
     properties: {

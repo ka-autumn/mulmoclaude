@@ -27,8 +27,8 @@
 import { computed, onMounted, ref } from "vue";
 import { pluginEndpoints } from "../api";
 import { apiCall } from "../../utils/api";
-import { META } from "./meta";
-import type { EncoreEndpoints } from "./definition";
+import { META } from "./manageEncoreMeta";
+import type { EncoreEndpoints } from "./manageEncoreDefinition";
 
 const status = ref<"starting" | "redirecting" | "error" | "orphan">("starting");
 const errorMessage = ref<string | null>(null);

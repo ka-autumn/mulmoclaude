@@ -87,6 +87,7 @@ export const ROLES: Role[] = [
       "Mark every field the user must answer as `required: true`. The form blocks submission until required fields are filled, which prevents the LLM from receiving partial responses.",
     availablePlugins: [
       TOOL_NAMES.manageCalendar,
+      TOOL_NAMES.defineEncore,
       TOOL_NAMES.manageEncore,
       TOOL_NAMES.managePhotoLocations,
       TOOL_NAMES.mapControl,
@@ -440,12 +441,14 @@ export type BuiltInRoleId = (typeof BUILTIN_ROLE_IDS)[keyof typeof BUILTIN_ROLE_
 export const DEFAULT_ROLE_ID: BuiltInRoleId = BUILTIN_ROLE_IDS.general;
 
 // Role id that Encore's `resolveNotification` flow seeds new chats
-// with. Pinned to `personal` because that role owns `manageEncore` —
-// seeding into a role without the tool leaves the agent unable to
-// drive the obligation it was just woken up for. Guarded by
+// with. Pinned to `personal` because that role owns the Encore tool
+// pair (`defineEncore` for DSL composition / amendment,
+// `manageEncore` for operational kinds like markStepDone / snooze).
+// Seeding into a role without these tools leaves the agent unable
+// to drive the obligation it was just woken up for. Guarded by
 // `test/roles/test_encore_seed_role.ts` so renaming the role or
-// dropping `manageEncore` from its `availablePlugins` fails CI
-// rather than silently breaking the seeded chat.
+// dropping either tool from its `availablePlugins` fails CI rather
+// than silently breaking the seeded chat.
 export const ENCORE_SEED_ROLE_ID: BuiltInRoleId = BUILTIN_ROLE_IDS.personal;
 
 export function getRole(roleId: string): Role {
