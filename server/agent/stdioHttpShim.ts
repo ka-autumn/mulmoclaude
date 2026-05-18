@@ -20,6 +20,7 @@
 // executes an already-authorized opt-in.
 
 import { spawn, type ChildProcess } from "node:child_process";
+import type { Readable } from "node:stream";
 
 import { findAvailablePort } from "../utils/port.mjs";
 import { log } from "../system/logger/index.js";
@@ -58,11 +59,30 @@ async function waitUntilListening(child: ChildProcess, port: number): Promise<bo
   return false;
 }
 
+function drainToDebug(child: ChildProcess, serverId: string): void {
+  // supergateway / the wrapped server can be chatty. We never parse
+  // this output (readiness is an HTTP probe), but unread `pipe`
+  // buffers fill and block the child, so the streams MUST be
+  // consumed. Forward to debug so failures are still diagnosable.
+  const forward = (stream: Readable | null, channel: "stdout" | "stderr") => {
+    if (!stream) return;
+    stream.on("data", (chunk: Buffer) => {
+      log.debug("mcp-shim", `${channel}: ${chunk.toString().trimEnd()}`, { serverId });
+    });
+  };
+  forward(child.stdout, "stdout");
+  forward(child.stderr, "stderr");
+}
+
 /** Start a host-side stdio↔HTTP gateway for an opted-in stdio
  *  server. Returns a handle, or `null` when the gateway failed to
  *  come up (caller falls back to the safe default: drop the server).
- *  Never throws — a shim failure must not abort the agent turn. */
-export async function startStdioHttpShim(serverId: string, spec: McpStdioSpec): Promise<ShimHandle | null> {
+ *  Never throws — a shim failure must not abort the agent turn.
+ *
+ *  `workspacePath` is the chat workspace; the shim runs with it as
+ *  cwd so relative args / config-file discovery match the normal
+ *  (non-Docker) stdio execution semantics. */
+export async function startStdioHttpShim(serverId: string, spec: McpStdioSpec, workspacePath: string): Promise<ShimHandle | null> {
   const port = await findAvailablePort(SHIM_PORT_RANGE_START);
   if (port === null) {
     log.warn("mcp-shim", "no free port for stdio→http shim — dropping server", { serverId });
@@ -70,11 +90,15 @@ export async function startStdioHttpShim(serverId: string, spec: McpStdioSpec): 
   }
 
   const child = spawn("npx", ["-y", "supergateway", "--stdio", buildStdioCommand(spec), "--port", String(port)], {
+    // Run from the chat workspace (parity with the non-Docker stdio
+    // path) so relative args / config lookups resolve identically.
+    cwd: workspacePath,
     // Merge the spec env so the stdio child sees its required vars
     // (API keys etc.); inherit the host env for npx/node resolution.
     env: { ...process.env, ...(spec.env ?? {}) },
     stdio: ["ignore", "pipe", "pipe"],
   });
+  drainToDebug(child, serverId);
   // Without an error listener a spawn failure (npx missing) would be
   // an unhandled 'error' event → process crash. Same lesson as the
   // claude-code backend's spawn guard.

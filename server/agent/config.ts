@@ -114,7 +114,7 @@ export async function prepareUserServers(
     // stdio↔HTTP gateway and rewrites the spec to http so the
     // sandboxed agent can still reach it.
     if (spec.hostExecInDocker === true) {
-      const shim = await startStdioHttpShim(serverId, spec);
+      const shim = await startStdioHttpShim(serverId, spec, hostWorkspacePath);
       if (shim) {
         shims.push(shim);
         out[serverId] = { type: "http", url: rewriteLocalhostForDocker(shim.url, useDocker) };
