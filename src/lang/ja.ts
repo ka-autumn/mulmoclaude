@@ -295,6 +295,7 @@ const jaMessages = {
     chatButtonTitle: "この義務について新しいチャットで相談する",
     bellButtonTitle: "このサイクルについて相談する",
     addButtonLabel: "追加",
+    unexpectedResponse: "Encore から予期しない応答が返されました。",
     status: {
       active: "有効",
       paused: "一時停止",

@@ -296,6 +296,7 @@ const deMessages = {
     chatButtonTitle: "Diese Verpflichtung in einem neuen Chat besprechen",
     bellButtonTitle: "Diesen Zyklus besprechen",
     addButtonLabel: "Hinzufügen",
+    unexpectedResponse: "Encore hat eine unerwartete Antwort zurückgegeben.",
     status: {
       active: "Aktiv",
       paused: "Pausiert",

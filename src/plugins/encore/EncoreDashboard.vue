@@ -195,7 +195,7 @@ async function startChatForObligation(obligationId: string): Promise<void> {
     }
     const result = response.data;
     if (!result.ok || !result.chatId) {
-      errorMessage.value = result.error ?? "startObligationChat returned no chatId";
+      errorMessage.value = result.error ?? t("encoreDashboard.unexpectedResponse");
       return;
     }
     window.location.href = result.navigateTo ?? `/chat/${result.chatId}`;
@@ -228,7 +228,7 @@ async function startSetupChat(): Promise<void> {
     }
     const result = response.data;
     if (!result.ok || !result.chatId) {
-      errorMessage.value = result.error ?? "startSetupChat returned no chatId";
+      errorMessage.value = result.error ?? t("encoreDashboard.unexpectedResponse");
       return;
     }
     window.location.href = result.navigateTo ?? `/chat/${result.chatId}`;
@@ -353,7 +353,7 @@ function recordedValuesForTarget(state: CycleState, targetId: string): RecordedV
         <h1 class="text-xl font-semibold text-gray-800">{{ t("encoreDashboard.title") }}</h1>
         <button
           type="button"
-          class="inline-flex items-center gap-1 px-3 py-1.5 rounded bg-blue-600 text-white text-sm hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-wait"
+          class="h-8 px-2.5 flex items-center gap-1 rounded bg-blue-600 text-white text-sm hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-wait"
           :disabled="setupStarting"
           data-testid="encore-add-button"
           @click="startSetupChat()"

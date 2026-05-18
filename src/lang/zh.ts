@@ -289,6 +289,7 @@ const zhMessages = {
     chatButtonTitle: "在新对话中讨论此事项",
     bellButtonTitle: "讨论此周期",
     addButtonLabel: "新增",
+    unexpectedResponse: "Encore 返回了意外的响应。",
     status: {
       active: "进行中",
       paused: "暂停",

@@ -312,6 +312,7 @@ const enMessages = {
     chatButtonTitle: "Discuss this obligation in a new chat",
     bellButtonTitle: "Discuss this cycle",
     addButtonLabel: "Add",
+    unexpectedResponse: "Encore returned an unexpected response.",
     status: {
       active: "Active",
       paused: "Paused",

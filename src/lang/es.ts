@@ -299,6 +299,7 @@ const esMessages = {
     chatButtonTitle: "Hablar sobre esta obligación en un chat nuevo",
     bellButtonTitle: "Hablar sobre este ciclo",
     addButtonLabel: "Añadir",
+    unexpectedResponse: "Encore devolvió una respuesta inesperada.",
     status: {
       active: "Activa",
       paused: "Pausada",

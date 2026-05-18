@@ -293,6 +293,7 @@ const frMessages = {
     chatButtonTitle: "Discuter de cette obligation dans un nouveau chat",
     bellButtonTitle: "Discuter de ce cycle",
     addButtonLabel: "Ajouter",
+    unexpectedResponse: "Encore a renvoyé une réponse inattendue.",
     status: {
       active: "Active",
       paused: "En pause",

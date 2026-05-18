@@ -287,11 +287,12 @@ const ptBRMessages = {
     empty: "Ainda não há obrigações. Peça no chat para configurar uma.",
     noCycles: "Nenhum ciclo registrado ainda.",
     cyclesSuffix: "ciclos",
-    targetCount: "{count} destino | {count} destinos",
+    targetCount: "{count} alvo | {count} alvos",
     cycleClosed: "Concluído",
     chatButtonTitle: "Conversar sobre esta obrigação em um novo chat",
     bellButtonTitle: "Conversar sobre este ciclo",
     addButtonLabel: "Adicionar",
+    unexpectedResponse: "O Encore retornou uma resposta inesperada.",
     status: {
       active: "Ativa",
       paused: "Pausada",

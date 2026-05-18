@@ -52,6 +52,24 @@ function toSummary(ticket: Ticket): TicketSummary {
   };
 }
 
+/** Validate the parsed JSON has the string fields we project into
+ *  `TicketSummary`. A malformed ticket file (manual edit gone wrong,
+ *  truncated write, format drift) would otherwise leak `undefined`
+ *  values to the client and break the bell-click URL. We don't
+ *  validate every `Ticket` field — only what `toSummary` reads. */
+function isWellFormed(parsed: unknown): parsed is Ticket {
+  if (!parsed || typeof parsed !== "object") return false;
+  const obj = parsed as Record<string, unknown>;
+  return (
+    typeof obj.pendingId === "string" &&
+    typeof obj.obligationId === "string" &&
+    typeof obj.cycleId === "string" &&
+    typeof obj.notificationId === "string" &&
+    typeof obj.stepId === "string" &&
+    typeof obj.createdAt === "string"
+  );
+}
+
 export async function handleListTickets(__args: z.infer<typeof ListTicketsArgs>): Promise<EncoreDispatchResult> {
   const entries = await readDir(TICKETS_DIRNAME);
   const summaries: TicketSummary[] = [];
@@ -62,8 +80,15 @@ export async function handleListTickets(__args: z.infer<typeof ListTicketsArgs>)
     const raw = await readTextOrNull(rel);
     if (raw === null) continue;
     try {
-      const ticket = JSON.parse(raw) as Ticket;
-      summaries.push(toSummary(ticket));
+      const parsed: unknown = JSON.parse(raw);
+      if (!isWellFormed(parsed)) {
+        log.warn("encore", "listTickets: skipping malformed ticket (shape mismatch)", {
+          filename,
+          relPath: path.posix.normalize(rel),
+        });
+        continue;
+      }
+      summaries.push(toSummary(parsed));
     } catch (err) {
       // Tolerate a single corrupt ticket — log and skip, same shape
       // as `query`'s tolerance for an unparseable index.

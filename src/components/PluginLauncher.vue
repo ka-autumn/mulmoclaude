@@ -5,7 +5,7 @@
       <div v-if="idx === separatorAfterIndex" class="w-px bg-gray-300 my-0.5" />
       <button
         :class="[
-          'h-8 w-8 flex items-center justify-center border-r border-gray-200 last:border-r-0 transition-colors',
+          'h-8 w-8 flex items-center justify-center rounded border-r border-gray-200 last:border-r-0 transition-colors',
           isActive(target) ? 'bg-blue-50 text-blue-600' : 'bg-white text-gray-600 hover:bg-gray-50',
         ]"
         :title="target.literalTitle ?? t(`pluginLauncher.${target.key}.label`)"

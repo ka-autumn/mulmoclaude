@@ -297,6 +297,7 @@ const koMessages = {
     chatButtonTitle: "이 의무를 새 채팅에서 논의하기",
     bellButtonTitle: "이 주기 논의하기",
     addButtonLabel: "추가",
+    unexpectedResponse: "Encore가 예기치 않은 응답을 반환했습니다.",
     status: {
       active: "활성",
       paused: "일시 중지",
