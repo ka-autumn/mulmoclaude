@@ -90,10 +90,11 @@ const SetupArgs = z.object({
 
 const AmendArgs = z.object({
   kind: z.literal("amendDefinition"),
-  // `.min(1)` so an empty-string id is rejected at parse time with
-  // a clear 400, rather than crashing inside `obligationIndexPath("")`
-  // → `assertSafeSegment` and bubbling as an opaque 500.
-  obligationId: z.string().min(1),
+  // `.trim().min(1)` so empty AND whitespace-only ids are rejected
+  // at parse time with a clear 400, rather than crashing inside
+  // `obligationIndexPath("")` / `obligationIndexPath("   ")` →
+  // `assertSafeSegment` and bubbling as an opaque 500.
+  obligationId: z.string().trim().min(1),
   // `z.unknown()` instead of `z.record(...)` so the handler can also
   // accept a JSON-encoded string and parse it via `coerceDefinitionToObject`
   // — same tolerance as setup. The handler validates the resulting
@@ -175,12 +176,13 @@ const DefineArgs = z.object({
    *  Discriminator chosen so the LLM never has to also pass a `kind`
    *  inside the tool — "I have an id" / "I don't" is the intent.
    *
-   *  `.min(1)` rejects `""` at parse time with a clear 400 — without
-   *  it, an empty string would pass the `!== undefined` check in
-   *  `handleDefineEncore` and route to amend, where
-   *  `obligationIndexPath("")` would throw from `assertSafeSegment`
-   *  and surface as an opaque 500. */
-  obligationId: z.string().min(1).optional(),
+   *  `.trim().min(1)` rejects `""` AND whitespace-only ids at parse
+   *  time with a clear 400 — without it, those would pass the
+   *  `!== undefined` check in `handleDefineEncore` and route to
+   *  amend, where `obligationIndexPath("")` /
+   *  `obligationIndexPath("   ")` would throw from
+   *  `assertSafeSegment` and surface as an opaque 500. */
+  obligationId: z.string().trim().min(1).optional(),
 });
 
 // ── path / id helpers ─────────────────────────────────────────────

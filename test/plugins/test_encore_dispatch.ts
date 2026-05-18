@@ -354,12 +354,22 @@ describe("Encore dispatch — component tests", () => {
   });
 
   it('defineEncore with `obligationId: ""` rejects at parse time (not opaque 500)', async () => {
-    // Boundary test for the `z.string().min(1).optional()` schema
-    // guard. Without the .min(1), an empty string would pass
+    // Boundary test for the `z.string().trim().min(1).optional()`
+    // schema guard. Without it, an empty string would pass
     // `!== undefined` in handleDefineEncore and route to amend, where
     // `obligationIndexPath("")` throws from `assertSafeSegment` and
     // bubbles as an internal error instead of a structured 4xx.
     await assert.rejects(dispatch({ kind: "defineEncore", obligationId: "", dsl: hisayoDefinition }), /invalid args[\s\S]*obligationId/);
+  });
+
+  it("defineEncore with whitespace-only `obligationId` rejects at parse time", async () => {
+    // The `.trim()` in front of `.min(1)` covers the case where the
+    // LLM passes "   " (length-3 string that satisfies `.min(1)`
+    // alone but is empty after trim). Without `.trim()`, the value
+    // would route to amend and crash inside `assertSafeSegment` (the
+    // safe-segment regex rejects leading whitespace) as a non-
+    // EncoreError internal failure.
+    await assert.rejects(dispatch({ kind: "defineEncore", obligationId: "   ", dsl: hisayoDefinition }), /invalid args[\s\S]*obligationId/);
   });
 
   it("defineEncore accepts dsl as a JSON-encoded string (same tolerance as setup/amend)", async () => {
