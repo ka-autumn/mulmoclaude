@@ -58,6 +58,18 @@ export interface Ticket {
    *  `lastPublishedSeverity`; that moved here when status flags
    *  were removed. */
   severity: Severity;
+  /** Title and body as last rendered to the bell — the drift
+   *  baseline. Trim path compares these against `bundleTitle` /
+   *  `bundleBody` recomputed from the current DSL; if either has
+   *  drifted (most commonly via `amendDefinition` editing a
+   *  `displayName`), the path calls `notifier.update` in place
+   *  instead of clear-then-publish. Optional on the wire so
+   *  tickets written by pre-update-API builds load cleanly — they
+   *  are treated as "always drifted" on first sight, which causes
+   *  an idempotent in-place update to the bell and a ticket
+   *  rewrite that backfills the fields. */
+  title?: string;
+  body?: string;
   seedPrompt: string;
   createdAt: string;
   /** Filled by resolveNotification on first bell click. Subsequent

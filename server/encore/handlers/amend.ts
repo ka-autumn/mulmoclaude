@@ -79,12 +79,15 @@ export async function handleAmend(args: z.infer<typeof AmendArgs>): Promise<Enco
 
   await writeText(indexPath, serializeIndexFile(validated, body));
 
-  // Force-refresh every active bell entry for this obligation. A
-  // title-only amend doesn't close anything, so trim-by-state alone
-  // wouldn't republish — but the on-screen text is stale. The
-  // `invalidateAllBells` flag tells the reconciler to clear all
-  // tickets+bells for the cycle first, then republish with fresh DSL.
-  await reconcileCycleNotifications({ obligationId: args.obligationId, now: new Date(), invalidateAllBells: true, log });
+  // Re-run the reconciler so any DSL-driven content drift (the most
+  // common amend is a `displayName` edit) flushes to the bells. The
+  // trim path detects title/body drift per ticket and calls
+  // `notifier.update` in place — same notificationId, no history
+  // record, no flicker. Prior to that engine op, this call required
+  // an `invalidateAllBells: true` flag that nuked every bell for the
+  // cycle and republished them; the flag and its supporting
+  // `clearAllForCycle` helper are gone.
+  await reconcileCycleNotifications({ obligationId: args.obligationId, now: new Date(), log });
   log.info("encore", "amendDefinition: obligation updated", { obligationId: args.obligationId });
 
   return {

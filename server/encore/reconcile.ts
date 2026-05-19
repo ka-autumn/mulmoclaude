@@ -36,11 +36,6 @@ export interface ReconcileDeps {
    *  the latest cycle on disk. */
   cycleId?: string;
   now: Date;
-  /** Force-clear every ticket+bell for the primary cycle before
-   *  publishing fresh ones. Used by `amendDefinition`: a title-only
-   *  amend doesn't close anything, so trim-by-state wouldn't
-   *  republish — but the on-screen text is now stale. */
-  invalidateAllBells?: boolean;
   log?: typeof defaultLog;
 }
 
@@ -63,10 +58,13 @@ export async function reconcileCycleNotifications(deps: ReconcileDeps): Promise<
   const primary = await loadPrimaryCycle(deps.obligationId, deps.cycleId);
   if (!primary) return;
 
-  if (deps.invalidateAllBells) {
-    await clearAllForCycle(deps.obligationId, primary.state.cycleId, "invalidateAllBells", log);
-  }
-
+  // `amendDefinition` used to set `invalidateAllBells: true` here to
+  // force every ticket+bell to be cleared and republished — the trim
+  // path couldn't republish a title-only edit because state hadn't
+  // moved. With the notifier engine's `update` op, the trim path now
+  // detects title/body drift directly and patches each bell in place
+  // (same notificationId, no history record). The flag and the
+  // `clearAllForCycle` helper it owned have been removed.
   await reconcileOneCycle(dsl, primary.state, todayIso, nowIso, log);
 
   // Cycle-close transition. If the primary cycle is now closed
@@ -203,8 +201,11 @@ async function trimOrEscalateTicket(
   }
 
   const phase = currentPhaseFor(stepDef, state, todayIso);
-  const severityChanged = phase !== null && phase.severity !== ticket.severity;
-  const targetsChanged = liveTargets.length !== ticket.targets.length;
+  const newSeverity = phase?.severity ?? ticket.severity;
+  const members = liveTargets.map((targetId) => ({ targetId }));
+  const desiredTitle = bundleTitle(dsl, stepDef, members);
+  const desiredBody = bundleBody(dsl, stepDef, members);
+
   // Ghost-ticket detection. The reconciler historically treated
   // ticket-existence as proof of bell-existence, so a bell dismissed
   // out-of-band by the host UI (or wiped by a crashed active.json)
@@ -216,20 +217,42 @@ async function trimOrEscalateTicket(
   // tick" gesture rather than an accidental silencer. `snooze` is
   // still the explicit verb for time-bound silence.
   const bellAlive = await encoreNotifier.bellExists(ticket.notificationId);
+  if (!bellAlive) {
+    await refreshGhostTicket({ dsl, state, ticket, stepDef, liveTargets, newSeverity, desiredTitle, desiredBody, log });
+    return { targets: liveTargets };
+  }
 
-  if (severityChanged || !bellAlive) {
-    const reason = !bellAlive ? "ghost-ticket republish" : "severity escalation";
-    const newSeverity = phase?.severity ?? ticket.severity;
-    await clearAndRepublish({ dsl, state, ticket, stepDef, liveTargets, newSeverity, reason, bellAlive, log });
+  // Drift detection. Title / body drift surfaces every kind of
+  // content-only DSL edit (`amendDefinition` rewriting a
+  // `displayName`, a target rename, a bundle shrinking to a count
+  // that changes the rendered text). Severity drift surfaces phase
+  // escalation. Either way the response is an in-place update —
+  // same notificationId, no history pollution, no flicker.
+  //
+  // Tickets written before this build don't carry `title` / `body`,
+  // so the !== checks read both as "always different on first
+  // sight". The first reconcile pass after the upgrade therefore
+  // calls `update` once per ticket (idempotent on the bell — host
+  // active.json is rewritten with the same values; only the ticket
+  // file gains the missing fields) and subsequent passes short-
+  // circuit.
+  const severityDrift = newSeverity !== ticket.severity;
+  const titleDrift = ticket.title !== desiredTitle;
+  const bodyDrift = ticket.body !== desiredBody;
+  const targetsChanged = liveTargets.length !== ticket.targets.length;
+
+  if (severityDrift || titleDrift || bodyDrift) {
+    await updateBellInPlace({ dsl, state, ticket, stepDef, liveTargets, newSeverity, desiredTitle, desiredBody, log });
     return { targets: liveTargets };
   }
 
   if (targetsChanged) {
-    // Bundle shrunk without escalation. Rewrite the ticket; the
-    // host bell entry keeps the same id (the on-screen badge count
-    // doesn't change for one notification, only its body).
-    await writeTicket({ ...ticket, targets: liveTargets });
-    log.info("encore", "reconcile: trimmed bundle", {
+    // Rare branch — target list shrunk but the formatters render
+    // the same title/body. Persist the trimmed target list so the
+    // ticket stays consistent with cycle state. No bell update
+    // needed since presentation didn't change.
+    await writeTicket({ ...ticket, targets: liveTargets, title: desiredTitle, body: desiredBody });
+    log.info("encore", "reconcile: trimmed bundle (no content drift)", {
       pendingId: ticket.pendingId,
       notificationId: ticket.notificationId,
       remaining: liveTargets,
@@ -240,62 +263,65 @@ async function trimOrEscalateTicket(
   return { targets: liveTargets };
 }
 
-/** Clear (if alive) and republish a ticket's bell with a fresh
- *  notificationId. Used by both the severity-escalation path (bell
- *  alive, new phase reached) and the ghost-ticket path (bell was
- *  manually dismissed or wiped). Preserves the ticket's pendingId,
- *  seedPrompt, createdAt, and chatSessionId — those are the chat-
- *  continuity binding the user expects to survive.
- *
- *  Returns true on success, false if the alive-bell clear failed
- *  (in which case the ticket is left as-is so a later reconcile
- *  retries). A ghost clear can't fail meaningfully (the bell is
- *  already gone) so we always proceed to publish in that case. */
-interface RepublishArgs {
+interface ReconcileRefreshArgs {
   dsl: EncoreDsl;
   state: CycleState;
   ticket: Ticket;
   stepDef: StepDef;
   liveTargets: string[];
   newSeverity: Severity;
-  reason: string;
-  bellAlive: boolean;
+  desiredTitle: string;
+  desiredBody: string;
   log: typeof defaultLog;
 }
 
-async function clearAndRepublish(args: RepublishArgs): Promise<boolean> {
-  const { dsl, state, ticket, stepDef, liveTargets, newSeverity, reason, bellAlive, log } = args;
-  if (bellAlive && !(await safeClearBell(ticket.notificationId, reason, log))) {
-    log.warn("encore", "reconcile: skipping republish; clear failed", {
-      pendingId: ticket.pendingId,
-      notificationId: ticket.notificationId,
-      reason,
-    });
-    return false;
-  }
-  const members = liveTargets.map((targetId) => ({ targetId }));
-  const title = bundleTitle(dsl, stepDef, members);
-  const body = bundleBody(dsl, stepDef, members);
-  const navigateTarget = encoreUrlFor(ticket.pendingId);
-  const { id: newId } = await encoreNotifier.publish({ severity: newSeverity, title, body, navigateTarget });
-  // Roll back the just-published bell entry if the ticket write
-  // fails — otherwise the bell would have no matching ticket and
-  // the next reconcile would see "un-fired" → publish a duplicate.
-  try {
-    await writeTicket({ ...ticket, notificationId: newId, severity: newSeverity, targets: liveTargets });
-  } catch (err) {
-    await safeClearBell(newId, `rollback: ticket write failed after ${reason}`, log);
-    throw err;
-  }
-  log.info("encore", `reconcile: ${reason}`, {
+/** Update a still-live bell entry in place — same notificationId,
+ *  fresh severity / title / body. No clear, no republish, no
+ *  history record. Used for the common case where an obligation's
+ *  DSL changed (most often via `amendDefinition`) or a phase
+ *  escalation pushed severity up.
+ *
+ *  The on-disk ticket is rewritten to reflect the new state so the
+ *  next reconcile's drift check short-circuits. */
+async function updateBellInPlace(args: ReconcileRefreshArgs): Promise<void> {
+  const { dsl, state, ticket, stepDef, liveTargets, newSeverity, desiredTitle, desiredBody, log } = args;
+  await encoreNotifier.update(ticket.notificationId, { severity: newSeverity, title: desiredTitle, body: desiredBody });
+  await writeTicket({ ...ticket, severity: newSeverity, title: desiredTitle, body: desiredBody, targets: liveTargets });
+  log.info("encore", "reconcile: bell updated in place", {
     obligationId: dsl.id,
     cycleId: state.cycleId,
     stepId: stepDef.id,
-    from: ticket.severity,
-    to: newSeverity,
-    notificationId: newId,
+    notificationId: ticket.notificationId,
+    fromSeverity: ticket.severity,
+    toSeverity: newSeverity,
   });
-  return true;
+}
+
+/** Bring back a bell that was dismissed out-of-band. The bell is
+ *  gone, so we publish a fresh entry at a new notificationId; the
+ *  ticket's pendingId / seedPrompt / chatSessionId / createdAt
+ *  carry over so the user lands in the same chat conversation on
+ *  click. With `update`, this is the ONLY reason the trim path
+ *  still allocates a new notificationId — every other refresh
+ *  (severity escalation, title amend, body drift) goes through
+ *  `updateBellInPlace` and keeps the original id stable. */
+async function refreshGhostTicket(args: ReconcileRefreshArgs): Promise<void> {
+  const { dsl, state, ticket, stepDef, liveTargets, newSeverity, desiredTitle, desiredBody, log } = args;
+  const navigateTarget = encoreUrlFor(ticket.pendingId);
+  const { id: newId } = await encoreNotifier.publish({ severity: newSeverity, title: desiredTitle, body: desiredBody, navigateTarget });
+  try {
+    await writeTicket({ ...ticket, notificationId: newId, severity: newSeverity, title: desiredTitle, body: desiredBody, targets: liveTargets });
+  } catch (err) {
+    await safeClearBell(newId, "rollback: ticket write failed after ghost-ticket republish", log);
+    throw err;
+  }
+  log.info("encore", "reconcile: ghost-ticket republish", {
+    obligationId: dsl.id,
+    cycleId: state.cycleId,
+    stepId: stepDef.id,
+    fromNotificationId: ticket.notificationId,
+    toNotificationId: newId,
+  });
 }
 
 function dedupeTickets(tickets: Ticket[]): Ticket[] {
@@ -377,6 +403,8 @@ async function fireGroup(dsl: EncoreDsl, state: CycleState, group: BundleGroup, 
     stepId: group.stepId,
     targets: group.members.map((member) => member.targetId),
     severity: group.severity,
+    title,
+    body,
     seedPrompt: buildSeedPrompt(dsl, group, pendingId, state.cycleId),
     createdAt: new Date().toISOString(),
   };
@@ -475,18 +503,6 @@ async function clearAllForObligation(obligationId: string, reason: string, log: 
     }
   }
   if (cleared > 0) log.info("encore", "reconcile: cleared all for obligation", { obligationId, reason, cleared });
-}
-
-async function clearAllForCycle(obligationId: string, cycleId: string, reason: string, log: typeof defaultLog): Promise<void> {
-  const tickets = await ticketsForCycle(obligationId, cycleId);
-  let cleared = 0;
-  for (const ticket of tickets) {
-    if (await safeClearBell(ticket.notificationId, reason, log)) {
-      await unlink(ticketPath(ticket.pendingId));
-      cleared += 1;
-    }
-  }
-  if (cleared > 0) log.info("encore", "reconcile: cleared all for cycle", { obligationId, cycleId, reason, cleared });
 }
 
 // ── phase eval ────────────────────────────────────────────────────

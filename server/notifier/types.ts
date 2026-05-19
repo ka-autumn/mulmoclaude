@@ -117,5 +117,18 @@ export const HISTORY_CAP = 50;
 
 /** Pub-sub event published on `PUBSUB_CHANNELS.notifier` after every
  *  successful state change. Discriminated union — subscribers switch
- *  on `type` to keep TypeScript narrowing the rest of the payload. */
-export type NotifierEvent = { type: "published"; entry: NotifierEntry } | { type: "cleared"; id: string } | { type: "cancelled"; id: string };
+ *  on `type` to keep TypeScript narrowing the rest of the payload.
+ *
+ *  `updated` carries the post-mutation entry — the receiver swaps
+ *  the matching `id` in their local active set. Reserved for in-
+ *  place edits via `updateForPlugin`; no history record is written
+ *  because the entry is still active, just with refreshed content.
+ *  The right primitive for "state-of-the-world" notifications whose
+ *  presentation drifts while the underlying obligation persists
+ *  (e.g. Encore's amend-time title refresh, Todo's rename / priority
+ *  shift). */
+export type NotifierEvent =
+  | { type: "published"; entry: NotifierEntry }
+  | { type: "cleared"; id: string }
+  | { type: "cancelled"; id: string }
+  | { type: "updated"; entry: NotifierEntry };

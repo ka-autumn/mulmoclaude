@@ -70,6 +70,38 @@ export async function publish(args: PublishArgs): Promise<{ id: string }> {
   });
 }
 
+/** In-place update of an Encore notification's presentation —
+ *  same id, same `pluginPkg`, same `lifecycle`, same `createdAt`,
+ *  new severity / title / body. The reconciler's trim path uses
+ *  this to flush DSL-driven content drift (an `amendDefinition`
+ *  edited a `displayName`, the bundle shrunk so the body's member
+ *  count changed, the cadence pushed us into a higher-severity
+ *  phase) without flickering the bell entry through a clear +
+ *  publish — which would litter history with `cleared` records
+ *  and assign a fresh id every time. Mirrors the DSL → host
+ *  vocabulary mapping in `publish` so a phase escalation from
+ *  `info` to `urgent` ends up at host `nudge` → `urgent` rather
+ *  than confusing the validator.
+ *
+ *  No-op on unknown / cross-plugin ids, and on patches that would
+ *  invalidate the entry (e.g. info severity on the action
+ *  lifecycle we always use). Caller treats the failure modes
+ *  uniformly — same isolation property as `clear`. */
+export async function update(
+  entryId: string,
+  patch: {
+    severity?: Severity;
+    title?: string;
+    body?: string;
+  },
+): Promise<void> {
+  await engine.updateForPlugin(ENCORE_PLUGIN_PKG, entryId, {
+    ...(patch.severity !== undefined ? { severity: toHostSeverity(patch.severity) } : {}),
+    ...(patch.title !== undefined ? { title: patch.title } : {}),
+    ...(patch.body !== undefined ? { body: patch.body } : {}),
+  });
+}
+
 /** Clear an Encore notification. No-ops on unknown / cross-plugin
  *  ids — matches host `clearForPlugin` semantics, plugin can't
  *  dismiss another plugin's entries. */

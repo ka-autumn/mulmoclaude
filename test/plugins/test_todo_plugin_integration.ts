@@ -16,6 +16,7 @@ import { makePluginRuntime } from "../../server/plugins/runtime.js";
 import { createTaskManager } from "../../server/events/task-manager/index.js";
 import { WORKSPACE_PATHS } from "../../server/workspace/paths.js";
 import type { IPubSub } from "../../server/events/pub-sub/index.js";
+import * as notifierEngine from "../../server/notifier/engine.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -443,5 +444,270 @@ describe("Todo plugin — end-to-end through the loader", () => {
     const res = (await plugin.execute({}, { foo: "bar" } as never)) as TodoResult;
     assert.ok(res.error);
     assert.equal(res.status, 400);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// Priority-alert notifications
+//
+// The plugin maintains an `action`-lifecycle notification for every
+// item with `priority ∈ {"urgent", "high"} && !completed`. Reconcile
+// runs after every mutation, with `pluginData.priority` carrying the
+// snapshot so a priority transition (high → urgent or vice versa)
+// clears the old entry and republishes with the right severity.
+// ─────────────────────────────────────────────────────────────────────
+
+describe("Todo plugin — priority-alert notifications", () => {
+  // The integration test loads the built dist via `loadPluginFromCacheDir`
+  // and the real `makePluginRuntime`, which attaches a real notifier
+  // backed by `notifierEngine`. We redirect the engine's file paths
+  // to a tmp dir so reads/writes don't touch the user's workspace.
+  let notifierTmpDir: string;
+  let savedDataDescriptor: PropertyDescriptor | undefined;
+  let savedConfigDescriptor: PropertyDescriptor | undefined;
+  let dataRoot: string;
+  let configRoot: string;
+
+  beforeEach(() => {
+    notifierTmpDir = mkdtempSync(path.join(tmpdir(), "todo-int-notifier-"));
+    notifierEngine._setFilePathsForTesting({
+      active: path.join(notifierTmpDir, "active.json"),
+      history: path.join(notifierTmpDir, "history.json"),
+    });
+    savedDataDescriptor = Object.getOwnPropertyDescriptor(WORKSPACE_PATHS, "pluginsData");
+    savedConfigDescriptor = Object.getOwnPropertyDescriptor(WORKSPACE_PATHS, "pluginsConfig");
+    dataRoot = mkdtempSync(path.join(tmpdir(), "todo-int-data-"));
+    configRoot = mkdtempSync(path.join(tmpdir(), "todo-int-config-"));
+    if (savedDataDescriptor) Object.defineProperty(WORKSPACE_PATHS, "pluginsData", { ...savedDataDescriptor, value: dataRoot });
+    if (savedConfigDescriptor) Object.defineProperty(WORKSPACE_PATHS, "pluginsConfig", { ...savedConfigDescriptor, value: configRoot });
+  });
+
+  afterEach(() => {
+    if (savedDataDescriptor) Object.defineProperty(WORKSPACE_PATHS, "pluginsData", savedDataDescriptor);
+    if (savedConfigDescriptor) Object.defineProperty(WORKSPACE_PATHS, "pluginsConfig", savedConfigDescriptor);
+    rmSync(dataRoot, { recursive: true, force: true });
+    rmSync(configRoot, { recursive: true, force: true });
+    rmSync(notifierTmpDir, { recursive: true, force: true });
+  });
+
+  async function load(): Promise<{ execute: NonNullable<NonNullable<Awaited<ReturnType<typeof loadPluginFromCacheDir>>>["execute"]> }> {
+    const { pubsub } = makeRecordingPubSub();
+    const plugin = await loadPluginFromCacheDir(PKG_NAME, VERSION, PLUGIN_DIR, {
+      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en", taskManager: createTaskManager() }),
+    });
+    assert.ok(plugin?.execute);
+    return { execute: plugin.execute };
+  }
+
+  it("itemCreate with priority=urgent publishes a single 'urgent' entry", async (ctx) => {
+    if (!existsSync(PLUGIN_DIST_INDEX)) {
+      ctx.skip("dist not built");
+      return;
+    }
+    const plugin = await load();
+    await plugin.execute({}, { kind: "itemCreate", text: "Pay tax", priority: "urgent" });
+    const entries = await notifierEngine.listFor(PKG_NAME);
+    assert.equal(entries.length, 1, "should publish exactly one entry");
+    assert.equal(entries[0].severity, "urgent");
+    assert.equal(entries[0].lifecycle, "action");
+    assert.equal(entries[0].navigateTarget, "/todos");
+    // Title is the todo text verbatim — severity is signalled by the
+    // bell's color badge (and on-disk `pluginData.priority`), not by
+    // a prefix in the title.
+    assert.equal(entries[0].title, "Pay tax");
+  });
+
+  it("itemCreate with priority=high publishes a single 'nudge' entry", async (ctx) => {
+    if (!existsSync(PLUGIN_DIST_INDEX)) {
+      ctx.skip("dist not built");
+      return;
+    }
+    const plugin = await load();
+    await plugin.execute({}, { kind: "itemCreate", text: "Review PR", priority: "high" });
+    const entries = await notifierEngine.listFor(PKG_NAME);
+    assert.equal(entries.length, 1);
+    assert.equal(entries[0].severity, "nudge");
+    assert.equal(entries[0].title, "Review PR");
+  });
+
+  it("itemCreate without notifiable priority publishes nothing", async (ctx) => {
+    if (!existsSync(PLUGIN_DIST_INDEX)) {
+      ctx.skip("dist not built");
+      return;
+    }
+    const plugin = await load();
+    await plugin.execute({}, { kind: "itemCreate", text: "Buy milk", priority: "low" });
+    await plugin.execute({}, { kind: "itemCreate", text: "Email Sue", priority: "medium" });
+    await plugin.execute({}, { kind: "itemCreate", text: "Read book" });
+    const entries = await notifierEngine.listFor(PKG_NAME);
+    assert.equal(entries.length, 0);
+  });
+
+  it("itemPatch to add priority publishes; remove priority clears", async (ctx) => {
+    if (!existsSync(PLUGIN_DIST_INDEX)) {
+      ctx.skip("dist not built");
+      return;
+    }
+    const plugin = await load();
+    const created = (await plugin.execute({}, { kind: "itemCreate", text: "Maybe urgent" })) as TodoResult;
+    const itemId = created.data?.items?.[0]?.id;
+    assert.ok(itemId);
+    assert.equal((await notifierEngine.listFor(PKG_NAME)).length, 0);
+
+    await plugin.execute({}, { kind: "itemPatch", id: itemId, priority: "urgent" });
+    let entries = await notifierEngine.listFor(PKG_NAME);
+    assert.equal(entries.length, 1);
+    assert.equal(entries[0].severity, "urgent");
+
+    await plugin.execute({}, { kind: "itemPatch", id: itemId, priority: "medium" });
+    entries = await notifierEngine.listFor(PKG_NAME);
+    assert.equal(entries.length, 0, "downgrading out of urgent/high must clear the entry");
+  });
+
+  it("priority transition urgent → high updates the bell in place (same id, new severity)", async (ctx) => {
+    if (!existsSync(PLUGIN_DIST_INDEX)) {
+      ctx.skip("dist not built");
+      return;
+    }
+    const plugin = await load();
+    const created = (await plugin.execute({}, { kind: "itemCreate", text: "Shift severity", priority: "urgent" })) as TodoResult;
+    const itemId = created.data?.items?.[0]?.id;
+    assert.ok(itemId);
+    const firstId = (await notifierEngine.listFor(PKG_NAME))[0]?.id;
+    assert.ok(firstId);
+
+    await plugin.execute({}, { kind: "itemPatch", id: itemId, priority: "high" });
+    const entries = await notifierEngine.listFor(PKG_NAME);
+    assert.equal(entries.length, 1, "still exactly one entry");
+    assert.equal(entries[0].severity, "nudge", "severity must follow the new priority");
+    assert.equal(entries[0].id, firstId, "in-place update must preserve the notification id");
+    // Title is the todo text verbatim — priority is signalled by the
+    // bell's color badge, not by a textual prefix.
+    assert.equal(entries[0].title, "Shift severity", "title must remain the todo text after a priority shift");
+
+    // The whole point of the migration to notifier.update: a priority
+    // shift on a still-active todo no longer pollutes history. The
+    // bell entry is the same one, just with new severity / title.
+    const history = await notifierEngine.listHistory();
+    assert.equal(history.filter((entry) => entry.pluginPkg === PKG_NAME).length, 0, "priority transition must NOT write to history");
+  });
+
+  it("rename updates the bell title in place (same id, no churn)", async (ctx) => {
+    if (!existsSync(PLUGIN_DIST_INDEX)) {
+      ctx.skip("dist not built");
+      return;
+    }
+    const plugin = await load();
+    const created = (await plugin.execute({}, { kind: "itemCreate", text: "Original name", priority: "urgent" })) as TodoResult;
+    const itemId = created.data?.items?.[0]?.id;
+    assert.ok(itemId);
+    const [firstEntry] = await notifierEngine.listFor(PKG_NAME);
+    assert.ok(firstEntry);
+    assert.match(firstEntry.title, /Original name/, "seed bell must include the original todo text");
+
+    await plugin.execute({}, { kind: "itemPatch", id: itemId, text: "Renamed" });
+    const entries = await notifierEngine.listFor(PKG_NAME);
+    assert.equal(entries.length, 1, "rename must not duplicate the bell entry");
+    assert.equal(entries[0].id, firstEntry.id, "rename must reuse the same notification id");
+    assert.match(entries[0].title, /Renamed/, "rename must update the bell title in place");
+    assert.ok(!entries[0].title.includes("Original name"), "old title fragment must not leak through");
+
+    const history = await notifierEngine.listHistory();
+    assert.equal(history.filter((entry) => entry.pluginPkg === PKG_NAME).length, 0, "rename must NOT write to history");
+  });
+
+  it("reconcile is idempotent — repeat dispatches with no content drift don't churn the bell", async (ctx) => {
+    if (!existsSync(PLUGIN_DIST_INDEX)) {
+      ctx.skip("dist not built");
+      return;
+    }
+    const plugin = await load();
+    const created = (await plugin.execute({}, { kind: "itemCreate", text: "Steady", priority: "high" })) as TodoResult;
+    const itemId = created.data?.items?.[0]?.id;
+    assert.ok(itemId);
+    const [beforeEntry] = await notifierEngine.listFor(PKG_NAME);
+    assert.ok(beforeEntry);
+    const beforeId = beforeEntry.id;
+
+    // A second patch that doesn't change anything notification-
+    // relevant (e.g. labels) must not trigger an update.
+    await plugin.execute({}, { kind: "itemPatch", id: itemId, labels: ["new-label"] });
+    const after = await notifierEngine.listFor(PKG_NAME);
+    assert.equal(after.length, 1);
+    assert.equal(after[0].id, beforeId, "idempotent reconcile must not churn the id");
+    assert.equal(after[0].title, beforeEntry.title, "idempotent reconcile must not rewrite the title");
+  });
+
+  it("checking (completed=true via itemPatch) clears the entry", async (ctx) => {
+    if (!existsSync(PLUGIN_DIST_INDEX)) {
+      ctx.skip("dist not built");
+      return;
+    }
+    const plugin = await load();
+    const created = (await plugin.execute({}, { kind: "itemCreate", text: "Tick me", priority: "urgent" })) as TodoResult;
+    const itemId = created.data?.items?.[0]?.id;
+    assert.ok(itemId);
+    assert.equal((await notifierEngine.listFor(PKG_NAME)).length, 1);
+
+    await plugin.execute({}, { kind: "itemPatch", id: itemId, completed: true });
+    assert.equal((await notifierEngine.listFor(PKG_NAME)).length, 0);
+  });
+
+  it("itemMove into the done column flips completed and clears the entry", async (ctx) => {
+    if (!existsSync(PLUGIN_DIST_INDEX)) {
+      ctx.skip("dist not built");
+      return;
+    }
+    const plugin = await load();
+    const created = (await plugin.execute({}, { kind: "itemCreate", text: "Drag to done", priority: "high" })) as TodoResult;
+    const itemId = created.data?.items?.[0]?.id;
+    assert.ok(itemId);
+    assert.equal((await notifierEngine.listFor(PKG_NAME)).length, 1);
+
+    await plugin.execute({}, { kind: "itemMove", id: itemId, status: "done", position: 0 });
+    assert.equal((await notifierEngine.listFor(PKG_NAME)).length, 0);
+  });
+
+  it("itemDelete clears the entry", async (ctx) => {
+    if (!existsSync(PLUGIN_DIST_INDEX)) {
+      ctx.skip("dist not built");
+      return;
+    }
+    const plugin = await load();
+    const created = (await plugin.execute({}, { kind: "itemCreate", text: "Delete me", priority: "urgent" })) as TodoResult;
+    const itemId = created.data?.items?.[0]?.id;
+    assert.ok(itemId);
+    assert.equal((await notifierEngine.listFor(PKG_NAME)).length, 1);
+
+    await plugin.execute({}, { kind: "itemDelete", id: itemId });
+    assert.equal((await notifierEngine.listFor(PKG_NAME)).length, 0);
+  });
+
+  it("LLM check action on an urgent item clears the entry", async (ctx) => {
+    if (!existsSync(PLUGIN_DIST_INDEX)) {
+      ctx.skip("dist not built");
+      return;
+    }
+    const plugin = await load();
+    await plugin.execute({}, { kind: "itemCreate", text: "LLM-check me", priority: "urgent" });
+    assert.equal((await notifierEngine.listFor(PKG_NAME)).length, 1);
+
+    // The LLM `check` action matches by partial text and flips
+    // completed=true on a hit. Reconcile then clears the entry.
+    await plugin.execute({}, { action: "check", text: "LLM-check" });
+    assert.equal((await notifierEngine.listFor(PKG_NAME)).length, 0);
+  });
+
+  it("isolates entries across plugin scopes (listFor returns only ours)", async (ctx) => {
+    if (!existsSync(PLUGIN_DIST_INDEX)) {
+      ctx.skip("dist not built");
+      return;
+    }
+    const plugin = await load();
+    await plugin.execute({}, { kind: "itemCreate", text: "Scoped", priority: "urgent" });
+    const ours = await notifierEngine.listFor(PKG_NAME);
+    assert.equal(ours.length, 1);
+    const others = await notifierEngine.listFor("@mulmoclaude/some-other-plugin");
+    assert.equal(others.length, 0, "another plugin's listFor must not see todo entries");
   });
 });

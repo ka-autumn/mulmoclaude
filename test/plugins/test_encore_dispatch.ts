@@ -155,26 +155,35 @@ describe("Encore dispatch — component tests", () => {
     assert.equal(obligations[0].dsl.status, "paused");
   });
 
-  it("amendDefinition refreshes the bell with the new title", async () => {
+  it("amendDefinition refreshes the bell with the new title (in-place update — same id)", async () => {
+    // Pre-update-API behaviour: `amendDefinition` set
+    // `invalidateAllBells: true`, which cleared every bell for the
+    // cycle and republished, dumping `cleared` records into history
+    // and allocating a fresh notificationId per bell. With the
+    // engine's `update` op, the reconciler's trim path now detects
+    // title drift and patches each bell in place — same id, no
+    // history record. This test asserts the new contract.
     const setup = (await dispatch({ kind: "setup", definition: hisayoDefinition })) as SetupResult;
     const before = await listFor("encore");
     assert.equal(before.length, 1, "setup should publish one bell entry");
-    const oldId = before[0].id;
+    const originalId = before[0].id;
     assert.match(before[0].title, /Hisayo/);
 
-    // Rename the obligation.
     await dispatch({
       kind: "amendDefinition",
       obligationId: setup.obligationId,
       definition: { displayName: "Daily payment — Renamed Person" },
     });
 
-    // The original bell entry must be gone; a fresh one with the
-    // new title must take its place.
     const after = await listFor("encore");
     assert.equal(after.length, 1, `expected exactly one bell entry after amend, got ${after.length}`);
-    assert.notEqual(after[0].id, oldId, "expected a fresh notification id (clear + republish)");
+    assert.equal(after[0].id, originalId, "in-place update must preserve the notificationId");
     assert.match(after[0].title, /Renamed Person/, `expected new title to contain "Renamed Person", got: ${after[0].title}`);
+
+    // Verify the no-history-pollution side of the new contract.
+    const { listHistory } = await import("../../server/notifier/engine.js");
+    const history = (await listHistory()).filter((entry) => entry.pluginPkg === "encore");
+    assert.equal(history.length, 0, "title-only amend must not write to notifier history");
   });
 
   it("amendDefinition recovers from a stale activeNotificationId (bell empty, cycle file holds an id)", async () => {

@@ -356,19 +356,65 @@ describe("Encore reconciler — unit tests", () => {
     assert.equal(after.length, 1, `expected bell to re-fire once snoozes expired; got ${after.length}`);
   });
 
-  it("invalidateAllBells: clears every ticket for the cycle and republishes", async () => {
+  it("amendDefinition (displayName edit): updates bell title in place — same id, no history", async () => {
+    // Regression test for the migration off `invalidateAllBells`:
+    // a title-only amend used to clear every bell for the cycle and
+    // republish, dumping `cleared` records into history and giving
+    // each bell a fresh notificationId. With the engine's `update`
+    // op, the trim path now detects title drift and patches each
+    // bell in place. Same id, no flicker, no audit noise.
+    const setup = (await dispatch({ kind: "setup", definition: twoTargetDef })) as SetupResult;
+    const { obligationId } = setup;
+    if (!obligationId) throw new Error("setup should return obligationId");
+    const before = await listFor("encore");
+    assert.equal(before.length, 1);
+    const originalId = before[0].id;
+    const originalTitle = before[0].title;
+    assert.ok(originalTitle.includes("Daily payments — bundled"), `seed title must include the original displayName; got ${JSON.stringify(originalTitle)}`);
+
+    await dispatch({
+      kind: "amendDefinition",
+      obligationId,
+      definition: { displayName: "Daily payments — RENAMED" },
+    });
+
+    const after = await listFor("encore");
+    assert.equal(after.length, 1, "bell count must be unchanged");
+    assert.equal(after[0].id, originalId, "notificationId must stay stable across a title-only amend");
+    assert.ok(after[0].title.includes("RENAMED"), `bell title must reflect the new displayName; got ${JSON.stringify(after[0].title)}`);
+    assert.ok(!after[0].title.includes("bundled"), "old title fragment must not leak through");
+
+    const { listHistory } = await import("../../server/notifier/engine.js");
+    const history = (await listHistory()).filter((entry) => entry.pluginPkg === "encore");
+    assert.equal(history.length, 0, "title-amend must NOT pollute notifier history (regression from invalidateAllBells)");
+  });
+
+  it("amendDefinition is idempotent — re-running reconcile doesn't re-update unchanged bells", async () => {
+    // The trim path's drift check compares ticket.title/body against
+    // the recomputed bundle. After the first reconcile rewrites the
+    // ticket with fresh title/body, subsequent reconciles see no
+    // drift and short-circuit — no engine update calls, no log
+    // noise. Catches a regression where the comparison is wrong
+    // (e.g. always-update or always-skip).
     const setup = (await dispatch({ kind: "setup", definition: twoTargetDef })) as SetupResult;
     const { obligationId, cycleId } = setup;
     if (!obligationId || !cycleId) throw new Error("setup should return ids");
-    const before = await listFor("encore");
-    assert.equal(before.length, 1);
-    const oldId = before[0].id;
 
-    await reconcileCycleNotifications({ obligationId, cycleId, now: new Date(), invalidateAllBells: true });
+    await dispatch({
+      kind: "amendDefinition",
+      obligationId,
+      definition: { displayName: "Round 1 rename" },
+    });
+    const firstPass = await listFor("encore");
+    const firstId = firstPass[0].id;
+    const firstTitle = firstPass[0].title;
 
-    const after = await listFor("encore");
-    assert.equal(after.length, 1, "bell count should match (cleared then republished)");
-    assert.notEqual(after[0].id, oldId, "notification id must change (clear + republish)");
+    // Second reconcile with no DSL change between passes. The trim
+    // path should see "ticket.title === desiredTitle" and skip.
+    await reconcileCycleNotifications({ obligationId, cycleId, now: new Date() });
+    const secondPass = await listFor("encore");
+    assert.equal(secondPass[0].id, firstId, "idempotent reconcile must not churn the id");
+    assert.equal(secondPass[0].title, firstTitle, "idempotent reconcile must not rewrite the title");
   });
 
   it("notifier boundary: only reconcile.ts + ticket-orphan sweep paths invoke encoreNotifier.{publish,clear}", async () => {
