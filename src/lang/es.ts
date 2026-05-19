@@ -446,6 +446,9 @@ const esMessages = {
     urlLabel: "URL:",
     commandLabel: "Comando:",
     dockerStdioUnsupported: "⚠ No se ejecutará mientras el sandbox de Docker esté activado.",
+    dockerStdioHostExecActive: "⚠ Se ejecuta en el host: este servidor sale del sandbox de Docker.",
+    dockerStdioHostExecOptIn:
+      "Ejecutar en el host de todos modos (avanzado). Este servidor se ejecuta fuera del sandbox de Docker mediante una pasarela HTTP local y puede acceder a tu equipo.",
     learnMore: "Más información",
     addServerButton: "+ Añadir servidor MCP",
     nameLabel: "Nombre",

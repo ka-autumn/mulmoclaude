@@ -431,6 +431,8 @@ const zhMessages = {
     urlLabel: "URL:",
     commandLabel: "命令:",
     dockerStdioUnsupported: "⚠ 启用 Docker 沙箱时不会运行。",
+    dockerStdioHostExecActive: "⚠ 在主机上运行 — 此服务器会脱离 Docker 沙箱。",
+    dockerStdioHostExecOptIn: "仍在主机上运行（高级）。此服务器通过本地 HTTP 网关在 Docker 沙箱之外运行，可访问您的计算机。",
     learnMore: "了解更多",
     addServerButton: "+ 添加 MCP 服务器",
     nameLabel: "名称",

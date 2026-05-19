@@ -440,6 +440,9 @@ const frMessages = {
     urlLabel: "URL :",
     commandLabel: "Commande :",
     dockerStdioUnsupported: "⚠ Ne s'exécutera pas lorsque le sandbox Docker est activé.",
+    dockerStdioHostExecActive: "⚠ S'exécute sur l'hôte : ce serveur sort du sandbox Docker.",
+    dockerStdioHostExecOptIn:
+      "Exécuter quand même sur l'hôte (avancé). Ce serveur s'exécute hors du sandbox Docker via une passerelle HTTP locale et peut accéder à votre machine.",
     learnMore: "En savoir plus",
     addServerButton: "+ Ajouter un serveur MCP",
     nameLabel: "Nom",

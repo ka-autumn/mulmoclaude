@@ -439,6 +439,9 @@ const ptBRMessages = {
     urlLabel: "URL:",
     commandLabel: "Comando:",
     dockerStdioUnsupported: "⚠ Não será executado enquanto o sandbox do Docker estiver ativado.",
+    dockerStdioHostExecActive: "⚠ Executa no host: este servidor sai do sandbox do Docker.",
+    dockerStdioHostExecOptIn:
+      "Executar no host mesmo assim (avançado). Este servidor é executado fora do sandbox do Docker por meio de um gateway HTTP local e pode acessar sua máquina.",
     learnMore: "Saiba mais",
     addServerButton: "+ Adicionar servidor MCP",
     nameLabel: "Nome",

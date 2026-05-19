@@ -439,6 +439,9 @@ const koMessages = {
     urlLabel: "URL:",
     commandLabel: "명령:",
     dockerStdioUnsupported: "⚠ Docker 샌드박스가 켜져 있는 동안에는 실행되지 않습니다.",
+    dockerStdioHostExecActive: "⚠ 호스트에서 실행됩니다 — 이 서버는 Docker 샌드박스를 벗어납니다.",
+    dockerStdioHostExecOptIn:
+      "그래도 호스트에서 실행(고급). 이 서버는 로컬 HTTP 게이트웨이를 통해 Docker 샌드박스 밖에서 실행되며 컴퓨터에 접근할 수 있습니다.",
     learnMore: "자세히 보기",
     addServerButton: "+ MCP 서버 추가",
     nameLabel: "이름",

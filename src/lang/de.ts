@@ -449,6 +449,9 @@ const deMessages = {
     urlLabel: "URL:",
     commandLabel: "Befehl:",
     dockerStdioUnsupported: "⚠ Wird nicht ausgeführt, solange die Docker-Sandbox aktiv ist.",
+    dockerStdioHostExecActive: "⚠ Läuft auf dem Host — dieser Server verlässt die Docker-Sandbox.",
+    dockerStdioHostExecOptIn:
+      "Trotzdem auf dem Host ausführen (fortgeschritten). Dieser Server läuft über ein lokales HTTP-Gateway außerhalb der Docker-Sandbox und kann auf Ihren Rechner zugreifen.",
     learnMore: "Mehr erfahren",
     addServerButton: "+ MCP-Server hinzufügen",
     nameLabel: "Name",

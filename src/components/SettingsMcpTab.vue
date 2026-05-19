@@ -219,17 +219,32 @@
               {{ ((entry.spec as StdioSpec).args ?? []).join(" ") }}
             </code>
           </div>
-          <!-- Sandbox-incompatible warning (#1334). When Docker mode
-               is on, stdio MCP entries are dropped server-side before
-               the per-session MCP config is written — the sandbox
-               image is intentionally minimal and can't host the
-               arbitrary runtimes (npx / python / …) most stdio MCPs
-               need. See docs/mcp-sandbox.md for the full rationale. -->
-          <div v-if="dockerMode" class="flex items-baseline gap-2 text-amber-700" :data-testid="'mcp-docker-warning-' + entry.id">
-            <span>{{ t("settingsMcpTab.dockerStdioUnsupported") }}</span>
-            <a :href="MCP_SANDBOX_DOC_URL" target="_blank" rel="noopener noreferrer" class="underline whitespace-nowrap">
-              {{ t("settingsMcpTab.learnMore") }}
-            </a>
+          <!-- Sandbox-incompatible warning (#1334) + host-exec opt-in
+               (#1421 Phase B). In Docker mode stdio MCPs are dropped
+               server-side (the minimal sandbox image can't host
+               npx/python runtimes). The opt-in deliberately runs
+               THIS server on the host behind a stdio↔HTTP gateway —
+               it escapes the sandbox, hence the explicit
+               acknowledgment checkbox rather than a silent default. -->
+          <div v-if="dockerMode" class="space-y-1" :data-testid="'mcp-docker-warning-' + entry.id">
+            <div class="flex items-baseline gap-2" :class="(entry.spec as StdioSpec).hostExecInDocker ? 'text-red-700' : 'text-amber-700'">
+              <span>{{
+                (entry.spec as StdioSpec).hostExecInDocker ? t("settingsMcpTab.dockerStdioHostExecActive") : t("settingsMcpTab.dockerStdioUnsupported")
+              }}</span>
+              <a :href="MCP_SANDBOX_DOC_URL" target="_blank" rel="noopener noreferrer" class="underline whitespace-nowrap">
+                {{ t("settingsMcpTab.learnMore") }}
+              </a>
+            </div>
+            <label class="flex items-start gap-1.5 text-gray-600 cursor-pointer">
+              <input
+                type="checkbox"
+                class="mt-0.5 shrink-0"
+                :checked="(entry.spec as StdioSpec).hostExecInDocker === true"
+                :data-testid="'mcp-hostexec-' + entry.id"
+                @change="onToggleHostExec(idx, $event)"
+              />
+              <span>{{ t("settingsMcpTab.dockerStdioHostExecOptIn") }}</span>
+            </label>
           </div>
         </div>
       </li>
@@ -668,6 +683,20 @@ function onToggleEnabled(index: number, event: Event): void {
   emit("update", index, {
     ...entry,
     spec: { ...entry.spec, enabled: target.checked },
+  });
+}
+
+// #1421 Phase B: opt a stdio server into host-exec under Docker.
+// Setting this true deliberately escapes the sandbox for this one
+// server (it runs on the host behind a stdio↔HTTP gateway). The
+// adjacent label spells out the risk; this only persists the flag.
+function onToggleHostExec(index: number, event: Event): void {
+  const target = event.target as HTMLInputElement;
+  const entry = props.servers[index];
+  if (!entry || entry.spec.type !== "stdio") return;
+  emit("update", index, {
+    ...entry,
+    spec: { ...entry.spec, hostExecInDocker: target.checked },
   });
 }
 

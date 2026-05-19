@@ -437,6 +437,9 @@ const jaMessages = {
     urlLabel: "URL:",
     commandLabel: "コマンド:",
     dockerStdioUnsupported: "⚠ Docker サンドボックス有効時は起動しません。",
+    dockerStdioHostExecActive: "⚠ ホストで実行されます — このサーバーは Docker サンドボックスの外で動作します。",
+    dockerStdioHostExecOptIn:
+      "それでもホストで実行する（上級者向け）。このサーバーはローカル HTTP ゲートウェイ経由で Docker サンドボックスの外で動作し、マシンにアクセスできます。",
     learnMore: "詳細",
     addServerButton: "+ MCP サーバを追加",
     nameLabel: "名前",

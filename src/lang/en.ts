@@ -463,6 +463,9 @@ const enMessages = {
     urlLabel: "URL:",
     commandLabel: "Command:",
     dockerStdioUnsupported: "⚠ Won't run while the Docker sandbox is enabled.",
+    dockerStdioHostExecActive: "⚠ Runs on the host — this server escapes the Docker sandbox.",
+    dockerStdioHostExecOptIn:
+      "Run on the host anyway (advanced). This server runs outside the Docker sandbox via a local HTTP gateway and can access your machine.",
     learnMore: "Learn more",
     addServerButton: "+ Add MCP Server",
     nameLabel: "Name",

@@ -224,6 +224,16 @@ describe("isMcpServerSpec", () => {
     );
   });
 
+  it("accepts the optional hostExecInDocker boolean on stdio specs (#1421 Phase B)", () => {
+    assert.ok(mod.isMcpServerSpec({ type: "stdio", command: "npx", hostExecInDocker: true }));
+    assert.ok(mod.isMcpServerSpec({ type: "stdio", command: "npx", hostExecInDocker: false }));
+  });
+
+  it("rejects a non-boolean hostExecInDocker", () => {
+    assert.equal(mod.isMcpServerSpec({ type: "stdio", command: "npx", hostExecInDocker: "yes" }), false);
+    assert.equal(mod.isMcpServerSpec({ type: "stdio", command: "npx", hostExecInDocker: 1 }), false);
+  });
+
   it("rejects unknown type", () => {
     assert.equal(mod.isMcpServerSpec({ type: "unix", path: "/x" }), false);
   });
