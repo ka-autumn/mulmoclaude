@@ -6,11 +6,13 @@
 // settings.json never changes.
 //
 // THIS FILE IS THE SOURCE OF TRUTH. Edits here, then run
-// `yarn build:hooks` (or `yarn build`) to regenerate `./dispatcher.mjs`.
-// The bundled `.mjs` is committed to git so `provision.ts` can read
-// it at server startup without invoking esbuild on the runtime path.
-// CI runs `yarn build:hooks && git diff --exit-code` to catch a
-// stale bundle.
+// `yarn build:hooks` (or `yarn build`) to regenerate the bundle at
+// `server/build/dispatcher.mjs` (generated output is kept out of the
+// source tree). The bundled `.mjs` is committed to git so
+// `provision.ts` can read it at server startup without invoking
+// esbuild on the runtime path. CI's "Verify built hook bundle"
+// step runs `git diff --exit-code` on the committed bundle to catch
+// a stale commit.
 //
 // The hook executes inside Claude CLI's process space — must be a
 // self-contained ESM bundle. esbuild rolls every import (handlers,

@@ -33,12 +33,15 @@ import { errorMessage } from "../../utils/errors.js";
 // The esbuild bundle is the source of truth for the dispatcher
 // script written into <workspace>/.claude/hooks/. Source TS is
 // `dispatcher.ts`; `yarn build:hooks` (chained from `yarn build`)
-// regenerates `dispatcher.mjs`, and CI fails when the committed
-// bundle drifts from the source. The read happens inside
+// regenerates the bundle at `server/build/dispatcher.mjs` (generated
+// output is kept out of the source tree). The read happens inside
 // `provisionDispatcherHook` (not at module load) so a missing /
 // unreadable bundle degrades to a logged warning without breaking
 // server startup.
-const DISPATCHER_BUNDLE_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), "dispatcher.mjs");
+//
+// This module lives at server/workspace/hooks/provision.ts, so
+// `../../build/dispatcher.mjs` resolves to server/build/dispatcher.mjs.
+const DISPATCHER_BUNDLE_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "build", "dispatcher.mjs");
 
 function readDispatcherBundle(): string | null {
   try {
