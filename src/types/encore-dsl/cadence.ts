@@ -17,25 +17,33 @@ import { z } from "zod";
 
 // ── ISO date helpers ────────────────────────────────────────────
 
-/** Format a Date as `YYYY-MM-DD` in UTC. The whole cadence math is
- *  date-only (no time-of-day), so UTC vs local mostly doesn't
- *  matter — but staying consistent in one zone makes "is today on
- *  or after deadline?" boundaries deterministic across servers. */
+/** Format a Date as `YYYY-MM-DD` in the server's LOCAL timezone.
+ *  Encore obligations are wall-clock obligations ("pay rent on the
+ *  1st" means the 1st in the user's calendar, not the 1st in UTC),
+ *  so cycle boundaries must follow the host's wall clock. Matches
+ *  the journal subsystem's `toLocalIsoDate` convention in
+ *  `server/utils/date.ts`. */
 export function isoDate(date: Date): string {
-  const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(date.getUTCDate()).padStart(2, "0");
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
 
-function utcDate(year: number, monthZero: number, day: number): Date {
-  return new Date(Date.UTC(year, monthZero, day));
+function localDate(year: number, monthZero: number, day: number): Date {
+  return new Date(year, monthZero, day);
+}
+
+/** Parse a YYYY-MM-DD string to a local-midnight Date. */
+function parseLocalIsoDate(iso: string): Date {
+  const [year, month, day] = iso.split("-").map(Number);
+  return new Date(year, month - 1, day);
 }
 
 /** Add N calendar days to an ISO date (returns ISO). */
 export function addDays(iso: string, days: number): string {
   const [year, month, day] = iso.split("-").map(Number);
-  return isoDate(utcDate(year, month - 1, day + days));
+  return isoDate(localDate(year, month - 1, day + days));
 }
 
 /** Lexicographic ISO compare. -1 / 0 / 1. */
@@ -54,27 +62,27 @@ const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
  *  cases where a date's calendar year and ISO-week year differ. */
 function isoWeekYearAndNumber(date: Date): { year: number; week: number } {
   // Copy to avoid mutating caller.
-  const thursdayOfWeek = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-  const dayNum = (thursdayOfWeek.getUTCDay() + 6) % 7; // Mon=0 … Sun=6
-  thursdayOfWeek.setUTCDate(thursdayOfWeek.getUTCDate() - dayNum + 3);
-  const firstThursday = new Date(Date.UTC(thursdayOfWeek.getUTCFullYear(), 0, 4));
-  const firstThursdayDayNum = (firstThursday.getUTCDay() + 6) % 7;
+  const thursdayOfWeek = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const dayNum = (thursdayOfWeek.getDay() + 6) % 7; // Mon=0 … Sun=6
+  thursdayOfWeek.setDate(thursdayOfWeek.getDate() - dayNum + 3);
+  const firstThursday = new Date(thursdayOfWeek.getFullYear(), 0, 4);
+  const firstThursdayDayNum = (firstThursday.getDay() + 6) % 7;
   const firstThursdayWeekStart = new Date(firstThursday);
-  firstThursdayWeekStart.setUTCDate(firstThursday.getUTCDate() - firstThursdayDayNum);
+  firstThursdayWeekStart.setDate(firstThursday.getDate() - firstThursdayDayNum);
   const diffMs = thursdayOfWeek.getTime() - firstThursdayWeekStart.getTime();
   const week = 1 + Math.round(diffMs / MS_PER_WEEK);
-  return { year: thursdayOfWeek.getUTCFullYear(), week };
+  return { year: thursdayOfWeek.getFullYear(), week };
 }
 
 /** Monday of the given ISO week (returns ISO date). */
 function isoWeekMonday(year: number, week: number): string {
   // Jan 4 is always in week 1.
-  const jan4 = new Date(Date.UTC(year, 0, 4));
-  const jan4DayNum = (jan4.getUTCDay() + 6) % 7;
+  const jan4 = new Date(year, 0, 4);
+  const jan4DayNum = (jan4.getDay() + 6) % 7;
   const mondayOfWeek1 = new Date(jan4);
-  mondayOfWeek1.setUTCDate(jan4.getUTCDate() - jan4DayNum);
+  mondayOfWeek1.setDate(jan4.getDate() - jan4DayNum);
   const target = new Date(mondayOfWeek1);
-  target.setUTCDate(mondayOfWeek1.getUTCDate() + (week - 1) * 7);
+  target.setDate(mondayOfWeek1.getDate() + (week - 1) * 7);
   return isoDate(target);
 }
 
@@ -149,28 +157,28 @@ export function currentCycleSlot(cadence: Cadence, now: Date): CycleSlot {
   // would roll over one day early on the deadline day. ISO-string
   // lexical compare is calendar-correct for YYYY-MM-DD.
   const todayIso = isoDate(now);
-  const year = now.getUTCFullYear();
+  const year = now.getFullYear();
   if (cadence.type === "annual") {
     const [{ month, day }] = cadence.cycles;
-    const thisYearDeadlineIso = isoDate(utcDate(year, month - 1, day));
+    const thisYearDeadlineIso = isoDate(localDate(year, month - 1, day));
     return { kind: "annual", year: todayIso <= thisYearDeadlineIso ? year : year + 1 };
   }
   if (cadence.type === "biannual") {
     const [first, second] = cadence.cycles;
-    const firstDeadlineIso = isoDate(utcDate(year, first.month - 1, first.day));
-    const secondDeadlineIso = isoDate(utcDate(year, second.month - 1, second.day));
+    const firstDeadlineIso = isoDate(localDate(year, first.month - 1, first.day));
+    const secondDeadlineIso = isoDate(localDate(year, second.month - 1, second.day));
     if (todayIso <= firstDeadlineIso) return { kind: "biannual", year, half: 1 };
     if (todayIso <= secondDeadlineIso) return { kind: "biannual", year, half: 2 };
     return { kind: "biannual", year: year + 1, half: 1 };
   }
   if (cadence.type === "monthly") {
-    const monthZero = now.getUTCMonth();
-    const deadlineThisMonthIso = isoDate(utcDate(year, monthZero, cadence.day));
+    const monthZero = now.getMonth();
+    const deadlineThisMonthIso = isoDate(localDate(year, monthZero, cadence.day));
     if (todayIso <= deadlineThisMonthIso) {
       return { kind: "monthly", year, month: monthZero + 1 };
     }
-    const next = utcDate(year, monthZero + 1, 1);
-    return { kind: "monthly", year: next.getUTCFullYear(), month: next.getUTCMonth() + 1 };
+    const next = localDate(year, monthZero + 1, 1);
+    return { kind: "monthly", year: next.getFullYear(), month: next.getMonth() + 1 };
   }
   if (cadence.type === "weekly") {
     const targetIdx = DAY_OF_WEEK.indexOf(cadence.dayOfWeek);
@@ -181,8 +189,7 @@ export function currentCycleSlot(cadence: Cadence, now: Date): CycleSlot {
       return { kind: "weekly", year: isoYear, week };
     }
     const nextMondayIso = addDays(monday, 7);
-    const nextMondayDate = new Date(`${nextMondayIso}T00:00:00Z`);
-    const next = isoWeekYearAndNumber(nextMondayDate);
+    const next = isoWeekYearAndNumber(parseLocalIsoDate(nextMondayIso));
     return { kind: "weekly", year: next.year, week: next.week };
   }
   // daily
@@ -193,14 +200,14 @@ export function currentCycleSlot(cadence: Cadence, now: Date): CycleSlot {
 export function cycleDeadline(cadence: Cadence, slot: CycleSlot): string {
   if (cadence.type === "annual" && slot.kind === "annual") {
     const [{ month, day }] = cadence.cycles;
-    return isoDate(utcDate(slot.year, month - 1, day));
+    return isoDate(localDate(slot.year, month - 1, day));
   }
   if (cadence.type === "biannual" && slot.kind === "biannual") {
     const entry = cadence.cycles[slot.half - 1];
-    return isoDate(utcDate(slot.year, entry.month - 1, entry.day));
+    return isoDate(localDate(slot.year, entry.month - 1, entry.day));
   }
   if (cadence.type === "monthly" && slot.kind === "monthly") {
-    return isoDate(utcDate(slot.year, slot.month - 1, cadence.day));
+    return isoDate(localDate(slot.year, slot.month - 1, cadence.day));
   }
   if (cadence.type === "weekly" && slot.kind === "weekly") {
     const monday = isoWeekMonday(slot.year, slot.week);
@@ -220,21 +227,21 @@ export function cycleDeadline(cadence: Cadence, slot: CycleSlot): string {
 export function cycleStart(cadence: Cadence, slot: CycleSlot): string {
   if (cadence.type === "annual" && slot.kind === "annual") {
     const [{ month, day }] = cadence.cycles;
-    const prevDeadline = isoDate(utcDate(slot.year - 1, month - 1, day));
+    const prevDeadline = isoDate(localDate(slot.year - 1, month - 1, day));
     return addDays(prevDeadline, 1);
   }
   if (cadence.type === "biannual" && slot.kind === "biannual") {
     if (slot.half === 1) {
       const [, second] = cadence.cycles;
-      const prevDeadline = isoDate(utcDate(slot.year - 1, second.month - 1, second.day));
+      const prevDeadline = isoDate(localDate(slot.year - 1, second.month - 1, second.day));
       return addDays(prevDeadline, 1);
     }
     const [first] = cadence.cycles;
-    const prevDeadline = isoDate(utcDate(slot.year, first.month - 1, first.day));
+    const prevDeadline = isoDate(localDate(slot.year, first.month - 1, first.day));
     return addDays(prevDeadline, 1);
   }
   if (cadence.type === "monthly" && slot.kind === "monthly") {
-    return isoDate(utcDate(slot.year, slot.month - 1, 1));
+    return isoDate(localDate(slot.year, slot.month - 1, 1));
   }
   if (cadence.type === "weekly" && slot.kind === "weekly") {
     return isoWeekMonday(slot.year, slot.week);
@@ -266,13 +273,13 @@ export function nextSlot(cadence: Cadence, current: CycleSlot): CycleSlot {
     return { kind: "biannual", year: current.year + 1, half: 1 };
   }
   if (cadence.type === "monthly" && current.kind === "monthly") {
-    const next = utcDate(current.year, current.month, 1);
-    return { kind: "monthly", year: next.getUTCFullYear(), month: next.getUTCMonth() + 1 };
+    const next = localDate(current.year, current.month, 1);
+    return { kind: "monthly", year: next.getFullYear(), month: next.getMonth() + 1 };
   }
   if (cadence.type === "weekly" && current.kind === "weekly") {
     const monday = isoWeekMonday(current.year, current.week);
     const nextMondayIso = addDays(monday, 7);
-    const { year, week } = isoWeekYearAndNumber(new Date(`${nextMondayIso}T00:00:00Z`));
+    const { year, week } = isoWeekYearAndNumber(parseLocalIsoDate(nextMondayIso));
     return { kind: "weekly", year, week };
   }
   if (cadence.type === "daily" && current.kind === "daily") {

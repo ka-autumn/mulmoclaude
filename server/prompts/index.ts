@@ -27,6 +27,9 @@ export const SYSTEM_PROMPT = load("system.md");
 export const TOPIC_MEMORY_MANAGEMENT = load("memory-management-topic.md");
 export const ATOMIC_MEMORY_MANAGEMENT = load("memory-management-atomic.md");
 export const NEWS_CONCIERGE_PROMPT = load("news-concierge.md");
+// sandbox-tools.md mirrors the tool set installed by
+// Dockerfile.sandbox — if you add/remove a tool there, update the
+// .md so the prompt-level mention stays in sync with the image.
 export const SANDBOX_TOOLS_HINT = load("sandbox-tools.md");
 
 // Static blocks emitted behind a runtime guard (the guard / message

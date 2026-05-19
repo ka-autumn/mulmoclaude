@@ -6,7 +6,7 @@
 //
 //   obligations/<obligationId>/index.md      ← DSL + free-form body
 //   obligations/<obligationId>/<cycleId>.md  ← per-cycle state + body
-//   pending-clear/<pendingId>.json           ← chat-on-mount tickets
+//   tickets/<pendingId>.json                 ← live-bell tickets (chat-on-mount)
 //
 // `obligationId` and `cycleId` flow through the kebab-id validator
 // upstream (DSL schema) and the cadence id formatter — never raw
@@ -25,7 +25,7 @@ function assertSafeSegment(label: string, value: string): void {
 }
 
 export const OBLIGATIONS_DIRNAME = "obligations";
-export const PENDING_CLEAR_DIRNAME = "pending-clear";
+export const TICKETS_DIRNAME = "tickets";
 
 /** "obligations" — relative to the plugin root. */
 export function obligationsDir(): string {
@@ -49,10 +49,13 @@ export function cycleFilePath(obligationId: string, cycleId: string): string {
   return path.join(obligationDir(obligationId), `${cycleId}.md`);
 }
 
-/** "pending-clear/<pendingId>.json" — the chat-on-mount ticket. */
-export function pendingClearPath(pendingId: string): string {
+/** "tickets/<pendingId>.json" — the live-bell ticket (carries the
+ *  seed prompt for chat-on-mount, the severity baseline for
+ *  escalation diff, and the chatSessionId binding once the user
+ *  has clicked the bell at least once). */
+export function ticketPath(pendingId: string): string {
   assertSafeSegment("pendingId", pendingId);
-  return path.join(PENDING_CLEAR_DIRNAME, `${pendingId}.json`);
+  return path.join(TICKETS_DIRNAME, `${pendingId}.json`);
 }
 
 /** Slugify a display name into a kebab-case id. Deterministic,

@@ -85,6 +85,20 @@ export async function readDir(rel: string, workspaceRoot?: string): Promise<stri
   }
 }
 
+/** Like `readDir`, but returns only entries that are themselves
+ *  directories. Used to enumerate obligation IDs without tripping
+ *  over `.DS_Store` and other stray non-directory entries that
+ *  macOS and editors drop into the tree. */
+export async function readDirSubdirs(rel: string, workspaceRoot?: string): Promise<string[]> {
+  try {
+    const entries = await fsPromises.readdir(abs(rel, workspaceRoot), { withFileTypes: true });
+    return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+  } catch (err) {
+    if (isEnoent(err)) return [];
+    throw err;
+  }
+}
+
 /** Remove a file. No-op if it doesn't exist (matches the semantics
  *  callers want when sweeping orphan tickets). */
 export async function unlink(rel: string, workspaceRoot?: string): Promise<void> {

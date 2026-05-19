@@ -255,15 +255,23 @@ function makeScopedPubSub(pkgName: string, hostPubSub: IPubSub): PluginRuntime["
 // ─────────────────────────────────────────────────────────────────────
 
 function makeScopedNotifier(pkgName: string): NotifierRuntimeApi {
-  // Both `publish` and `clear` are plugin-scoped:
+  // Every method is plugin-scoped:
   //   - publish forces `pluginPkg` to the caller's pkg name (the
   //     plugin literally cannot publish under another's namespace).
+  //   - update routes through `updateForPlugin` so a plugin can't
+  //     mutate another plugin's entries. Silent no-op on cross-
+  //     plugin id or validation failure.
   //   - clear routes through `clearForPlugin` so a plugin holding
   //     another plugin's id (e.g. via a future leak) silently no-ops
   //     instead of dismissing it. CodeRabbit review on PR #1198.
+  //   - get returns the entry only if it belongs to this plugin;
+  //     cross-plugin reads come back as `undefined`. Used for
+  //     ghost-bell detection in `action`-lifecycle reconcilers.
   return {
     publish: (input) => notifierEngine.publish({ ...input, pluginPkg: pkgName }),
+    update: (entryId, patch) => notifierEngine.updateForPlugin(pkgName, entryId, patch),
     clear: (entryId) => notifierEngine.clearForPlugin(pkgName, entryId),
+    get: (entryId) => notifierEngine.getForPlugin(pkgName, entryId),
   };
 }
 

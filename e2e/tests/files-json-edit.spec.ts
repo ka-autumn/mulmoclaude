@@ -19,6 +19,18 @@ const AGENT_MANAGED = "config/scheduler/tasks.json";
 const EDITABLE_BODY = '{\n  "theme": "dark"\n}';
 const AGENT_BODY = '{\n  "tasks": []\n}';
 
+// CodeMirror 6 exposes a contenteditable (`.cm-content`), not a
+// <textarea>, so Playwright's `.fill()` / `toHaveValue` don't apply.
+// Select-all then `insertText` replaces the doc in one transaction
+// (no per-keystroke auto-indent / bracket close), so the editor's doc
+// — and the emitted v-model — is exactly `value`.
+async function setEditorContent(page: Page, value: string): Promise<void> {
+  const content = page.getByTestId("files-json-editor").locator(".cm-content");
+  await content.click();
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.insertText(value);
+}
+
 async function mockJsonFiles(page: Page) {
   await page.route(
     (url) => url.pathname === API_ROUTES.files.dir,
@@ -100,9 +112,10 @@ test.describe("Files Explorer — JSON inline editor (#833)", () => {
     await expect(editBtn).toBeVisible({ timeout: 5 * ONE_SECOND_MS });
     await editBtn.click();
 
-    const editor = page.getByTestId("files-json-editor");
-    await expect(editor).toHaveValue(EDITABLE_BODY);
-    await editor.fill('{\n  "theme": "light"\n}');
+    // CodeMirror 6 renders a contenteditable, not a <textarea> — it
+    // seeds from EDITABLE_BODY (assert a token, not exact innerText).
+    await expect(page.getByTestId("files-json-editor")).toContainText('"theme"');
+    await setEditorContent(page, '{\n  "theme": "light"\n}');
     await page.getByTestId("files-json-save-btn").click();
 
     await expect(() => {
@@ -116,12 +129,14 @@ test.describe("Files Explorer — JSON inline editor (#833)", () => {
     await expect(page.getByTestId("files-json-edit-btn")).toBeVisible();
   });
 
-  test("invalid JSON: server 400 surfaces in the inline error banner, editor stays open", async ({ page }) => {
+  test("invalid JSON: Save is disabled client-side with an inline hint (no server round-trip)", async ({ page }) => {
+    let putCount = 0;
     await page.route(
       (url) => url.pathname === API_ROUTES.files.content,
       async (route, req) => {
         if (req.method() === "PUT") {
-          await route.fulfill({ status: 400, json: { error: "Invalid JSON: Unexpected end of JSON input" } });
+          putCount += 1;
+          await route.fulfill({ status: 400, json: { error: "should never be reached" } });
           return;
         }
         await route.fallback();
@@ -130,15 +145,40 @@ test.describe("Files Explorer — JSON inline editor (#833)", () => {
 
     await page.goto(`/files/${EDITABLE}`);
     await page.getByTestId("files-json-edit-btn").click();
-    const editor = page.getByTestId("files-json-editor");
-    await editor.fill("{ broken");
-    await page.getByTestId("files-json-save-btn").click();
+    await setEditorContent(page, "{ broken");
 
-    const banner = page.getByTestId("files-json-save-error");
-    await expect(banner).toBeVisible({ timeout: 5 * ONE_SECOND_MS });
-    await expect(banner).toContainText("Invalid JSON");
-    // Still in edit mode so the user can fix the value.
-    await expect(editor).toBeVisible();
+    // Client guard: Save disabled + visible "Invalid JSON" hint, and
+    // the editor stays open so the user can fix it. The server check
+    // remains as defence in depth (covered by test_filesPutRoute.ts).
+    await expect(page.getByTestId("files-json-save-btn")).toBeDisabled();
+    await expect(page.getByTestId("files-json-invalid-hint")).toBeVisible();
+    await expect(page.getByTestId("files-json-editor")).toBeVisible();
+
+    // Fixing the JSON re-enables Save (no PUT ever fired while invalid).
+    await setEditorContent(page, '{ "ok": true }');
+    await expect(page.getByTestId("files-json-save-btn")).toBeEnabled();
+    expect(putCount).toBe(0);
+  });
+
+  test("Undo / Redo buttons reflect history and round-trip an edit", async ({ page }) => {
+    await page.goto(`/files/${EDITABLE}`);
+    await page.getByTestId("files-json-edit-btn").click();
+
+    const undoBtn = page.getByTestId("files-json-undo-btn");
+    const redoBtn = page.getByTestId("files-json-redo-btn");
+    // Fresh editor: nothing to undo or redo.
+    await expect(undoBtn).toBeDisabled();
+    await expect(redoBtn).toBeDisabled();
+
+    await setEditorContent(page, '{ "edited": 1 }');
+    await expect(undoBtn).toBeEnabled();
+
+    await undoBtn.click();
+    await expect(page.getByTestId("files-json-editor")).not.toContainText('"edited"');
+    await expect(redoBtn).toBeEnabled();
+
+    await redoBtn.click();
+    await expect(page.getByTestId("files-json-editor")).toContainText('"edited"');
   });
 
   test("agent-managed JSON shows no Edit button", async ({ page }) => {

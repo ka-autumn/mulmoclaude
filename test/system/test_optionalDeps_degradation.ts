@@ -21,8 +21,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import type { Request, Response, Router } from "express";
 import mulmoScriptRouter from "../../server/api/routes/mulmo-script.js";
-import { announceOptionalDeps } from "../../server/system/announceOptionalDeps.js";
-import { _resetOptionalDepsCacheForTest, _setOptionalDepsCacheForTest, type DepStatus } from "../../server/system/optionalDeps.js";
+import { announceOptionalDeps, buildOptionalDepNotification } from "../../server/system/announceOptionalDeps.js";
+import { _resetOptionalDepsCacheForTest, _setOptionalDepsCacheForTest, type DepStatus, type OptionalDep } from "../../server/system/optionalDeps.js";
 import { initNotifier, _setFilePathsForTesting } from "../../server/notifier/engine.js";
 import { log } from "../../server/system/logger/index.js";
 import { API_ROUTES } from "../../src/config/apiRoutes.js";
@@ -157,5 +157,40 @@ describe("optional-deps: boot announcement", () => {
       undefined,
       "no 'deps' warn when the dependency is available",
     );
+  });
+});
+
+describe("optional-deps: notification payload", () => {
+  const dockerDep: OptionalDep = { id: "docker", command: "docker", enables: "dockerSandbox" };
+  const ffmpegDep: OptionalDep = { id: "ffmpeg", command: "ffmpeg", enables: "mulmocast" };
+
+  it("emits the not-found title/body keys when the binary is missing from PATH", () => {
+    const status: DepStatus = { id: "docker", available: false, reason: "not-on-path" };
+    const payload = buildOptionalDepNotification(dockerDep, status);
+    assert.equal(payload.id, "optional-dep-missing:docker");
+    assert.equal(payload.i18n?.titleKey, "optionalDeps.titleNotFound");
+    assert.deepEqual(payload.i18n?.titleParams, { command: "docker" });
+    assert.equal(payload.i18n?.bodyKey, "optionalDeps.notFound");
+    assert.deepEqual(payload.i18n?.bodyParams, { command: "docker" });
+    assert.match(String(payload.title), /not installed/);
+  });
+
+  it("emits the not-responding title/body keys when the probe fails", () => {
+    const status: DepStatus = { id: "docker", available: false, reason: "probe-failed" };
+    const payload = buildOptionalDepNotification(dockerDep, status);
+    assert.equal(payload.id, "optional-dep-missing:docker");
+    assert.equal(payload.i18n?.titleKey, "optionalDeps.titleNotResponding");
+    assert.deepEqual(payload.i18n?.titleParams, { command: "docker" });
+    assert.equal(payload.i18n?.bodyKey, "optionalDeps.notResponding");
+    assert.deepEqual(payload.i18n?.bodyParams, { command: "docker" });
+    assert.match(String(payload.title), /not running/);
+  });
+
+  it("substitutes the command name from the dep (ffmpeg, not docker)", () => {
+    const status: DepStatus = { id: "ffmpeg", available: false, reason: "not-on-path" };
+    const payload = buildOptionalDepNotification(ffmpegDep, status);
+    assert.equal(payload.id, "optional-dep-missing:ffmpeg");
+    assert.deepEqual(payload.i18n?.titleParams, { command: "ffmpeg" });
+    assert.deepEqual(payload.i18n?.bodyParams, { command: "ffmpeg" });
   });
 });

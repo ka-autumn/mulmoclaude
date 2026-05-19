@@ -103,6 +103,17 @@ jobs:
       # machine where `claude` has been run interactively. Without
       # this the launcher calls process.exit(1) during startup on
       # CI's pristine $HOME.
+      #
+      # PUPPETEER_SKIP_DOWNLOAD=1 skips puppeteer's postinstall
+      # chrome-headless-shell extraction during the tarball stage's
+      # `npm install`. `mulmocast-vision` bundles its own nested
+      # puppeteer in addition to the top-level one, so two parallel
+      # postinstalls race on `~/.cache/puppeteer/...` and reliably
+      # collide with `File exists` on the runner — main has been
+      # red on this since PR #1437. The smoke test only verifies
+      # that the launcher boots and serves "/" so chrome isn't
+      # exercised here anyway; skipping the download loses zero
+      # smoke coverage and unblocks the gate.
       - name: Run publish smoke
         env:
           DISABLE_SANDBOX: "1"

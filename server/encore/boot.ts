@@ -29,10 +29,10 @@ export function registerEncoreTick(taskManager: ITaskManager): void {
   // Fire-on-boot. Without this, a phase that came due during a
   // downtime window (e.g. a daily obligation whose cycle-start is
   // today, but the server was off all morning) wouldn't surface in
-  // the bell until the next UTC-hour-aligned heartbeat — up to ~60
-  // minutes of silence after reboot. Fire-and-forget so we don't
-  // block the rest of boot; errors are swallowed by tickUnlocked's
-  // inner try/catch and surfaced via log.warn.
+  // the bell until the next hourly heartbeat — up to ~60 minutes
+  // of silence after reboot. Fire-and-forget so we don't block the
+  // rest of boot; errors are swallowed by tickUnlocked's inner
+  // try/catch and surfaced via log.warn.
   kickTickLocked({ now: new Date() }, "encore-tick boot").catch((err) => {
     log.warn("encore", "boot tick: unhandled error", { error: err instanceof Error ? err.message : String(err) });
   });

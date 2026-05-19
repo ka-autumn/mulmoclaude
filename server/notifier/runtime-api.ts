@@ -17,7 +17,7 @@
 // into gui-chat-protocol so the cast goes away.
 
 import type { PluginRuntime } from "gui-chat-protocol";
-import type { NotifierLifecycle, NotifierSeverity } from "./types.js";
+import type { NotifierEntry, NotifierLifecycle, NotifierSeverity } from "./types.js";
 import type { TasksRuntimeApi } from "../plugins/runtime-tasks-api.js";
 import type { ChatRuntimeApi } from "../plugins/runtime-chat-api.js";
 
@@ -53,6 +53,33 @@ export interface NotifierRuntimeApi {
    *  `action` requires a non-empty `navigateTarget` and cannot pair
    *  with `info` severity. */
   publish: <TPluginData = unknown>(input: PluginPublishInput<TPluginData>) => Promise<{ id: string }>;
+  /** In-place update of an existing entry's presentation. Only the
+   *  fields present on `patch` are rewritten; `id`, `pluginPkg`,
+   *  `lifecycle`, and `createdAt` stay fixed. Emits an `updated`
+   *  event — no history record is written.
+   *
+   *  Use this rather than clear-then-publish when the underlying
+   *  obligation is the same and only its presentation has shifted
+   *  (e.g. todo text renamed, Encore obligation `displayName`
+   *  amended, severity escalated). Preserves the entry's id, keeps
+   *  the bell history free of supersede noise, and avoids the
+   *  disappear/reappear that subscribers would otherwise see.
+   *
+   *  No-op (no throw) on unknown id, cross-plugin id, or a merged
+   *  shape that would violate publish-time invariants (action + info
+   *  severity, empty title, etc.). The silent skip matches `clear`'s
+   *  isolation semantics — plugin authors can't tell the failure
+   *  reasons apart, and we don't leak them by throwing differently. */
+  update: <TPluginData = unknown>(
+    id: string,
+    patch: {
+      severity?: NotifierSeverity;
+      title?: string;
+      body?: string;
+      navigateTarget?: string;
+      pluginData?: TPluginData;
+    },
+  ) => Promise<void>;
   /** Clear an entry by id. No-op (no throw) when:
    *   - the id is unknown, OR
    *   - the entry exists but belongs to a different plugin.
@@ -61,6 +88,19 @@ export interface NotifierRuntimeApi {
    *  plugin's id (e.g. via a future leak) silently can't dismiss it.
    *  Internally backed by `engine.clearForPlugin(pluginPkg, id)`. */
   clear: (id: string) => Promise<void>;
+  /** Point lookup for an active entry the caller owns. Returns the
+   *  entry, or `undefined` when the id is unknown OR belongs to
+   *  another plugin (same isolation contract as `clear`).
+   *
+   *  Use this to detect ghost-bell ids — entries the plugin
+   *  published whose bell was dismissed via the bell UI or wiped
+   *  by a crash. A reconciler that calls `update` on a ghost id
+   *  gets a silent no-op back (the bell is gone, the patch has
+   *  nothing to land on), so without this check the plugin's
+   *  ticket store would falsely converge to "in sync" and the bell
+   *  would never come back. Encore's reconciler relies on the
+   *  engine equivalent (`engine.get`) for the same purpose. */
+  get: (id: string) => Promise<NotifierEntry | undefined>;
 }
 
 /** The runtime shape MulmoClaude actually provides — the

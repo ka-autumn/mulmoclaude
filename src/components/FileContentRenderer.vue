@@ -112,9 +112,14 @@
               >
                 {{ t("common.cancel") }}
               </button>
+              <span v-if="!jsonDraftValid" class="text-xs text-red-600 self-center" data-testid="files-json-invalid-hint">
+                {{ t("fileContentRenderer.invalidJson") }}
+              </span>
               <button
-                class="h-8 px-2.5 flex items-center gap-1 text-sm rounded bg-green-600 hover:bg-green-700 text-white"
+                class="h-8 px-2.5 flex items-center gap-1 text-sm rounded bg-green-600 hover:bg-green-700 text-white disabled:opacity-40 disabled:cursor-not-allowed"
                 data-testid="files-json-save-btn"
+                :disabled="!jsonDraftValid"
+                :title="jsonDraftValid ? undefined : t('fileContentRenderer.invalidJson')"
                 @click="saveJsonEdit"
               >
                 <span class="material-icons text-sm">save</span>
@@ -131,14 +136,7 @@
               {{ t("fileContentRenderer.editJson") }}
             </button>
           </div>
-          <textarea
-            v-if="jsonEditing"
-            v-model="jsonDraft"
-            :aria-label="t('fileContentRenderer.jsonEditorLabel')"
-            data-testid="files-json-editor"
-            class="flex-1 min-h-0 m-4 px-3 py-2 text-xs font-mono border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-800 resize-none"
-            spellcheck="false"
-          ></textarea>
+          <JsonEditor v-if="jsonEditing" v-model="jsonDraft" :editor-label="t('fileContentRenderer.jsonEditorLabel')" class="flex-1 min-h-0 m-4" />
           <pre v-else class="flex-1 p-4 text-xs whitespace-pre-wrap font-mono text-gray-800"><span
             v-for="(tok, i) in jsonTokens"
             :key="i"
@@ -195,7 +193,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, defineAsyncComponent, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import TextResponseView from "../plugins/textResponse/View.vue";
 import CalendarView from "../plugins/scheduler/CalendarView.vue";
@@ -213,6 +211,9 @@ import { formatScalarField, type MarkdownDocView } from "../composables/useMarkd
 import { rewriteMarkdownImageRefs } from "../utils/image/rewriteMarkdownImageRefs";
 import { API_ROUTES } from "../config/apiRoutes";
 import { descriptorForPath, jsonEditableByPolicy } from "../config/systemFileDescriptors";
+// Lazy: CodeMirror (~390 KB raw) is only fetched when a user actually
+// opens the inline JSON editor, keeping it out of the initial bundle.
+const JsonEditor = defineAsyncComponent(() => import("./JsonEditor.vue"));
 
 const { t } = useI18n();
 
@@ -249,6 +250,18 @@ const jsonEditing = ref(false);
 const jsonDraft = ref("");
 
 const jsonEditable = computed(() => props.isJson && props.selectedPath !== null && props.content?.kind === "text" && jsonEditableByPolicy(props.selectedPath));
+
+// Client-side guard: block Save when the draft isn't valid JSON, so
+// the user gets immediate feedback instead of a server round-trip
+// ending in a 400. The server check stays as defence in depth.
+const jsonDraftValid = computed(() => {
+  try {
+    JSON.parse(jsonDraft.value);
+    return true;
+  } catch {
+    return false;
+  }
+});
 
 function startJsonEdit(): void {
   if (props.content?.kind !== "text") return;

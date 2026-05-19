@@ -101,6 +101,16 @@ describe("buildCliArgs", () => {
     assert.ok(allowedStr.includes("Bash"));
   });
 
+  it("permits the Skill tool so .claude/skills/ skills are invokable", async () => {
+    // Regression guard: a strict --allowedTools that omits `Skill`
+    // permission-denies every Skill({skill:"…"}) call (Execute skill
+    // error + Glob fallback). See plans/fix-skill-tool-allowlist.md.
+    const args = buildCliArgs({ systemPrompt: "test", activePlugins: [] });
+    const allowedStr = args[args.indexOf("--allowedTools") + 1];
+    const tools = allowedStr.split(",");
+    assert.ok(tools.includes("Skill"), `--allowedTools must list "Skill" (got: ${allowedStr})`);
+  });
+
   it("includes --resume when claudeSessionId provided", async () => {
     const args = buildCliArgs({
       systemPrompt: "test",

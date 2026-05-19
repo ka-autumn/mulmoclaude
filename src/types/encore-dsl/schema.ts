@@ -198,9 +198,21 @@ function validateFieldOwnership(doc: Doc, fieldNames: Set<string>, ctx: Ctx): vo
   for (const fname of fieldNames) {
     const list = claims.get(fname) ?? [];
     if (list.length === 0) {
+      // The LLM gets stuck here in a known loop: error #1 says "field not
+      // claimed", LLM removes the field, then `formSchema.fields.min(1)`
+      // fires and the LLM has no path forward (formSchema is non-optional
+      // and must have ≥1 field). Tell it the resolution explicitly: claim
+      // the field from a step. Reference the no-data pattern in the docs
+      // so the LLM can also pick the inverse (placeholder field claimed
+      // by the single step) when that fits the obligation better.
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: `formSchema field ${JSON.stringify(fname)} is not claimed by any step.fields[]`,
+        message:
+          `formSchema field ${JSON.stringify(fname)} is not claimed by any step.fields[]. ` +
+          `Add ${JSON.stringify(fname)} to exactly one of the entries in steps[].fields[] ` +
+          `(every formSchema field must be claimed by one step). ` +
+          `If the obligation has nothing to record, see the "obligation with nothing to record" example in config/helps/encore-dsl.md ` +
+          `— you still need one placeholder field claimed by the step.`,
         path: ["formSchema", "fields"],
       });
     } else if (list.length > 1) {

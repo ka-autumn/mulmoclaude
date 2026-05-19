@@ -18,7 +18,7 @@
 // reaching for the raw host engine.
 
 import * as engine from "../notifier/engine.js";
-import type { Severity } from "./dsl/schema.js";
+import type { Severity } from "../../src/types/encore-dsl/schema.js";
 
 /** Identity string used as `pluginPkg` on every Encore bell entry.
  *  Stable across versions; lives next to the apiNamespace ("encore")
@@ -70,9 +70,54 @@ export async function publish(args: PublishArgs): Promise<{ id: string }> {
   });
 }
 
+/** In-place update of an Encore notification's presentation —
+ *  same id, same `pluginPkg`, same `lifecycle`, same `createdAt`,
+ *  new severity / title / body. The reconciler's trim path uses
+ *  this to flush DSL-driven content drift (an `amendDefinition`
+ *  edited a `displayName`, the bundle shrunk so the body's member
+ *  count changed, the cadence pushed us into a higher-severity
+ *  phase) without flickering the bell entry through a clear +
+ *  publish — which would litter history with `cleared` records
+ *  and assign a fresh id every time. Mirrors the DSL → host
+ *  vocabulary mapping in `publish` so a phase escalation from
+ *  `info` to `urgent` ends up at host `nudge` → `urgent` rather
+ *  than confusing the validator.
+ *
+ *  No-op on unknown / cross-plugin ids, and on patches that would
+ *  invalidate the entry (e.g. info severity on the action
+ *  lifecycle we always use). Caller treats the failure modes
+ *  uniformly — same isolation property as `clear`. */
+export async function update(
+  entryId: string,
+  patch: {
+    severity?: Severity;
+    title?: string;
+    body?: string;
+  },
+): Promise<void> {
+  await engine.updateForPlugin(ENCORE_PLUGIN_PKG, entryId, {
+    ...(patch.severity !== undefined ? { severity: toHostSeverity(patch.severity) } : {}),
+    ...(patch.title !== undefined ? { title: patch.title } : {}),
+    ...(patch.body !== undefined ? { body: patch.body } : {}),
+  });
+}
+
 /** Clear an Encore notification. No-ops on unknown / cross-plugin
  *  ids — matches host `clearForPlugin` semantics, plugin can't
  *  dismiss another plugin's entries. */
 export async function clear(entryId: string): Promise<void> {
   await engine.clearForPlugin(ENCORE_PLUGIN_PKG, entryId);
+}
+
+/** True iff a live bell with this id still exists in the notifier
+ *  AND belongs to Encore. Used by the reconciler to detect "ghost
+ *  tickets" — a ticket whose bell was dismissed out-of-band by the
+ *  host UI (or wiped by a crashed active.json) so that the next
+ *  tick republishes instead of trusting ticket-existence as proof
+ *  of bell-existence. Cross-plugin entries (theoretically
+ *  impossible since the notifier ids are namespaced, but defense
+ *  in depth) read as not-ours. */
+export async function bellExists(entryId: string): Promise<boolean> {
+  const entry = await engine.get(entryId);
+  return entry !== undefined && entry.pluginPkg === ENCORE_PLUGIN_PKG;
 }

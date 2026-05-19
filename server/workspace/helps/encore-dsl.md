@@ -1,6 +1,6 @@
 # Encore — recurring obligations DSL
 
-Encore tracks recurring obligations (monthly payments, biannual taxes, annual physicals, daily check-ins) defined in a small YAML DSL. You — the LLM — compose the DSL document when the user describes an obligation, and call `manageEncore({ kind: "setup", definition })` to store it.
+Encore tracks recurring obligations (monthly payments, biannual taxes, annual physicals, daily check-ins) defined in a small YAML DSL. You — the LLM — compose the DSL document when the user describes an obligation, and call `defineEncore({ dsl })` to store it.
 
 Encore then:
 - Fires bell notifications at the right times based on `firingPlan` phases.
@@ -12,7 +12,7 @@ You never call `chat.start` directly for an obligation. The bell click handles t
 
 ## Your end-to-end loop
 
-1. User describes a recurring obligation → you compose a DSL document → call `manageEncore({ kind: "setup", definition })`.
+1. User describes a recurring obligation → you compose a DSL document → call `defineEncore({ dsl })` (no `obligationId` → setup).
 2. Encore fires bell notifications at the right times. You do NOT call `chat.start` — the host opens a fresh chat with you when the user clicks the bell, and seeds it with a prompt that names the obligation, the open targets, and a `pendingId`.
 3. In that seeded chat: converse with the user about the obligation, collect what they recorded, and call the matching action (`markStepDone` / `markTargetSkipped` / `recordValues` / `snooze`) passing the `pendingId`. That's the ONLY way the bell entry clears — there is no separate clear/dismiss action.
 4. Encore handles cycle recurrence: closing a cycle (all targets done or skipped) provisions the next cycle on the next tick. You don't need to do anything for that.
@@ -26,7 +26,7 @@ Whenever the user describes something that recurs and they want to be reminded a
 - "Take vitamins every day" → daily service
 - "Pay Isamu and Singularity Society both monthly on the 10th" → ONE obligation, TWO targets
 
-Compose the full DSL, then call `manageEncore({ kind: "setup", definition })`. Encore generates `id` (slugified from `displayName`) and `createdAt` server-side.
+Compose the full DSL, then call `defineEncore({ dsl })` (no `obligationId` → setup path). Encore generates `id` (slugified from `displayName`) and `createdAt` server-side. To change an existing obligation later, call `defineEncore({ obligationId, dsl: { /* fields to change */ } })` — that's the amend path.
 
 ## Top-level DSL shape
 
@@ -79,7 +79,7 @@ Cross-field rules (validator will reject otherwise):
 - Every `formSchema` field name must be claimed by **exactly one** step's `fields[]` — no orphans, no double-claims.
 - `targets[].defaults` keys must reference real `formSchema` field names.
 - `firingPlan` phases must resolve in chronological order (Encore evaluates them in declared order).
-- `amendDefinition` cannot change `type`, `currency`, or `cadence.type` — those changes invalidate cycle-file naming or prior records. Path: retire + create new.
+- `defineEncore` amend cannot change `type`, `currency`, or `cadence.type` — those changes invalidate cycle-file naming or prior records. Path: retire + create new.
 
 ## Cadence
 
@@ -115,31 +115,194 @@ Days only — no `w` / `m`. Compute the math yourself.
 
 Three severities: `info`, `warning`, `urgent`. They drive the bell's visual prominence and the escalation log; the LLM also reads severity from the seed prompt and adjusts tone in conversation. Phases must be chronologically ordered but severities can be non-monotonic (rare).
 
-## manageEncore call shapes
+## Two MCP tools — defineEncore vs manageEncore
 
-Every action takes a `kind` discriminator. The handler validates the rest with Zod and 400s on shape mistakes — read the error message; it names the field.
+Encore exposes two MCP tools that share the same `/api/encore` endpoint:
 
-### setup
+- **`defineEncore`** — compose a new DSL document, or amend an existing one. Use this for ANY structural change (creating an obligation, renaming it, changing the firingPlan, adding a target, etc.).
+- **`manageEncore`** — operational kinds only: `markStepDone` / `markTargetSkipped` / `recordValues` / `query` / `appendNote` / `snooze` / `unsnooze`. Use these after the obligation exists, typically in the chat seeded by a bell click.
 
-```json
-{ "kind": "setup", "definition": { /* full DSL above */ } }
-```
+The split exists so the `defineEncore` tool can carry a fully typed JSON Schema for the `dsl` argument (you'll see field names, types, and oneOf branches in the tool definition), while `manageEncore` stays a thin discriminator on short flat arguments.
 
-`definition` is an **OBJECT** in the tool-call arguments, not a JSON-encoded string. Don't `JSON.stringify` it — pass the object literal. The 400 you get for the string form names the error explicitly ("expected object, received string"), so if you see that, drop the stringify.
+## defineEncore — setup or amend
 
-Returns `{ ok: true, obligationId, cycleId, cyclePath, indexPath }`. Encore writes `obligations/<id>/index.md` plus the first cycle file and kicks the tick (so a `cycle-start` phase fires immediately).
+Discriminator: **`obligationId` presence**.
 
-### amendDefinition
+- Absent → setup (server generates the id from `displayName`).
+- Present → amend the named obligation.
+
+This way the parameter shape carries the intent — no separate `kind: "setup" | "amend"` flag inside the tool.
+
+### setup — create a new obligation
 
 ```json
 {
-  "kind": "amendDefinition",
-  "obligationId": "daily-payment-hisayo",
-  "definition": { "displayName": "Daily payment — Hisayo San" }
+  "kind": "defineEncore",
+  "dsl": {
+    "version": 1,
+    "displayName": "Daily check-in",
+    "type": "service",
+    "cadence": { "type": "daily" },
+    "targets": [{ "id": "me", "displayName": "Me" }],
+    "steps": [
+      {
+        "id": "checkin",
+        "displayName": "Check in",
+        "deadline": "cycle-deadline",
+        "firingPlan": [{ "at": "cycle-start", "severity": "info" }],
+        "fields": ["note"]
+      }
+    ],
+    "formSchema": {
+      "fields": [
+        { "name": "note", "type": "text", "label": "Notes", "required": false }
+      ]
+    }
+  }
 }
 ```
 
-`definition` is an **OBJECT**, not a JSON-encoded string (same as setup). Shallow-merge at the top level — for arrays (`targets`, `steps`, `formSchema.fields`, `firingPlan`) send the **full** replacement value, not just the field you want to change. Cannot change `type` / `currency` / `cadence.type`. Encore clears active bell entries on amend and re-fires with the new title/text.
+Returns `{ ok: true, obligationId, cycleId, cyclePath, indexPath }`. Encore writes `obligations/<id>/index.md` plus the first cycle file and reconciles (so a `cycle-start` phase fires immediately).
+
+`dsl` is normally an **OBJECT** in the tool-call arguments. The handler also accepts a JSON-encoded string (it calls `JSON.parse` on the string before validating) so a `JSON.stringify`'d dsl won't error — but the object form is preferred.
+
+#### Obligation with nothing to record (placeholder field)
+
+The DSL requires **every obligation to have at least one formSchema field, and every formSchema field to be claimed by exactly one step.** For a "did I do it?" obligation that captures no real data, declare a single placeholder field (typical names: `note`, `done`, `time`) and claim it from your only step — exactly as the example above does.
+
+You **cannot** combine `step.fields: []` with `formSchema.fields: []` to opt out — `formSchema.fields` has `.min(1)` and `formSchema` is required. The LLM-trap to avoid:
+
+```json
+// ❌ FAILS: orphan field
+"steps": [{ "id": "shower", "fields": [], ... }],
+"formSchema": { "fields": [{ "name": "note", "type": "text", "label": "Notes" }] }
+
+// ❌ FAILS: empty array (formSchema.fields requires ≥1)
+"steps": [{ "id": "shower", "fields": [], ... }],
+"formSchema": { "fields": [] }
+
+// ✅ WORKS: placeholder claimed by the step
+"steps": [{ "id": "shower", "fields": ["note"], ... }],
+"formSchema": { "fields": [{ "name": "note", "type": "text", "label": "Notes", "required": false } ] }
+```
+
+If you hit "field X is not claimed by any step.fields[]", the fix is to **add** the field name to one step's `fields[]`, NOT to remove it from `formSchema`.
+
+### setup — 409 collision behavior
+
+If `slugify(dsl.displayName)` matches an existing obligation, the server rejects with `409 Conflict` and a recovery directive:
+
+> Obligation "daily-payment-hisayo" already exists (displayName: "Daily payment — Hisayo"). To modify it, call defineEncore with obligationId: "daily-payment-hisayo" (this becomes an amend). To create a parallel obligation, change the displayName.
+
+Read the message — it tells you the id to pass for amend. Don't auto-disambiguate by appending suffixes; the user almost always wants one of: (a) you forgot `obligationId` and meant amend, or (b) you genuinely want a new obligation under a different name.
+
+### amend — change one or more fields
+
+```json
+{
+  "kind": "defineEncore",
+  "obligationId": "daily-payment-hisayo",
+  "dsl": { "displayName": "Daily payment — Hisayo San" }
+}
+```
+
+For amend, only fill the fields you want to change — the server shallow-merges onto the existing DSL. Array fields (`targets`, `steps`, `formSchema.fields`, `firingPlan`) replace whole; if you want to add a new step, send the full new `steps` array (existing + new).
+
+Cannot change `type` / `currency` / `cadence.type` — those are immutable. Path: retire the old obligation, create a new one.
+
+Encore clears active bell entries on amend and re-fires with the new title/text.
+
+#### Merge semantics — what "shallow merge at the top level" means
+
+Each top-level key you include is OVERWRITTEN whole on the stored DSL. Keys you omit are PRESERVED. There is no per-field merge inside an object or array — you're either replacing the whole top-level value or leaving it alone.
+
+| Top-level key | Type | What "amend it" means |
+|---|---|---|
+| `displayName`, `status`, `currency` (read-only via amend) | scalar | Replaced by the value you send. |
+| `cadence` | object | Replaced whole. Re-send all required cadence fields, except `cadence.type` (immutable). |
+| `targets` | array | Replaced whole. Send the FULL desired list — old entries you omit are gone. |
+| `steps` | array | Replaced whole. Same rule — old steps you omit are gone, and their per-step `firingPlan` goes with them. |
+| `formSchema` | object | Replaced whole. `formSchema.fields` (array) is part of that. |
+
+Note that there is NO deep-merge inside `targets[i]`, `steps[i]`, or `firingPlan[i]`. To change one step's `firingPlan`, you re-send the whole step (including the unchanged fields), inside the full `steps` array (including the unchanged steps).
+
+#### Worked example — add a target without losing the existing ones
+
+Existing DSL has `targets: [hisayo, kenta]`. To add `mei`, send the full new list:
+
+```json
+{
+  "kind": "defineEncore",
+  "obligationId": "daily-payment-hisayo",
+  "dsl": {
+    "targets": [
+      { "id": "hisayo", "displayName": "Hisayo" },
+      { "id": "kenta", "displayName": "Kenta" },
+      { "id": "mei", "displayName": "Mei" }
+    ]
+  }
+}
+```
+
+Sending only `{ targets: [{ id: "mei", ... }] }` would DROP hisayo and kenta — the array replaces whole, it does not append.
+
+#### Worked example — change one step's firingPlan without touching others
+
+Existing DSL has `steps: [pay, confirm]`, and you want to change `pay.firingPlan` only. Re-send the full steps array, with the full `pay` step (including the new `firingPlan`) and the full unchanged `confirm` step:
+
+```json
+{
+  "kind": "defineEncore",
+  "obligationId": "daily-payment-hisayo",
+  "dsl": {
+    "steps": [
+      {
+        "id": "pay",
+        "displayName": "Pay",
+        "deadline": "cycle-deadline",
+        "fields": ["amount"],
+        "firingPlan": [
+          { "at": "cycle-deadline-3d", "severity": "info" },
+          { "at": "cycle-deadline", "severity": "urgent" }
+        ]
+      },
+      {
+        "id": "confirm",
+        "displayName": "Confirm receipt",
+        "deadline": "cycle-deadline+1d",
+        "fields": [],
+        "firingPlan": [{ "at": "cycle-deadline+1d", "severity": "info" }]
+      }
+    ]
+  }
+}
+```
+
+You CANNOT send `{ steps: [{ id: "pay", firingPlan: [...] }] }` and expect the server to find the `pay` step and patch only its `firingPlan` — the whole `steps` array replaces, and `confirm` would be lost.
+
+#### Worked example — partial cadence update
+
+`cadence.type` is immutable, but its sibling fields (e.g. `day` on monthly, `dayOfWeek` on weekly, the `cycles` list on annual / biannual) are amendable. Re-send the full cadence object with the new value plus the unchanged `type`:
+
+```json
+{
+  "kind": "defineEncore",
+  "obligationId": "monthly-rent",
+  "dsl": { "cadence": { "type": "monthly", "day": 5 } }
+}
+```
+
+Sending `{ cadence: { day: 5 } }` (without `type`) will 400 with a Zod error — cadence is replaced whole, so the required discriminator field must be present.
+
+#### When NOT to use amend
+
+`type`, `currency` (for `type: "payment"`), and `cadence.type` are immutable — amend will 400. The path is retire-and-create: set `status: "retired"` (or `"paused"`) on the old obligation, then `defineEncore` (no `obligationId`) a new one with the desired type / currency / cadence-type. Bells on the old obligation clear automatically when status leaves `active`.
+
+## manageEncore call shapes
+
+Every operational action takes a `kind` discriminator. The handler validates the rest with Zod and 400s on shape mistakes — read the error message; it names the field.
+
+For composing a NEW obligation or amending an existing one's DSL, use the sibling `defineEncore` tool documented above — that's structural, not operational, and lives outside `manageEncore`.
 
 ### markStepDone — CLOSE ONE STEP ON ONE TARGET
 
@@ -182,7 +345,15 @@ Writes partial values without closing the step. Use when the user has reported p
 { "kind": "snooze", "pendingId": "...", "obligationId": "...", "cycleId": "...", "targetId": "...", "stepId": "..." }
 ```
 
-Clears the current bell entry and persists a `snoozedSteps[stepId]` marker (24h by default) on the cycle file. The tick skips this step until the snooze timestamp passes; after that, the next tick re-fires from the current phase.
+Clears the current bell entry and persists a `snoozedSteps[stepId]` marker (24h by default) on the cycle file. The reconciler skips this step until the snooze timestamp passes; after that, the next reconcile re-fires from the current phase.
+
+### unsnooze
+
+```json
+{ "kind": "unsnooze", "obligationId": "...", "cycleId": "...", "targetId": "...", "stepId": "..." }
+```
+
+Inverse of `snooze`. Deletes `snoozedSteps[stepId]` from the target's record. If the step is otherwise eligible to fire (not closed, current phase past), the bell republishes in the same turn — no need to wait for the 24h timer or run a tick manually. A no-op if the step wasn't snoozed.
 
 ### query
 
@@ -308,4 +479,4 @@ Two independent steps with separate deadlines. `step-deadline` inside a step's `
 
 - Encore data lives under `~/mulmoclaude/data/plugins/encore/`. Each obligation is a folder with `index.md` (the DSL + free-form body) and one markdown file per cycle.
 - The bell entry for an obligation is action-lifecycle — clicking it lands the user in a seeded chat, but does NOT clear the bell. You clear it by closing the underlying step via `markStepDone` (or `markTargetSkipped` / `snooze`).
-- The tick is hourly. State-mutating handlers (setup, amend, markStepDone, …) kick the tick after persisting, so newly-due notifications surface within the same SSE turn.
+- The tick is hourly. State-mutating handlers (`defineEncore`, `markStepDone`, `snooze`, …) reconcile after persisting, so newly-due notifications surface within the same SSE turn.

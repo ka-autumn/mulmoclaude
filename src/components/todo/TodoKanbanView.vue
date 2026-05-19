@@ -18,7 +18,8 @@
              starts a column drag. -->
           <div class="flex items-center justify-between px-3 py-2 border-b border-gray-200 col-handle cursor-grab active:cursor-grabbing">
             <div class="flex items-center gap-2 min-w-0">
-              <span class="w-2 h-2 rounded-full shrink-0" :class="col.isDone ? 'bg-green-500' : 'bg-gray-400'" />
+              <span v-if="col.isDone" class="material-icons text-base text-gray-700 shrink-0 leading-none" aria-hidden="true">check</span>
+              <span v-else class="w-2 h-2 rounded-full shrink-0 bg-gray-400" />
               <span v-if="renamingId !== col.id" class="font-semibold text-sm text-gray-700 truncate" :title="col.label">{{ col.label }}</span>
               <input
                 v-else
@@ -31,7 +32,7 @@
               />
               <span class="text-xs text-gray-500 shrink-0">{{ itemsByColumn(col.id).length }}</span>
             </div>
-            <div class="relative">
+            <div class="relative" data-todo-column-menu>
               <button class="text-gray-400 hover:text-gray-600 px-1" :title="t('todoKanban.columnActions')" @click="toggleMenu(col.id)">
                 <span class="material-icons text-base">more_horiz</span>
               </button>
@@ -41,10 +42,17 @@
                 @click.stop
               >
                 <button class="w-full text-left px-3 py-1.5 hover:bg-gray-50" @click="startRename(col)">{{ t("todoKanban.rename") }}</button>
-                <button class="w-full text-left px-3 py-1.5 hover:bg-gray-50" @click="markAsDone(col.id)">
-                  {{ col.isDone ? t("todoKanban.alreadyDoneColumn") : t("todoKanban.markAsDoneColumn") }}
+                <button v-if="!col.isDone" class="w-full text-left px-3 py-1.5 hover:bg-gray-50" @click="markAsDone(col.id)">
+                  {{ t("todoKanban.markAsDoneColumn") }}
                 </button>
-                <button class="w-full text-left px-3 py-1.5 text-red-600 hover:bg-red-50" @click="deleteColumn(col.id)">
+                <button v-if="col.isDone" class="w-full text-left px-3 py-1.5 hover:bg-gray-50" @click="removeAllItems(col.id)">
+                  {{ t("todoKanban.removeAllItems") }}
+                </button>
+                <button
+                  class="w-full text-left px-3 py-1.5 text-red-600 hover:bg-red-50 disabled:text-gray-300 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                  :disabled="col.isDone"
+                  @click="deleteColumn(col.id)"
+                >
                   {{ t("todoKanban.deleteColumn") }}
                 </button>
               </div>
@@ -119,7 +127,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import draggable from "vuedraggable";
 import type { StatusColumn, TodoItem } from "@mulmoclaude/todo-plugin/shared";
@@ -153,6 +161,7 @@ const emit = defineEmits<{
   renameColumn: [id: string, label: string];
   deleteColumn: [id: string];
   markDone: [id: string];
+  removeAllItems: [id: string];
   reorderColumns: [ids: string[]];
 }>();
 
@@ -259,4 +268,23 @@ function markAsDone(columnId: string): void {
   menuOpenId.value = null;
   emit("markDone", columnId);
 }
+
+function removeAllItems(columnId: string): void {
+  menuOpenId.value = null;
+  emit("removeAllItems", columnId);
+}
+
+// Close any open column menu when the user clicks outside of its
+// wrapper. We tag each menu wrapper (toggle button + popover) with
+// data-todo-column-menu, so a click on either the toggle or a menu
+// entry is treated as "inside" and won't dismiss; everything else does.
+function onDocumentClickOutsideMenu(event: MouseEvent): void {
+  if (menuOpenId.value === null) return;
+  const target = event.target as Element | null;
+  if (target?.closest("[data-todo-column-menu]")) return;
+  menuOpenId.value = null;
+}
+
+onMounted(() => document.addEventListener("click", onDocumentClickOutsideMenu));
+onUnmounted(() => document.removeEventListener("click", onDocumentClickOutsideMenu));
 </script>

@@ -1,5 +1,35 @@
 <template>
-  <div class="h-full flex flex-col">
+  <!-- Plugin-seeded first user turn (e.g. Encore): mirror the skill
+       plugin's collapsed-card layout. Skips the assistant chrome
+       (PDF / edit / copy) since the message wasn't authored by the
+       user and editing it post-hoc has no meaning. -->
+  <div v-if="isSeededUserTurn" class="h-full flex flex-col overflow-y-auto p-6" data-testid="text-response-seeded-card">
+    <div class="max-w-3xl mx-auto w-full">
+      <div class="rounded-lg border border-purple-200 bg-purple-50 shadow-sm">
+        <details class="group">
+          <summary class="cursor-pointer list-none p-4 flex items-start gap-3 hover:bg-purple-100/40 rounded-lg" data-testid="text-response-seeded-summary">
+            <span class="material-icons text-purple-600 text-base mt-0.5 shrink-0">extension</span>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-baseline gap-2 flex-wrap">
+                <span class="font-medium text-purple-900">{{ t("pluginTextResponse.seededByPlugin", { pkg: seededByPlugin }) }}</span>
+              </div>
+              <div class="text-sm text-gray-700 mt-1">{{ t("pluginTextResponse.seededByPluginTooltip", { pkg: seededByPlugin }) }}</div>
+            </div>
+            <span class="material-icons text-gray-400 text-base shrink-0 group-open:rotate-180 transition-transform">expand_more</span>
+          </summary>
+          <div class="border-t border-purple-200 p-4 bg-white rounded-b-lg">
+            <!-- eslint-disable vue/no-v-html -- marked.parse output of the plugin-seeded prompt; trusted in-process render matching the standard textResponse path. Multi-line element so disable/enable pair (CLAUDE.md UI rule). -->
+            <div class="markdown-content prose prose-slate max-w-none" @click="openLinksInNewTab" v-html="renderedHtml"></div>
+            <!-- eslint-enable vue/no-v-html -->
+            <div v-if="messageAttachments.length > 0" class="space-y-3 mt-3" data-testid="text-response-seeded-attachments">
+              <SentAttachmentChip v-for="path in messageAttachments" :key="path" :path="path" variant="block" />
+            </div>
+          </div>
+        </details>
+      </div>
+    </div>
+  </div>
+  <div v-else class="h-full flex flex-col">
     <div v-if="isAssistant" class="flex items-center justify-end gap-2 px-3 py-2 border-b border-gray-100 shrink-0">
       <button
         class="h-8 px-2.5 flex items-center gap-1 rounded bg-green-600 hover:bg-green-700 text-white text-sm disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
@@ -17,23 +47,9 @@
         <div class="text-response-content-wrapper">
           <div class="p-6">
             <div class="max-w-3xl mx-auto space-y-4">
-              <div
-                class="rounded-lg border border-gray-300 bg-white shadow-sm p-5"
-                :class="roleTheme"
-                :data-testid="seededByPlugin ? 'text-response-plugin-seeded' : undefined"
-              >
+              <div class="rounded-lg border border-gray-300 bg-white shadow-sm p-5" :class="roleTheme">
                 <div class="flex justify-between items-start mb-2 text-sm text-gray-500">
-                  <span class="flex items-center gap-2">
-                    <span class="font-medium text-gray-700">{{ speakerLabel }}</span>
-                    <span
-                      v-if="seededByPlugin"
-                      class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] uppercase font-medium bg-purple-100 text-purple-700 ring-1 ring-purple-200"
-                      :title="t('pluginTextResponse.seededByPluginTooltip', { pkg: seededByPlugin })"
-                      data-testid="text-response-seeded-by-plugin"
-                    >
-                      {{ t("pluginTextResponse.seededByPlugin", { pkg: seededByPlugin }) }}
-                    </span>
-                  </span>
+                  <span class="font-medium text-gray-700">{{ speakerLabel }}</span>
                   <span v-if="transportKind" class="italic">{{ transportKind }}</span>
                 </div>
                 <!-- eslint-disable vue/no-v-html -- marked.parse output of app-owned assistant response text; trusted in-process render. Multi-line element so disable/enable pair (CLAUDE.md UI rule) instead of -next-line. -->
@@ -126,6 +142,12 @@ const messageAttachments = computed<string[]>(() => props.selectedResult.data?.a
 // muted background variant so the user can tell the message came
 // from a plugin and not themselves.
 const seededByPlugin = computed<string>(() => props.selectedResult.data?.seededByPlugin ?? "");
+// First-user-turn-seeded-by-plugin signal (#1218-adjacent): render
+// the skill-style collapsed card path instead of the default user
+// bubble. `parseSessionEntries` only stamps `seededByPlugin` on the
+// very first user turn of a plugin-origin session, so this branch is
+// inherently scoped to the opening message.
+const isSeededUserTurn = computed(() => Boolean(seededByPlugin.value) && messageRole.value === "user");
 
 const renderedHtml = computed(() => {
   if (!messageText.value) return "";
@@ -164,13 +186,6 @@ const speakerLabel = computed(() => {
 });
 
 const roleTheme = computed(() => {
-  // Plugin-seeded user turns get a muted gray background instead of
-  // the standard "user" green so the row reads as "this came from a
-  // plugin, not you." The chip beside the speaker label carries the
-  // pkg name; the background change is the at-a-glance signal.
-  if (seededByPlugin.value && messageRole.value === "user") {
-    return "bg-gray-50 border-gray-200";
-  }
   switch (messageRole.value) {
     case "system":
       return "bg-blue-50 border-blue-200";

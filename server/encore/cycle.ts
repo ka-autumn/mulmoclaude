@@ -13,14 +13,14 @@
 //   - `completedSteps[stepId]` — timestamp set by markStepDone
 //
 // Notification-bell tracking (`activeNotificationId`,
-// `lastPublishedSeverity`) lives in pending-clear tickets, NOT in
-// this file. One ticket = one live bell entry; the tick scans
-// `pending-clear/*.json` to know what's active.
+// `lastPublishedSeverity`) lives in tickets, NOT in this file.
+// One ticket = one live bell entry; the tick scans
+// `tickets/*.json` to know what's active.
 
 import { parseEncoreFrontmatter as parseFrontmatter, serializeEncoreFrontmatter as serializeWithFrontmatter } from "./yaml-fm.js";
-import type { EncoreDsl } from "./dsl/schema.js";
-import type { CycleSlot } from "./dsl/cadence.js";
-import { cycleDeadline, cycleStart, formatCycleId } from "./dsl/cadence.js";
+import type { EncoreDsl } from "../../src/types/encore-dsl/schema.js";
+import type { CycleSlot } from "../../src/types/encore-dsl/cadence.js";
+import { cycleDeadline, cycleStart, formatCycleId } from "../../src/types/encore-dsl/cadence.js";
 
 export interface TargetRecord {
   /** Per-cycle field values keyed by formSchema field name.
@@ -108,6 +108,38 @@ export function recordStepSnooze(state: CycleState, targetId: string, stepId: st
   const record = upsertRecord(next, targetId);
   record.snoozedSteps = { ...(record.snoozedSteps ?? {}), [stepId]: untilIso };
   return next;
+}
+
+/** Inverse of `recordStepSnooze`. Idempotent — no-op if the entry
+ *  was already absent. Used by the `unsnooze` dispatch kind so the
+ *  bell can republish in the same turn (the reconciler sees the
+ *  pair eligible to fire again). */
+export function recordStepUnsnooze(state: CycleState, targetId: string, stepId: string): CycleState {
+  const next = cloneState(state);
+  const record = next.records[targetId];
+  if (record?.snoozedSteps && stepId in record.snoozedSteps) {
+    const rest: Record<string, string> = {};
+    for (const [key, value] of Object.entries(record.snoozedSteps)) {
+      if (key !== stepId) rest[key] = value;
+    }
+    record.snoozedSteps = Object.keys(rest).length > 0 ? rest : undefined;
+  }
+  return next;
+}
+
+/** True iff the target's `snoozedSteps[stepId]` is present AND its
+ *  ISO timestamp hasn't passed yet. Used by the reconciler both for
+ *  "should this bundle target trim?" and "is this un-fired pair
+ *  eligible to fire?" — the symmetry the pre-reconciler code lacked.
+ *
+ *  Use a full ISO timestamp for `nowIso` (not date-only `YYYY-MM-DD`).
+ *  `snoozedUntil` is written by `recordStepSnooze` via
+ *  `toISOString()`; comparing it lexically against a date-only
+ *  string would over-block by ~24h for any snooze that doesn't land
+ *  on midnight. */
+export function isStepSnoozed(record: TargetRecord | undefined, stepId: string, nowIso: string): boolean {
+  const until = record?.snoozedSteps?.[stepId];
+  return Boolean(until && until > nowIso);
 }
 
 /** Merge new field values onto a target without marking any step
