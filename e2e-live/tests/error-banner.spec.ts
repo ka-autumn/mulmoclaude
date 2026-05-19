@@ -15,6 +15,18 @@ const L_ERR_TIMEOUT_MS = 2 * ONE_MINUTE_MS;
 // into a forced error event (prod never reaches fake-echo).
 test.describe("agent error banner (fake-echo forced error)", () => {
   test("L-ERR: backend error event renders as an [Error] text card and the turn ends", async ({ page }) => {
+    // This canary drives the forced-error branch via the
+    // `__FAKE_ERROR__` marker, which is implemented only in
+    // `server/agent/backend/fake-echo.ts`'s `defaultResponse` —
+    // there is no equivalent shortcut in the real-Claude backend.
+    // The matching CI job (`.github/workflows/e2e_live_no_llm.yaml`,
+    // `error-banner` matrix entry) boots the dev server with
+    // `MULMOCLAUDE_FAKE_AGENT=1` and sets `E2E_LIVE_NO_LLM=1` on the
+    // test process; gate on that env var so local `yarn test:e2e:live`
+    // runs (real Claude backend, where the marker has no meaning and
+    // the model politely refuses) skip the spec instead of asserting
+    // against a fake-echo-only error string.
+    test.skip(process.env.E2E_LIVE_NO_LLM !== "1", "L-ERR exercises fake-echo's `__FAKE_ERROR__` branch; the real-Claude backend has no equivalent trigger");
     test.setTimeout(L_ERR_TIMEOUT_MS);
     let sessionIdForCleanup: string | null = null;
     try {
