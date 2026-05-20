@@ -15,7 +15,7 @@ Same shape as #1283 (`settings` → `mc-settings`). The `cookingCoach` role bund
 | `server/workspace/skills-preset/mc-cooking-coach/SKILL.md` (NEW) | Preset skill. Three workflows (save, list-via-README, edit/delete) all Write/Edit-driven. After every change, regenerate `data/cooking/recipes/README.md` as the catalogue. |
 | `test/workspace/cooking-recipes/test_migrate.ts` (NEW) | Migration unit tests (idempotent, copies all .md files, preserves contents, skips when source absent). |
 | `test/workspace/test_paths_shape.ts` | Add `cookingRecipes` to the expected-keys list. |
-| `plans/feat-mc-cooking-coach-skill-1286.md` | This file. |
+| `plans/done/feat-mc-cooking-coach-skill-1286.md` | This file. |
 
 ## Storage path migration
 

@@ -8,7 +8,7 @@
 // file is just the Express adapter (request validation, error
 // mapping, logging).
 //
-// See plans/feat-encore-as-builtin.md.
+// See plans/done/feat-encore-as-builtin.md.
 
 import { Router, Request, Response } from "express";
 

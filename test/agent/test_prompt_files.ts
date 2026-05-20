@@ -1,4 +1,4 @@
-// Guards the server/prompts/*.md extraction (plans/refactor-prompts-to-files.md).
+// Guards the server/prompts/*.md extraction (plans/done/refactor-prompts-to-files.md).
 //
 // The literals these files replaced were byte-identical to the file
 // contents (verified at extraction time). These tests catch a

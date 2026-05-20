@@ -15,7 +15,7 @@
 //     composes "invoiceReceivedOn" / "paidOn" naturally and the
 //     surrounding codebase uses camelCase identifiers everywhere.
 //
-// See plans/feat-encore-plugin.md §The Encore DSL for the full
+// See plans/done/feat-encore-plugin.md §The Encore DSL for the full
 // natural-language spec; this file is its executable form.
 
 import { z } from "zod";

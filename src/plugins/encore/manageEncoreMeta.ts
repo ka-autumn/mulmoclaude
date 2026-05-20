@@ -6,8 +6,8 @@
 //
 // Browser-safe: no Vue / no Node-only imports.
 //
-// See plans/feat-encore-as-builtin.md for the architecture and
-// plans/feat-encore-plugin.md for the DSL spec the handlers
+// See plans/done/feat-encore-as-builtin.md for the architecture and
+// plans/done/feat-encore-plugin.md for the DSL spec the handlers
 // implement.
 
 import { definePluginMeta } from "../meta-types";
@@ -29,7 +29,7 @@ export const META = definePluginMeta({
   // `data/plugins/encore/` is the plain-name layout chosen for the
   // built-in (vs. the URL-encoded `%40mulmoclaude%2Fencore-plugin`
   // path the prior runtime-preset attempt used). See
-  // plans/feat-encore-as-builtin.md "What's intentionally different".
+  // plans/done/feat-encore-as-builtin.md "What's intentionally different".
   workspaceDirs: {
     encore: "data/plugins/encore",
   },

@@ -104,7 +104,7 @@ describe("buildCliArgs", () => {
   it("permits the Skill tool so .claude/skills/ skills are invokable", async () => {
     // Regression guard: a strict --allowedTools that omits `Skill`
     // permission-denies every Skill({skill:"…"}) call (Execute skill
-    // error + Glob fallback). See plans/fix-skill-tool-allowlist.md.
+    // error + Glob fallback). See plans/done/fix-skill-tool-allowlist.md.
     const args = buildCliArgs({ systemPrompt: "test", activePlugins: [] });
     const allowedStr = args[args.indexOf("--allowedTools") + 1];
     const tools = allowedStr.split(",");

@@ -34,7 +34,7 @@ test.describe("workspace link routing (real workspace)", () => {
     // (`MULMOCLAUDE_FAKE_AGENT=1`) satisfy that contract since the
     // user prompt itself contains the link.
     test.setTimeout(L23_TIMEOUT_MS);
-    // Covers the regression behind plans/fix-workspace-link-double-encoding.md.
+    // Covers the regression behind plans/done/fix-workspace-link-double-encoding.md.
     //
     // marked.parse() percent-encodes multibyte chars in <a href>
     // (e.g. "作" → "%E4%BD%9C"). Before the fix, classifyWorkspacePath

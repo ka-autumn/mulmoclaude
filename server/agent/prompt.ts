@@ -23,7 +23,7 @@ import {
 
 // `SYSTEM_PROMPT` keeps its public export surface (other modules may
 // import it); the rest are internal to this file. Literals now live
-// in server/prompts/system/*.md — see plans/refactor-prompts-to-files.md.
+// in server/prompts/system/*.md — see plans/done/refactor-prompts-to-files.md.
 export { SYSTEM_PROMPT };
 
 // Prepend a pointer to the auto-generated workspace journal to the

@@ -31,7 +31,7 @@ This is the clearest product-fit case we have seen for the workspace-as-database
 - **Recurrence already exists.** The scheduler, calendar, and todos plugins are in place. This is not a new engine — it is a new *case* abstraction sitting on top.
 - **Privacy story is built in.** Tax docs, medical history, gift lists — people will not put these in a cloud SaaS. Local-first is a feature, not a constraint.
 
-> **UX decisions for the notifier migration are tracked separately in [`plans/feat-notifier-ux.md`](feat-notifier-ux.md).** That document is the source of truth for panel layout, badge semantics, row behaviours, history visibility, and the no-toast decision. The phasing and engine internals below cite it where the decisions overlap.
+> **UX decisions for the notifier migration are tracked separately in [`plans/done/feat-notifier-ux.md`](feat-notifier-ux.md).** That document is the source of truth for panel layout, badge semantics, row behaviours, history visibility, and the no-toast decision. The phasing and engine internals below cite it where the decisions overlap.
 
 ## Two-layer architecture
 

@@ -14,9 +14,9 @@
 //     between both tools — the page only handles `resolveNotification`
 //     and that's tool-independent.
 //
-// See plans/feat-encore-as-builtin.md for the original build plan,
-// plans/feat-encore-plugin.md for the DSL spec, and
-// plans/feat-encore-define-tool.md for why the tool was split.
+// See plans/done/feat-encore-as-builtin.md for the original build plan,
+// plans/done/feat-encore-plugin.md for the DSL spec, and
+// plans/done/feat-encore-define-tool.md for why the tool was split.
 
 import type { ToolResult } from "gui-chat-protocol";
 import type { PluginEntry, PluginRegistration, ToolPlugin } from "../../tools/types";

@@ -12,7 +12,7 @@
 // which the host syncs into the workspace at every startup — keeping
 // this `description` short and letting Claude lazy-read the help file
 // for full grammar is the teaching strategy (see
-// plans/feat-encore-plugin.md "Teaching the DSL to Claude").
+// plans/done/feat-encore-plugin.md "Teaching the DSL to Claude").
 
 import type { ToolDefinition } from "gui-chat-protocol";
 import type { ResolvedRoute } from "../meta-types";

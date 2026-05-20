@@ -84,7 +84,7 @@ describe("classifyWorkspacePath", () => {
   // hrefs like "data/notes/%E3%83%86%E3%82%B9%E3%83%88...md".
   // We MUST decode once before handing the path to vue-router, or the
   // router's own encoding step turns "%E3..." into "%25E3..." (see
-  // plans/fix-workspace-link-double-encoding.md).
+  // plans/done/fix-workspace-link-double-encoding.md).
 
   describe("percent-encoded hrefs (from marked.parse output)", () => {
     it("decodes percent-encoded multibyte file path", () => {

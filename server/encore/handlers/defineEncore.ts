@@ -2,7 +2,7 @@
 //
 // Discriminates by `obligationId` presence so the LLM never has to
 // also pick between "kind: setup" vs "kind: amendDefinition" — the
-// parameter shape carries the intent. See plans/feat-encore-define-tool.md.
+// parameter shape carries the intent. See plans/done/feat-encore-define-tool.md.
 //
 // `manageEncore`'s setup / amendDefinition kinds are kept on the wire
 // for backward compat but no longer surfaced in `LLM_ENCORE_KINDS`.

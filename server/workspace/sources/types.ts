@@ -115,7 +115,7 @@ export interface SourceItem {
 }
 
 // Per-source runtime state, NOT committed to git. Mirrors the
-// Source-vs-_state split described in plans/feat-source-registry.md.
+// Source-vs-_state split described in plans/done/feat-source-registry.md.
 export interface SourceState {
   slug: string;
   // Last successful fetch.

@@ -80,7 +80,7 @@ const routes: RouteRecordRaw[] = [
   //     and full-navigates to /chat/<chatId>. Transient (~300ms).
   //   - `/encore` (no pendingId) — read-only dashboard listing
   //     active obligations + cycle history. Reached from the
-  //     top-bar launcher. See plans/feat-encore-as-builtin.md.
+  //     top-bar launcher. See plans/done/feat-encore-as-builtin.md.
   { path: "/encore", name: PAGE_ROUTES.encore, component: Stub },
   { path: "/:pathMatch(.*)*", redirect: "/chat" },
 ];

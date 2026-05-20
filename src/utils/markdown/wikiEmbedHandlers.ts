@@ -8,7 +8,7 @@
 // link in the rendered wiki / chat.
 //
 // Future prefixes (youtube / x / map / github / …) plug into the
-// same registry — see plans/feat-rich-embed-syntax-1221.md PR-C+.
+// same registry — see plans/done/feat-rich-embed-syntax-1221.md PR-C+.
 
 import { escapeHtml, registerWikiEmbed } from "./wikiEmbeds";
 

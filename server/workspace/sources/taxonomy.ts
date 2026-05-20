@@ -3,7 +3,7 @@
 // synonym sprawl — `ai` vs `artificial-intelligence` vs `AI` would
 // otherwise all coexist and make filtering useless.
 //
-// The auto-categorizer (see plans/feat-source-registry.md §"Auto-
+// The auto-categorizer (see plans/done/feat-source-registry.md §"Auto-
 // categorization") classifies each new source into 1-5 of these
 // slugs and writes them into the source file's frontmatter. Users
 // can override by editing the file; the next daily run picks up
@@ -31,7 +31,7 @@ export const CATEGORY_SLUGS = [
   // --- Phase-1 expansion (resolved from #188 open-question Q1) ---
   // Added to cover common genres the original 16 couldn't capture
   // (which were tech-centric and collapsed everything non-tech
-  // into `general`). See plans/feat-source-registry.md §Resolved
+  // into `general`). See plans/done/feat-source-registry.md §Resolved
   // decisions for rationale per slug.
   "finance",
   "design",

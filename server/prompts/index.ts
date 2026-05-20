@@ -7,7 +7,7 @@
 // are byte-identical to the template literals these replaced, including
 // whether or not they end in a trailing newline. `buildSystemPrompt`
 // must produce a byte-identical system prompt before/after this
-// refactor — see plans/refactor-prompts-to-files.md.
+// refactor — see plans/done/refactor-prompts-to-files.md.
 //
 // Path is resolved relative to this module (import.meta.url), NOT
 // process.cwd(), so it resolves under both the dev server and the

@@ -21,7 +21,7 @@ export const CONTAINER_WORKSPACE_PATH = "/home/node/mulmoclaude";
 // `Skill({skill:"…"})` call — the harness errors with
 // `Execute skill: <name>` and the model falls back to Glob+Read.
 // Bare `Skill` (no parens) permits all skills. See
-// plans/fix-skill-tool-allowlist.md.
+// plans/done/fix-skill-tool-allowlist.md.
 const BASE_ALLOWED_TOOLS = ["Bash", "Read", "Write", "Edit", "Glob", "Grep", "WebFetch", "WebSearch", "Skill"];
 
 /** Tool names the agent is allowed to call this session. Drives

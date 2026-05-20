@@ -24,7 +24,7 @@ export const SetupArgs = z.object({
  *  auto-number `-2`, `-3`) masked that mistake and produced
  *  parallel duplicates. The reject message tells the LLM how to
  *  recover (pass `obligationId` to make it an amend, or change
- *  `displayName`). See plans/feat-encore-define-tool.md. */
+ *  `displayName`). See plans/done/feat-encore-define-tool.md. */
 async function requireUniqueObligationId(displayName: string): Promise<string> {
   const slug = slugify(displayName);
   if (!(await exists(obligationIndexPath(slug)))) return slug;
