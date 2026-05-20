@@ -47,8 +47,9 @@
           </h2>
           
           <div class="flex items-center gap-3">
+            <!-- Reset to current week on the left (future navigation) -->
             <button
-              v-if="weekOffset !== 0"
+              v-if="weekOffset > 0"
               type="button"
               @click="weekOffset = 0"
               class="h-7 px-2.5 flex items-center justify-center rounded-lg border border-gray-200 bg-white text-[10px] font-bold text-gray-500 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50/40 active:scale-95 transition-all duration-150 uppercase tracking-wider shadow-sm"
@@ -80,6 +81,17 @@
                 <span class="material-icons text-base leading-none">chevron_right</span>
               </button>
             </div>
+
+            <!-- Reset to current week on the right (past navigation) -->
+            <button
+              v-if="weekOffset < 0"
+              type="button"
+              @click="weekOffset = 0"
+              class="h-7 px-2.5 flex items-center justify-center rounded-lg border border-gray-200 bg-white text-[10px] font-bold text-gray-500 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50/40 active:scale-95 transition-all duration-150 uppercase tracking-wider shadow-sm"
+              title="Current Week"
+            >
+              This Week
+            </button>
           </div>
         </div>
 
