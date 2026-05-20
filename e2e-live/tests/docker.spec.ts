@@ -189,24 +189,33 @@ test.describe("docker sandbox (real workspace)", () => {
       await waitForAssistantResponseComplete(page);
       sessionId = getCurrentSessionId(page);
 
-      // Positive: the success line surfaces somewhere on the page.
-      // gh's success message has stayed stable across recent versions
-      // ("✓ Logged in to github.com account <name> ..."), so the
-      // substring match holds even if the gh version inside the
-      // container differs from the host's. `.first()` keeps the locator
-      // out of strict-mode if the assistant quotes the line twice
-      // (e.g. once in narration, once in a code block).
-      await expect(page.getByText(/Logged in to github\.com/i).first(), "gh auth status output must indicate the user is logged in to github.com").toBeVisible({
+      // Anchor every assertion to the most recent assistant turn's
+      // markdown body — `[data-testid="text-response-assistant-body"]`
+      // is set in `textResponse/View.vue` only when `isAssistant=true`,
+      // so user prompts and `session-item-<id>` sidebar history
+      // previews are excluded by construction. `.last()` keeps the
+      // locator strict-mode safe in stack layout (one assistant body
+      // in the default single layout, but L-28 has no reason to assume
+      // either) and pins to THIS turn, not any prior "Logged in" text
+      // that might live in a reused workspace's sidebar (Codex iter-1).
+      const latestAssistantBody = page.getByTestId("text-response-assistant-body").last();
+      await expect(latestAssistantBody, "agent must have produced an assistant reply for L-28").toBeVisible({ timeout: ONE_MINUTE_MS });
+      // Positive: gh's success message has stayed stable across recent
+      // versions ("✓ Logged in to github.com account <name> ..."),
+      // so the substring match holds even if the gh version inside the
+      // container differs from the host's.
+      await expect(latestAssistantBody, "gh auth status output must indicate the user is logged in to github.com").toContainText(/Logged in to github\.com/i, {
         timeout: ONE_MINUTE_MS,
       });
       // Negative: B-06 regression shape — credential isolation would
       // surface gh's "not logged into any hosts" line (the wording
       // varies between gh versions: older drops "GitHub", newer keeps
-      // it, both end with `hosts`). The regex accepts either.
-      await expect(
-        page.getByText(/not logged into any (?:GitHub )?hosts/i),
-        "agent must not report a missing gh login when the credential is mounted",
-      ).toHaveCount(0);
+      // it, both end with `hosts`). The regex accepts either, but the
+      // check is now scoped to the same assistant body so a stale
+      // sidebar entry containing the negative phrase can't trip it.
+      await expect(latestAssistantBody, "agent must not report a missing gh login when the credential is mounted").not.toContainText(
+        /not logged into any (?:GitHub )?hosts/i,
+      );
     } finally {
       if (sessionId !== null) await deleteSession(page, sessionId);
     }
