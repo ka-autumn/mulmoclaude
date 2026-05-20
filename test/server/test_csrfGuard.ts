@@ -103,6 +103,20 @@ describe("isLocalhostOrigin — rejects everything else", () => {
     assert.equal(isLocalhostOrigin("http://172.16.0.5"), false);
     assert.equal(isLocalhostOrigin("http://0.0.0.0"), false);
   });
+
+  it("rejects non-HTTP schemes even when the hostname is localhost", () => {
+    // The function promises "localhost" in the HTTP-origin sense
+    // (what browsers actually send). A synthetic client crafting
+    // `ftp://localhost` or `chrome-extension://localhost` does not
+    // get the localhost-binding trust — that path is for genuine
+    // same-host HTTP callers only.
+    assert.equal(isLocalhostOrigin("ftp://localhost"), false);
+    assert.equal(isLocalhostOrigin("ftp://127.0.0.1:21"), false);
+    assert.equal(isLocalhostOrigin("file://localhost"), false);
+    assert.equal(isLocalhostOrigin("chrome-extension://localhost"), false);
+    assert.equal(isLocalhostOrigin("ws://localhost:5173"), false);
+    assert.equal(isLocalhostOrigin("wss://localhost:5173"), false);
+  });
 });
 
 // --- requireSameOrigin: Express middleware behaviour ------------

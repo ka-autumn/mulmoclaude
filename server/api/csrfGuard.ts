@@ -47,9 +47,17 @@ const LOCALHOST_HOSTNAMES: ReadonlySet<string> = new Set([
 const NULL_ORIGIN_LITERAL = "null";
 
 // Decide whether an Origin header value points at the same
-// machine. Accepts scheme + hostname + optional port; rejects
-// `null`, empty, malformed, subdomain-lookalikes, non-loopback
-// IPs, and non-HTTP schemes. Exported for test.
+// machine. Accepts http(s) scheme + loopback hostname + optional
+// port; rejects `null`, empty, malformed, subdomain-lookalikes,
+// non-loopback IPs, and non-HTTP schemes. Exported for test.
+//
+// Scheme check: real browser `Origin` values are always `http:` or
+// `https:`. A non-HTTP scheme on a localhost hostname (e.g.
+// `ftp://localhost`, `chrome-extension://localhost`) means a
+// synthetic client crafted the header — don't grant it the
+// localhost-binding trust. Function name promises "localhost", and
+// "localhost" without an HTTP origin is not the surface this guard
+// protects.
 export function isLocalhostOrigin(origin: string): boolean {
   if (!origin) return false;
   let url: URL;
@@ -58,7 +66,8 @@ export function isLocalhostOrigin(origin: string): boolean {
   } catch {
     return false;
   }
-  return LOCALHOST_HOSTNAMES.has(url.hostname);
+  const isHttpScheme = url.protocol === "http:" || url.protocol === "https:";
+  return isHttpScheme && LOCALHOST_HOSTNAMES.has(url.hostname);
 }
 
 // Opt-in allowlist for cross-origin state-changing requests.
