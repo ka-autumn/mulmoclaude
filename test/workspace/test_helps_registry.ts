@@ -48,31 +48,53 @@ interface RegistryEntry {
   summary: string;
 }
 
-function parseListItem(line: string): { filename: string; entry: RegistryEntry } | null {
+function extractBulletBody(line: string): string | null {
   const trimmed = line.trimStart();
   if (!(trimmed.startsWith("- ") || trimmed.startsWith("* "))) return null;
-  const afterBullet = trimmed.slice(2).trimStart();
+  return trimmed.slice(2).trimStart();
+}
+
+function parseTitleAndHref(afterBullet: string): { title: string; filename: string; tail: string } | null {
   if (!afterBullet.startsWith("[")) return null;
   const titleEnd = afterBullet.indexOf("]");
   if (titleEnd <= 1) return null;
-  const title = afterBullet.slice(1, titleEnd).trim();
   const afterTitle = afterBullet.slice(titleEnd + 1);
   if (!afterTitle.startsWith("(")) return null;
   const linkEnd = afterTitle.indexOf(")");
   if (linkEnd <= 1) return null;
   const href = afterTitle.slice(1, linkEnd);
   if (!href.startsWith(HELP_LIST_LINK_PREFIX) || !href.endsWith(HELP_LIST_LINK_SUFFIX)) return null;
-  const filename = href.slice(HELP_LIST_LINK_PREFIX.length);
-  const tail = afterTitle.slice(linkEnd + 1);
-  const sepIdx = tail.indexOf("—");
-  if (sepIdx === -1) return null;
-  const summary = tail.slice(sepIdx + 1).trim();
-  if (!summary) return null;
-  return { filename, entry: { title, summary } };
+  return {
+    title: afterBullet.slice(1, titleEnd).trim(),
+    filename: href.slice(HELP_LIST_LINK_PREFIX.length),
+    tail: afterTitle.slice(linkEnd + 1),
+  };
 }
 
-function parseRegistry(content: string): Map<string, RegistryEntry> {
+function parseListItem(line: string): { filename: string; entry: RegistryEntry } | null {
+  const afterBullet = extractBulletBody(line);
+  if (afterBullet === null) return null;
+  const head = parseTitleAndHref(afterBullet);
+  if (head === null) return null;
+  const sepIdx = head.tail.indexOf("—");
+  if (sepIdx === -1) return null;
+  const summary = head.tail.slice(sepIdx + 1).trim();
+  if (!summary) return null;
+  return { filename: head.filename, entry: { title: head.title, summary } };
+}
+
+// Parser exposes `duplicates` so the caller (and the test) can flag
+// the same filename listed twice — `entries.set` would otherwise
+// silently overwrite, hiding a real index.md bug. (CodeRabbit
+// follow-up on #1431.)
+interface ParsedRegistry {
+  entries: Map<string, RegistryEntry>;
+  duplicates: string[];
+}
+
+function parseRegistry(content: string): ParsedRegistry {
   const entries = new Map<string, RegistryEntry>();
+  const duplicates: string[] = [];
   const lines = content.split("\n");
   let inSection = false;
   for (const line of lines) {
@@ -84,9 +106,13 @@ function parseRegistry(content: string): Map<string, RegistryEntry> {
     if (/^#{1,2}\s+\S/.test(line)) break;
     const parsed = parseListItem(line);
     if (!parsed) continue;
+    if (entries.has(parsed.filename)) {
+      duplicates.push(parsed.filename);
+      continue;
+    }
     entries.set(parsed.filename, parsed.entry);
   }
-  return entries;
+  return { entries, duplicates };
 }
 
 function listHelpFiles(): string[] {
@@ -99,7 +125,7 @@ function listHelpFiles(): string[] {
 describe("server/workspace/helps registry (index.md)", () => {
   const indexPath = path.join(HELPS_DIR, INDEX_FILENAME);
   const indexContent = readFileSync(indexPath, "utf-8");
-  const registry = parseRegistry(indexContent);
+  const { entries: registry, duplicates } = parseRegistry(indexContent);
   const helpFiles = listHelpFiles();
 
   it("has a parseable `## Help Pages` section with at least one entry", () => {
@@ -131,5 +157,13 @@ describe("server/workspace/helps registry (index.md)", () => {
       }
     }
     assert.deepEqual(offenders, [], `Summaries longer than ${SUMMARY_MAX_CHARS} chars: ${offenders.join("; ")}`);
+  });
+
+  it("does not list the same filename twice", () => {
+    // Without this guard a duplicate `- [X](config/helps/foo.md) — …`
+    // would have the later entry silently overwrite the earlier one
+    // in the parser, hiding a real index.md bug (CodeRabbit
+    // follow-up on #1431).
+    assert.deepEqual(duplicates, [], `index.md lists duplicate entries: ${duplicates.join(", ")}`);
   });
 });
