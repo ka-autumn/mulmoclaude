@@ -521,18 +521,17 @@ function getStartOfWeek(offsetWeeks = 0): Date {
   return start;
 }
 
-const weekDays = computed(() => {
-  const base = getStartOfWeek(weekOffset.value);
-  const days: { dateStr: string; label: string }[] = [];
+function buildWeekdayLabels(base: Date, tVal: any): { dateStr: string; label: string }[] {
   const weekdays = [
-    t.value.mon || "Mon",
-    t.value.tue || "Tue",
-    t.value.wed || "Wed",
-    t.value.thu || "Thu",
-    t.value.fri || "Fri",
-    t.value.sat || "Sat",
-    t.value.sun || "Sun",
+    tVal.mon || "Mon",
+    tVal.tue || "Tue",
+    tVal.wed || "Wed",
+    tVal.thu || "Thu",
+    tVal.fri || "Fri",
+    tVal.sat || "Sat",
+    tVal.sun || "Sun",
   ];
+  const days: { dateStr: string; label: string }[] = [];
   for (let i = 0; i < 7; i++) {
     const d = new Date(base.getTime() + i * 24 * 3600 * 1000);
     days.push({
@@ -541,6 +540,10 @@ const weekDays = computed(() => {
     });
   }
   return days;
+}
+
+const weekDays = computed(() => {
+  return buildWeekdayLabels(getStartOfWeek(weekOffset.value), t.value);
 });
 
 function formatDateLabel(dateStr: string): string {
@@ -593,7 +596,7 @@ interface RollupRow {
 const rollupRows = computed(() => {
   const days = weekDays.value;
   const start = days[0].dateStr;
-  const end = toLocalYMD(new Date(new Date(days[6].dateStr).getTime() + 24 * 3600 * 1000));
+  const end = toLocalYMD(new Date(getStartOfWeek(weekOffset.value).getTime() + 7 * 24 * 3600 * 1000));
 
   const weekEntries = committed.value.filter((e) => {
     const d = new Date(e.startTime);

@@ -131,36 +131,31 @@ export async function handleApprove(files: FileOps, input: LlmActionInput): Prom
   };
 }
 
+function parseBound(boundValue: string, isEnd: boolean, fieldName: string): number {
+  const strictIsoRegex = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+\-]\d{2}:\d{2})?)?$/;
+  if (!strictIsoRegex.test(boundValue)) {
+    throw new Error(`Invalid range.${fieldName} format: "${boundValue}"`);
+  }
+  const normalizedStr = /^\d{4}-\d{2}-\d{2}$/.test(boundValue)
+    ? `${boundValue}T${isEnd ? "23:59:59.999Z" : "00:00:00.000Z"}`
+    : boundValue;
+  const time = new Date(normalizedStr).getTime();
+  if (isNaN(time)) {
+    throw new Error(`Invalid range.${fieldName} format: "${boundValue}"`);
+  }
+  return time;
+}
+
 /**
  * Helper to parse and normalize date bounds into numeric timestamps.
  * Normalizes YYYY-MM-DD to start-of-day/end-of-day UTC or parses direct ISO strings.
  * Throws Error on invalid bounds.
  */
 export function parseRange(range: { from?: string; to?: string }): { fromTime?: number; toTime?: number } {
-  const result: { fromTime?: number; toTime?: number } = {};
-  if (range.from) {
-    let fromStr = range.from;
-    if (/^\d{4}-\d{2}-\d{2}$/.test(fromStr)) {
-      fromStr = `${fromStr}T00:00:00.000Z`;
-    }
-    const fromTime = new Date(fromStr).getTime();
-    if (isNaN(fromTime)) {
-      throw new Error(`Invalid range.from format: "${range.from}"`);
-    }
-    result.fromTime = fromTime;
-  }
-  if (range.to) {
-    let toStr = range.to;
-    if (/^\d{4}-\d{2}-\d{2}$/.test(toStr)) {
-      toStr = `${toStr}T23:59:59.999Z`;
-    }
-    const toTime = new Date(toStr).getTime();
-    if (isNaN(toTime)) {
-      throw new Error(`Invalid range.to format: "${range.to}"`);
-    }
-    result.toTime = toTime;
-  }
-  return result;
+  return {
+    fromTime: range.from ? parseBound(range.from, false, "from") : undefined,
+    toTime: range.to ? parseBound(range.to, true, "to") : undefined,
+  };
 }
 
 /**
