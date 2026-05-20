@@ -299,7 +299,9 @@ describe("probeRuntimePlugins", () => {
           headers: { "content-type": "application/json" },
         }),
     );
-    const result = await tarball.probeRuntimePlugins({ port: 3099, token: "tok", fetchImpl, expectedDevPlugin: "@smoke/dev-fixture" });
+    // pollTimeoutMs=0 skips retries — this test asserts on the
+    // single-attempt error shape, not the poll-and-give-up path.
+    const result = await tarball.probeRuntimePlugins({ port: 3099, token: "tok", fetchImpl, expectedDevPlugin: "@smoke/dev-fixture", pollTimeoutMs: 0 });
     assert.equal(result.ok, false);
     assert.match(result.lastError ?? "", /@smoke\/dev-fixture@dev/);
     assert.match(result.lastError ?? "", /@example\/installed@0\.1\.0/);
@@ -317,8 +319,169 @@ describe("probeRuntimePlugins", () => {
           headers: { "content-type": "application/json" },
         }),
     );
-    const result = await tarball.probeRuntimePlugins({ port: 3099, token: "tok", fetchImpl, expectedDevPlugin: "@smoke/dev-fixture" });
+    const result = await tarball.probeRuntimePlugins({ port: 3099, token: "tok", fetchImpl, expectedDevPlugin: "@smoke/dev-fixture", pollTimeoutMs: 0 });
     assert.equal(result.ok, false);
+  });
+
+  // Plugin loading runs in a fire-and-forget IIFE that resolves AFTER
+  // `app.listen()`, so `/` can return 200 while the list endpoint
+  // still reports `[]`. When `expectedDevPlugin` is set the probe
+  // must poll until the plugin appears — otherwise the smoke flakes
+  // on fast boots that win the race against plugin loading.
+  it("polls until expectedDevPlugin appears when initial responses show an empty list", async () => {
+    let call = 0;
+    const fetchImpl = fakeFetch(() => {
+      call += 1;
+      const plugins = call < 3 ? [] : [{ name: "@smoke/dev-fixture", version: "dev" }];
+      return new Response(JSON.stringify({ plugins }), { status: 200, headers: { "content-type": "application/json" } });
+    });
+    const sleeps: number[] = [];
+    let now = 0;
+    const result = await tarball.probeRuntimePlugins({
+      port: 3099,
+      token: "tok",
+      fetchImpl,
+      expectedDevPlugin: "@smoke/dev-fixture",
+      pollTimeoutMs: 5_000,
+      pollIntervalMs: 100,
+      now: () => now,
+      sleep: async (delayMs: number) => {
+        sleeps.push(delayMs);
+        now += delayMs;
+      },
+    });
+    assert.equal(result.ok, true, "should succeed once the dev plugin appears");
+    assert.equal(call, 3, "should have probed three times");
+    assert.deepEqual(sleeps, [100, 100], "should have slept between probes");
+  });
+
+  // The polling has to terminate even when the plugin never shows up
+  // (e.g. the IIFE crashed). The last attempt's error message must
+  // surface intact so the CI log explains what was actually seen.
+  it("gives up after the poll timeout and returns the last error", async () => {
+    const fetchImpl = fakeFetch(() => new Response(JSON.stringify({ plugins: [] }), { status: 200, headers: { "content-type": "application/json" } }));
+    let now = 0;
+    const result = await tarball.probeRuntimePlugins({
+      port: 3099,
+      token: "tok",
+      fetchImpl,
+      expectedDevPlugin: "@smoke/dev-fixture",
+      pollTimeoutMs: 500,
+      pollIntervalMs: 100,
+      now: () => now,
+      sleep: async (delayMs: number) => {
+        now += delayMs;
+      },
+    });
+    assert.equal(result.ok, false);
+    assert.match(result.lastError ?? "", /@smoke\/dev-fixture@dev/);
+  });
+
+  // Without `expectedDevPlugin`, the empty list is a legitimate state
+  // (fresh install) — don't burn the poll budget on something that's
+  // already true.
+  it("does NOT poll when expectedDevPlugin is absent (empty list is a valid state)", async () => {
+    let call = 0;
+    const fetchImpl = fakeFetch(() => {
+      call += 1;
+      return new Response(JSON.stringify({ plugins: [] }), { status: 200, headers: { "content-type": "application/json" } });
+    });
+    const result = await tarball.probeRuntimePlugins({ port: 3099, token: "tok", fetchImpl });
+    assert.equal(result.ok, true);
+    assert.equal(call, 1);
+  });
+
+  // 401/403 (auth misconfigured), non-200 status, non-JSON body, and
+  // body-shape regressions are all permanent. The retry loop must
+  // bail out on the first attempt instead of masking the failure
+  // behind the poll budget — a 10s wait before surfacing "status
+  // 401" makes CI logs harder to read, not easier.
+  it("does NOT retry on non-200 status even when expectedDevPlugin is set (fail-fast on auth/route regression)", async () => {
+    let call = 0;
+    const fetchImpl = fakeFetch(() => {
+      call += 1;
+      return new Response("Unauthorized", { status: 401 });
+    });
+    const result = await tarball.probeRuntimePlugins({
+      port: 3099,
+      token: "tok",
+      fetchImpl,
+      expectedDevPlugin: "@smoke/dev-fixture",
+      pollTimeoutMs: 5_000,
+      pollIntervalMs: 100,
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.status, 401);
+    assert.equal(call, 1, "should fail fast on 401, not poll");
+  });
+
+  it("does NOT retry on body-shape regression even when expectedDevPlugin is set (fail-fast)", async () => {
+    let call = 0;
+    const fetchImpl = fakeFetch(() => {
+      call += 1;
+      return new Response(JSON.stringify({ unrelated: true }), { status: 200, headers: { "content-type": "application/json" } });
+    });
+    const result = await tarball.probeRuntimePlugins({
+      port: 3099,
+      token: "tok",
+      fetchImpl,
+      expectedDevPlugin: "@smoke/dev-fixture",
+      pollTimeoutMs: 5_000,
+      pollIntervalMs: 100,
+    });
+    assert.equal(result.ok, false);
+    assert.match(result.lastError ?? "", /not \{ plugins/);
+    assert.equal(call, 1, "should fail fast on body-shape regression, not poll");
+  });
+
+  // The `retryable` flag is an internal contract between the poll
+  // loop and the single-shot probe. Callers (smoke driver, anyone
+  // who imports `tarball.mjs`) MUST NOT see it. Pin both branches
+  // so a future refactor that drops `stripRetryable` fails the
+  // suite instead of silently leaking internal state.
+  it("never leaks the internal `retryable` flag on the success path", async () => {
+    const fetchImpl = fakeFetch(
+      () => new Response(JSON.stringify({ plugins: [{ name: "@x/y", version: "1.0.0" }] }), { status: 200, headers: { "content-type": "application/json" } }),
+    );
+    const result = await tarball.probeRuntimePlugins({ port: 3099, token: "tok", fetchImpl });
+    assert.equal(Object.prototype.hasOwnProperty.call(result, "retryable"), false, "public result must not expose `retryable`");
+  });
+
+  it("never leaks the internal `retryable` flag on the failure path", async () => {
+    const fetchImpl = fakeFetch(() => new Response("Unauthorized", { status: 401 }));
+    const result = await tarball.probeRuntimePlugins({ port: 3099, token: "tok", fetchImpl, expectedDevPlugin: "@smoke/dev-fixture", pollTimeoutMs: 0 });
+    assert.equal(Object.prototype.hasOwnProperty.call(result, "retryable"), false, "public result must not expose `retryable`");
+  });
+
+  // Fetch failures ARE retryable: the boot poll already proved `/`
+  // answered 200, so an immediate ECONNREFUSED on the next request
+  // is a transient race against the server's shutdown / restart,
+  // not a permanent breakage.
+  it("DOES retry on fetch transport errors when expectedDevPlugin is set", async () => {
+    let call = 0;
+    let now = 0;
+    const fetchImpl = (async () => {
+      call += 1;
+      if (call < 3) throw new Error("ECONNREFUSED");
+      return new Response(JSON.stringify({ plugins: [{ name: "@smoke/dev-fixture", version: "dev" }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }) as unknown as typeof globalThis.fetch;
+    const result = await tarball.probeRuntimePlugins({
+      port: 3099,
+      token: "tok",
+      fetchImpl,
+      expectedDevPlugin: "@smoke/dev-fixture",
+      pollTimeoutMs: 5_000,
+      pollIntervalMs: 100,
+      now: () => now,
+      sleep: async (delayMs: number) => {
+        now += delayMs;
+      },
+    });
+    assert.equal(result.ok, true);
+    assert.equal(call, 3);
   });
 });
 

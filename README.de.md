@@ -8,17 +8,11 @@
 
 [English](README.md) · [日本語](README.ja.md) · [简体中文](README.zh.md) · [한국어](README.ko.md) · [Español](README.es.md) · [Português (BR)](README.pt-BR.md) · [Français](README.fr.md) · **Deutsch**
 
-GUI-Chat mit Claude Code — Langzeitgedächtnis, reichhaltige visuelle Ausgaben, Sandbox-Ausführung und Fernzugriff von überall.
+> **[How AI-Native Applications Should Be Built](MANIFEST.md)** — die Architektur-, UX- und Protokollthese hinter MulmoClaude.
 
-**Langzeitgedächtnis**: Ein integriertes persönliches Wiki — inspiriert von Andrej Karpathys Idee, einem LLM ein mit der Zeit wachsendes Notizbuch zu geben — verleiht Claude **beständiges Wissen**, das mit jedem Gespräch wächst.
+MulmoClaude ist eine Open-Source-, KI-native Anwendungsplattform, die lokal auf Ihrer Maschine läuft. Statt isolierter Anwendungen werden Fähigkeiten als Plugins innerhalb eines einzigen Registers aufgebaut. Zu den Anwendungen, die heute darauf laufen, gehören ein vollständiges Buchhaltungssystem (mit echter serverseitiger Buchführungslogik), die Encore Obligation Engine, ein persönliches Wiki und ein SEC-Filings-Reader (Edgar). Claude fungiert als universeller Controller, der über diese Plugins hinweg komponiert.
 
-Chatten Sie mit Claude Code und erhalten Sie nicht nur Text, sondern **interaktive visuelle Ausgaben**: Dokumente, Tabellenkalkulationen, Mindmaps, Diagramme, Bilder, Formulare, 3D-Szenen und vieles mehr.
-
-**Sandbox-Ausführung**: Claude Code läuft innerhalb einer Sandbox und schützt Ihr System so vor Prompt-Injection-Angriffen.
-
-**Zugriff von überall**: Verbinden Sie Telegram, Slack, LINE, Discord oder [10 weitere Messaging-Apps](#messaging-bridges), um vom Handy aus mit Ihrem KI-Agenten zu sprechen.
-
-**Geplante Aufgaben**: Übergeben Sie wiederkehrende Arbeit — tägliche Zusammenfassungen, regelmäßige Prüfungen, geplante Erinnerungen — an den integrierten Scheduler, der Ihren Agenten per Cron ausführt.
+Sie interagieren in natürlicher Sprache, und Claude ruft die passende GUI für die Aufgabe auf — antwortet in Markdown, Diagrammen, Formularen, Wikis, Tabellenkalkulationen oder 3D-Szenen. Alle Daten leben als einfache Dateien in Ihrem Workspace.
 
 ## Schnellstart
 

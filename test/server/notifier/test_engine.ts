@@ -8,6 +8,8 @@ import {
   clear,
   cancel,
   clearForPlugin,
+  updateForPlugin,
+  getForPlugin,
   get,
   listFor,
   listAll,
@@ -594,5 +596,164 @@ describe("clearForPlugin (per-plugin isolation)", () => {
     const { id: stranger } = await publish({ pluginPkg: "@scope/b", severity: "info", title: "theirs" });
     await clearForPlugin("@scope/a", stranger); // attempt
     assert.deepEqual(await listHistory(), []);
+  });
+});
+
+describe("updateForPlugin (in-place state refresh)", () => {
+  it("rewrites only the patched fields and keeps id, lifecycle, createdAt, pluginPkg fixed", async () => {
+    const { id } = await publish({
+      pluginPkg: "@scope/owner",
+      severity: "nudge",
+      lifecycle: "action",
+      title: "Pay tax",
+      body: "Due Friday",
+      navigateTarget: "/x",
+      pluginData: { todoId: "abc" },
+    });
+    const before = await get(id);
+    assert.ok(before);
+    const { createdAt } = before;
+
+    await updateForPlugin("@scope/owner", id, { title: "Pay state tax", severity: "urgent" });
+
+    const after = await get(id);
+    assert.ok(after);
+    assert.equal(after.id, id, "id must be stable");
+    assert.equal(after.pluginPkg, "@scope/owner");
+    assert.equal(after.lifecycle, "action", "lifecycle is not updatable");
+    assert.equal(after.createdAt, createdAt, "createdAt must be stable");
+    assert.equal(after.title, "Pay state tax", "title rewritten");
+    assert.equal(after.severity, "urgent", "severity rewritten");
+    assert.equal(after.body, "Due Friday", "body not in patch — must be preserved");
+    assert.equal(after.navigateTarget, "/x", "navigateTarget not in patch — must be preserved");
+    assert.deepEqual(after.pluginData, { todoId: "abc" }, "pluginData not in patch — must be preserved");
+  });
+
+  it("emits exactly one `updated` event after a successful update", async () => {
+    const { id } = await publish({ pluginPkg: "@scope/owner", severity: "info", title: "t" });
+    emittedEvents.length = 0;
+    await updateForPlugin("@scope/owner", id, { title: "t2" });
+    assert.equal(emittedEvents.length, 1);
+    const [event] = emittedEvents;
+    assert.equal(event.type, "updated");
+    if (event.type === "updated") {
+      assert.equal(event.entry.id, id);
+      assert.equal(event.entry.title, "t2");
+    }
+  });
+
+  it("never writes to history (updated entries are still active)", async () => {
+    const { id } = await publish({ pluginPkg: "@scope/owner", severity: "info", title: "t" });
+    await updateForPlugin("@scope/owner", id, { title: "t2" });
+    assert.deepEqual(await listHistory(), [], "update must not pollute history");
+  });
+
+  it("survives a JSON round-trip (active.json persists the new fields)", async () => {
+    const { id } = await publish({ pluginPkg: "@scope/owner", severity: "info", title: "first" });
+    await updateForPlugin("@scope/owner", id, { title: "second", body: "now with body" });
+    // The file on disk is the source of truth — re-read it directly.
+    const fileContents = JSON.parse(readFileSync(activeFile, "utf-8"));
+    assert.equal(fileContents.entries[id].title, "second");
+    assert.equal(fileContents.entries[id].body, "now with body");
+  });
+
+  it("silently no-ops on unknown id", async () => {
+    emittedEvents.length = 0;
+    await updateForPlugin("@scope/anyone", "00000000-0000-0000-0000-000000000000", { title: "ghost" });
+    assert.equal(emittedEvents.length, 0);
+    assert.deepEqual(await listHistory(), []);
+  });
+
+  it("silently no-ops when the entry belongs to another plugin", async () => {
+    const { id } = await publish({ pluginPkg: "@scope/owner", severity: "info", title: "theirs" });
+    emittedEvents.length = 0;
+    await updateForPlugin("@scope/intruder", id, { title: "hijacked" });
+    const after = await get(id);
+    assert.equal(after?.title, "theirs", "another plugin must not be able to mutate this entry");
+    assert.equal(emittedEvents.length, 0);
+  });
+
+  it("rejects a patch that would make action+info severity (validation re-runs)", async () => {
+    const { id } = await publish({
+      pluginPkg: "@scope/owner",
+      severity: "nudge",
+      lifecycle: "action",
+      title: "Live",
+      navigateTarget: "/x",
+    });
+    emittedEvents.length = 0;
+    await updateForPlugin("@scope/owner", id, { severity: "info" });
+    // Patch silently rejected — entry unchanged, no event emitted.
+    const after = await get(id);
+    assert.equal(after?.severity, "nudge", "severity must not have dropped to info on an action entry");
+    assert.equal(emittedEvents.length, 0);
+  });
+
+  it("rejects a patch that would empty the title", async () => {
+    const { id } = await publish({ pluginPkg: "@scope/owner", severity: "info", title: "non-empty" });
+    emittedEvents.length = 0;
+    await updateForPlugin("@scope/owner", id, { title: "" });
+    const after = await get(id);
+    assert.equal(after?.title, "non-empty", "empty title rejected, original preserved");
+    assert.equal(emittedEvents.length, 0);
+  });
+
+  it("rejects a patch that would oversize the title", async () => {
+    const { id } = await publish({ pluginPkg: "@scope/owner", severity: "info", title: "ok" });
+    emittedEvents.length = 0;
+    await updateForPlugin("@scope/owner", id, { title: "x".repeat(NOTIFIER_LIMITS.titleMax + 1) });
+    const after = await get(id);
+    assert.equal(after?.title, "ok");
+    assert.equal(emittedEvents.length, 0);
+  });
+
+  it("allows updating pluginData (opaque round-trip, like publish)", async () => {
+    const { id } = await publish({ pluginPkg: "@scope/owner", severity: "info", title: "t", pluginData: { v: 1 } });
+    await updateForPlugin("@scope/owner", id, { pluginData: { v: 2, extra: "added" } });
+    const after = await get(id);
+    assert.deepEqual(after?.pluginData, { v: 2, extra: "added" });
+  });
+
+  it("does not interfere with a subsequent clear (same id, normal terminal path)", async () => {
+    const { id } = await publish({ pluginPkg: "@scope/owner", severity: "info", title: "t" });
+    await updateForPlugin("@scope/owner", id, { title: "t2" });
+    await clearForPlugin("@scope/owner", id);
+    assert.equal(await get(id), undefined, "entry removed by clear");
+    const [terminal] = await listHistory();
+    assert.equal(terminal.id, id);
+    assert.equal(terminal.title, "t2", "history records the LAST seen title before clear");
+  });
+});
+
+describe("getForPlugin (scoped point lookup)", () => {
+  it("returns the entry when caller owns it", async () => {
+    const { id } = await publish({ pluginPkg: "@scope/owner", severity: "info", title: "mine" });
+    const entry = await getForPlugin("@scope/owner", id);
+    assert.ok(entry);
+    assert.equal(entry.id, id);
+    assert.equal(entry.title, "mine");
+  });
+
+  it("returns undefined for an unknown id (ghost bell)", async () => {
+    const entry = await getForPlugin("@scope/owner", "00000000-0000-0000-0000-000000000000");
+    assert.equal(entry, undefined);
+  });
+
+  it("returns undefined when the entry belongs to another plugin (isolation)", async () => {
+    const { id } = await publish({ pluginPkg: "@scope/a", severity: "info", title: "ours" });
+    // Probe from another plugin — must not be readable, same shape
+    // as clearForPlugin/updateForPlugin isolation.
+    const fromStranger = await getForPlugin("@scope/b", id);
+    assert.equal(fromStranger, undefined, "cross-plugin lookups must come back as undefined");
+    // Owner can still see it.
+    const fromOwner = await getForPlugin("@scope/a", id);
+    assert.ok(fromOwner, "owner read must succeed");
+  });
+
+  it("returns undefined for an entry that was just cleared (ghost detection works post-clear)", async () => {
+    const { id } = await publish({ pluginPkg: "@scope/owner", severity: "info", title: "doomed" });
+    assert.ok(await getForPlugin("@scope/owner", id), "alive before clear");
+    await clearForPlugin("@scope/owner", id);
+    assert.equal(await getForPlugin("@scope/owner", id), undefined, "absent after clear");
   });
 });

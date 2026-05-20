@@ -26,7 +26,7 @@ const repoRoot = path.resolve(__dirname, "..");
 const ENTRIES = [
   {
     src: "server/workspace/hooks/dispatcher.ts",
-    out: "server/workspace/hooks/dispatcher.mjs",
+    out: "server/build/dispatcher.mjs",
   },
 ];
 
@@ -42,10 +42,15 @@ async function buildEntry({ src, out }) {
     platform: "node",
     format: "esm",
     target: "node22",
-    // The hook runs in whatever Node the Claude CLI launches it
-    // with. Source maps are tiny and worth committing — they make
-    // the bundled .mjs debuggable as the original TS.
-    sourcemap: "inline",
+    // No sourcemap: an inline sourcemap's base64 changes on every
+    // rebuild (absolute paths / ordering), so the committed bundle
+    // showed as modified after every `yarn build` even with zero
+    // source change — pure git noise. The bundle is small and its
+    // functions are named; a hook stack trace pointing at a
+    // `dispatcher.mjs` line is good enough to triage. Dropping the
+    // map makes the output deterministic: it only changes when the
+    // source actually does.
+    sourcemap: false,
     // `#!/usr/bin/env node` shebang so the hook is executable
     // when the workspace's `.claude/hooks/` dir copies the file
     // (matches the existing chmod 0o700 behaviour from

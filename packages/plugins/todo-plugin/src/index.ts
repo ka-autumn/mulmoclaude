@@ -21,12 +21,13 @@
 // `columns.json` under `runtime.files.data`). All mutating actions
 // publish a `changed` pubsub event so multi-tab views auto-refresh.
 
-import { definePlugin } from "gui-chat-protocol";
+import { definePlugin, type PluginRuntime } from "gui-chat-protocol";
 import { TOOL_DEFINITION } from "./definition";
 import { loadTodos, saveTodos, loadColumns, saveColumns } from "./io";
 import { dispatchTodos, type TodosActionInput } from "./handlers/llm";
 import { handleAddColumn, handleDeleteColumn, handlePatchColumn, handleReorderColumns } from "./handlers/columns";
 import { handleCreate, handleDeleteItem, handleMove, handlePatch, type CreateInput, type MoveInput, type PatchInput } from "./handlers/items";
+import { reconcilePriorityNotifications, type PriorityNotifierApi } from "./handlers/priority-notifier";
 
 export { TOOL_DEFINITION };
 export type { TodoItem, TodoPriority, StatusColumn, TodoData } from "./types";
@@ -59,9 +60,48 @@ function isUiArgs(value: unknown): value is UiArgs {
   return typeof value === "object" && value !== null && "kind" in value && typeof (value as { kind: unknown }).kind === "string";
 }
 
-export default definePlugin(({ pubsub, files, log }) => {
+// Host extension: MulmoClaude attaches a per-plugin `notifier` to the
+// PluginRuntime (publish / clear). Type-only — the runtime object
+// the host hands us at boot already has the field; this cast just
+// teaches TypeScript about it without importing server-internal
+// types. Same pattern as debug-plugin.
+type MulmoclaudeRuntime = PluginRuntime & {
+  notifier: PriorityNotifierApi;
+};
+
+export default definePlugin((runtime) => {
+  const { pubsub, files, log } = runtime;
+  const { notifier } = runtime as MulmoclaudeRuntime;
+
+  // Single source of truth for the desired notification set. Called
+  // after every save so the notifier converges on
+  // `priority ∈ {urgent, high} && !completed`. Idempotent — extra
+  // calls are cheap (load tickets + diff) and never produce
+  // duplicates. The plugin's own `urgent-tickets.json` is the
+  // canonical "what bells we own" record; we never query the host
+  // notifier's active set.
+  async function reconcileNotifications(items: Awaited<ReturnType<typeof loadTodos>>): Promise<void> {
+    await reconcilePriorityNotifications(items, notifier, files.data, log);
+  }
+
+  // Boot reconcile: catches the post-crash case where active.json
+  // outlived a mutation that should have cleared its entry, or where
+  // todos.json was hand-edited while the host was down. Kicked off
+  // here (not awaited at init — plugin init must stay non-blocking),
+  // but each handler awaits the promise before its own reconcile so
+  // there's no race between the boot pass and the first dispatch.
+  const bootReconcile: Promise<void> = (async () => {
+    try {
+      const items = await loadTodos(files.data);
+      await reconcileNotifications(items);
+    } catch (err) {
+      log.warn("boot reconcile failed", { error: String(err) });
+    }
+  })();
+
   // ── LLM action path ───────────────────────────────────────────
   async function handleLlm(args: LlmArgs) {
+    await bootReconcile;
     const { action, ...input } = args;
     log.info("dispatch llm", { action });
     const items = await loadTodos(files.data);
@@ -72,6 +112,7 @@ export default definePlugin(({ pubsub, files, log }) => {
     }
     if (!READ_ONLY_ACTIONS.has(action)) {
       await saveTodos(files.data, result.items);
+      await reconcileNotifications(result.items);
       pubsub.publish("changed", { reason: "llm-action", action });
     }
     return {
@@ -88,6 +129,7 @@ export default definePlugin(({ pubsub, files, log }) => {
   // just spread one big case statement across helper files for no
   // readability win.
   async function handleUi(args: UiArgs) {
+    await bootReconcile;
     log.info("dispatch ui", { kind: args.kind });
     if (args.kind === "listAll") {
       const [items, columns] = await Promise.all([loadTodos(files.data), loadColumns(files.data)]);
@@ -98,6 +140,7 @@ export default definePlugin(({ pubsub, files, log }) => {
       const result = handleCreate(items, columns, args);
       if (result.kind === "error") return { error: result.error, status: result.status };
       await saveTodos(files.data, result.items);
+      await reconcileNotifications(result.items);
       pubsub.publish("changed", { reason: "item-create" });
       return { data: { items: result.items, columns }, ...(result.item && { item: result.item }) };
     }
@@ -105,6 +148,7 @@ export default definePlugin(({ pubsub, files, log }) => {
       const result = handlePatch(items, columns, args.id, args);
       if (result.kind === "error") return { error: result.error, status: result.status };
       await saveTodos(files.data, result.items);
+      await reconcileNotifications(result.items);
       pubsub.publish("changed", { reason: "item-patch", id: args.id });
       return { data: { items: result.items, columns }, ...(result.item && { item: result.item }) };
     }
@@ -112,6 +156,7 @@ export default definePlugin(({ pubsub, files, log }) => {
       const result = handleMove(items, columns, args.id, args);
       if (result.kind === "error") return { error: result.error, status: result.status };
       await saveTodos(files.data, result.items);
+      await reconcileNotifications(result.items);
       pubsub.publish("changed", { reason: "item-move", id: args.id });
       return { data: { items: result.items, columns }, ...(result.item && { item: result.item }) };
     }
@@ -119,6 +164,7 @@ export default definePlugin(({ pubsub, files, log }) => {
       const result = handleDeleteItem(items, args.id);
       if (result.kind === "error") return { error: result.error, status: result.status };
       await saveTodos(files.data, result.items);
+      await reconcileNotifications(result.items);
       pubsub.publish("changed", { reason: "item-delete", id: args.id });
       return { data: { items: result.items, columns } };
     }
@@ -127,6 +173,7 @@ export default definePlugin(({ pubsub, files, log }) => {
       if (result.kind === "error") return { error: result.error, status: result.status };
       await saveColumns(files.data, result.columns);
       if (result.items) await saveTodos(files.data, result.items);
+      if (result.items) await reconcileNotifications(result.items);
       pubsub.publish("changed", { reason: "column-add" });
       return { data: { items: result.items ?? items, columns: result.columns } };
     }
@@ -135,6 +182,7 @@ export default definePlugin(({ pubsub, files, log }) => {
       if (result.kind === "error") return { error: result.error, status: result.status };
       await saveColumns(files.data, result.columns);
       if (result.items) await saveTodos(files.data, result.items);
+      if (result.items) await reconcileNotifications(result.items);
       pubsub.publish("changed", { reason: "column-patch", id: args.id });
       return { data: { items: result.items ?? items, columns: result.columns } };
     }
@@ -143,6 +191,7 @@ export default definePlugin(({ pubsub, files, log }) => {
       if (result.kind === "error") return { error: result.error, status: result.status };
       await saveColumns(files.data, result.columns);
       if (result.items) await saveTodos(files.data, result.items);
+      if (result.items) await reconcileNotifications(result.items);
       pubsub.publish("changed", { reason: "column-delete", id: args.id });
       return { data: { items: result.items ?? items, columns: result.columns } };
     }

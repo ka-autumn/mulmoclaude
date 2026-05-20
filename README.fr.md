@@ -8,17 +8,11 @@
 
 [English](README.md) · [日本語](README.ja.md) · [简体中文](README.zh.md) · [한국어](README.ko.md) · [Español](README.es.md) · [Português (BR)](README.pt-BR.md) · **Français** · [Deutsch](README.de.md)
 
-Chat graphique avec Claude Code — mémoire à long terme, sortie visuelle riche, exécution en sandbox et accès distant depuis n'importe où.
+> **[How AI-Native Applications Should Be Built](MANIFEST.md)** — la thèse architecturale, UX et protocolaire derrière MulmoClaude.
 
-**Mémoire à long terme** : un wiki personnel intégré — inspiré de l'idée d'Andrej Karpathy de donner à un LLM un carnet qui s'étoffe avec le temps — apporte à Claude des **connaissances persistantes** qui s'enrichissent à chaque conversation.
+MulmoClaude est une plateforme d'applications AI-natives, open source, qui s'exécute localement sur votre machine. Au lieu d'applications cloisonnées, les capacités sont construites en tant que plugins au sein d'un unique registre. Les applications qui tournent dessus aujourd'hui incluent un système comptable complet (avec une véritable logique de tenue de livres côté serveur), le moteur d'obligations Encore, un wiki personnel et un lecteur de documents SEC (Edgar). Claude agit comme un contrôleur universel qui compose à travers ces plugins.
 
-Discutez avec Claude Code et recevez non seulement du texte, mais aussi une **sortie visuelle interactive** : documents, feuilles de calcul, cartes mentales, graphiques, images, formulaires, scènes 3D et plus encore.
-
-**Exécution en sandbox** : Claude Code s'exécute dans un sandbox, ce qui protège votre système contre les attaques par injection de prompt.
-
-**Accédez depuis n'importe où** : connectez Telegram, Slack, LINE, Discord ou [10 autres applications de messagerie](#messaging-bridges) pour dialoguer avec votre agent IA depuis votre téléphone.
-
-**Tâches planifiées** : déléguez les tâches récurrentes — résumés quotidiens, vérifications périodiques, rappels programmés — au planificateur intégré, qui exécute votre agent via cron.
+Vous interagissez en langage naturel, et Claude invoque la bonne GUI pour la tâche — en répondant en markdown, graphiques, formulaires, wikis, feuilles de calcul ou scènes 3D. Toutes les données vivent sous forme de fichiers simples dans votre workspace.
 
 ## Démarrage rapide
 

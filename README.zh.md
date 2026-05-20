@@ -8,17 +8,11 @@
 
 [English](README.md) · [日本語](README.ja.md) · **简体中文** · [한국어](README.ko.md) · [Español](README.es.md) · [Português (BR)](README.pt-BR.md) · [Français](README.fr.md) · [Deutsch](README.de.md)
 
-与 Claude Code 对话的 GUI 聊天界面 —— 具备长期记忆、丰富的可视化输出、沙箱执行，以及随处可用的远程访问。
+> **[How AI-Native Applications Should Be Built](MANIFEST.md)** —— MulmoClaude 背后的架构、UX 与协议论述。
 
-**长期记忆**：内置的个人 wiki —— 灵感来自 Andrej Karpathy 提出的「让 LLM 拥有一本随时间增长的笔记」这一想法 —— 为 Claude 提供 **持久化知识**，并随着每次对话不断丰富。
+MulmoClaude 是一个在本机上运行的开源 AI 原生应用平台。它不再以孤立的应用为单位，而是将各项能力构建为单一注册表中的插件。如今在其上运行的应用包括：完整的会计系统（带真正的服务端记账逻辑）、Encore 义务引擎、个人 wiki，以及 SEC 文件阅读器（Edgar）。Claude 作为通用控制器，在这些插件之间进行组合编排。
 
-与 Claude Code 对话，获得的不仅仅是文本，而是 **交互式可视化输出**：文档、电子表格、思维导图、图表、图片、表单、3D 场景等等。
-
-**沙箱执行**：Claude Code 在沙箱中运行，可保护你的系统免受提示注入攻击。
-
-**随处访问**：连接 Telegram、Slack、LINE、Discord 或 [另外 10 种消息应用](#messaging-bridges)，即可从手机与你的 AI 代理对话。
-
-**定时任务**：把每日摘要、周期性检查、定时提醒等重复性工作交给内置调度器，按 cron 计划运行你的代理。
+你用自然语言进行交互，Claude 会为任务召唤合适的 GUI —— 以 markdown、图表、表单、wiki、电子表格或 3D 场景作出回复。所有数据都以普通文件的形式存放在你的工作区中。
 
 ## 快速开始
 

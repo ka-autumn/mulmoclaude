@@ -77,6 +77,9 @@ jobs:
         with:
           # Codex needs full history to inspect the PR diff via `gh`.
           fetch-depth: 0
+          # `gh` uses GH_TOKEN env, not git-persisted creds, so
+          # dropping them is safe (zizmor artipacked).
+          persist-credentials: false
 
       - name: Use Node.js 22.x
         uses: actions/setup-node@v4
@@ -121,7 +124,22 @@ jobs:
           mkdir -p "$HOME/.codex"
           # Strip trailing slash so concatenation never doubles up.
           BASE_URL="${AZURE_BASE_URL%/}"
-          cat > "$HOME/.codex/config.toml" <<TOML
+          # Quoted heredoc (<<'TOML') = pure literal: the TOML body
+          # (with its `=`, `{ }`, comments) is never parsed as shell,
+          # so no accidental command substitution. envsubst then fills
+          # ONLY the three whitelisted vars — anything else, including
+          # a literal `$x` in TOML, is left untouched.
+          # Codex CLI 0.125.0 only supports the "responses" wire (Chat
+          # Completions was removed); on Azure that needs
+          # api-version >= 2025-03-01-preview on a deployment exposing
+          # the Responses surface (recent gpt-4o / gpt-4.1 / gpt-5).
+          export AZURE_MODEL BASE_URL AZURE_API_VERSION
+          # envsubst's SHELL-FORMAT arg MUST stay single-quoted: it is
+          # the literal allowlist of names to replace, not a shell
+          # expansion. SC2016 is exactly backwards here.
+          # shellcheck disable=SC2016
+          envsubst '${AZURE_MODEL} ${BASE_URL} ${AZURE_API_VERSION}' \
+            > "$HOME/.codex/config.toml" <<'TOML'
           model_provider = "azure"
           model = "${AZURE_MODEL}"
 
@@ -129,11 +147,6 @@ jobs:
           name = "Azure OpenAI"
           base_url = "${BASE_URL}/openai/v1"
           env_key = "OPENAI_API_KEY"
-          # Codex CLI 0.125.0 only supports `responses` (Chat
-          # Completions wire was removed). On Azure this needs
-          # `api-version = 2025-03-01-preview` or newer + a
-          # deployment that exposes the Responses surface (recent
-          # gpt-4o / gpt-4.1 / gpt-5 family does).
           wire_api = "responses"
           query_params = { "api-version" = "${AZURE_API_VERSION}" }
           TOML

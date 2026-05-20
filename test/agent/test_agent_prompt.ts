@@ -10,8 +10,6 @@ import {
   buildTimeSection,
   headingSection,
   prependJournalPointer,
-  buildInlinedHelpFiles,
-  summarizeHelpContent,
   buildPluginPromptSections,
   formatPluginSection,
 } from "../../server/agent/prompt.js";
@@ -114,8 +112,8 @@ describe("headingSection", () => {
   });
 
   it("keeps a single item verbatim under the heading", () => {
-    const out = headingSection("Reference Files", ["### helps/index.md\n\ncontent"]);
-    assert.equal(out, "## Reference Files\n\n### helps/index.md\n\ncontent");
+    const out = headingSection("Plugin Instructions", ["### name\n\ncontent"]);
+    assert.equal(out, "## Plugin Instructions\n\n### name\n\ncontent");
   });
 
   it("preserves embedded blank lines inside items", () => {
@@ -444,92 +442,6 @@ describe("prependJournalPointer", () => {
     writeJournalIndex();
     const result = prependJournalPointer("hi", workspace);
     assert.ok(result.toLowerCase().includes("skip"), "pointer should tell the model it can skip when not needed");
-  });
-});
-
-describe("summarizeHelpContent", () => {
-  it("extracts H1 and first paragraph joined by em-dash", () => {
-    const content = "# Wiki Help\n\nWrite wiki pages under data/wiki/pages/.\n\nMore details here.";
-    const result = summarizeHelpContent(content);
-    assert.equal(result, "Wiki Help — Write wiki pages under data/wiki/pages/.");
-  });
-
-  it("handles file with no H1", () => {
-    const content = "Quick tip: prefix branches with feat/.";
-    assert.equal(summarizeHelpContent(content), "Quick tip: prefix branches with feat/.");
-  });
-
-  it("handles file with only a heading", () => {
-    const content = "# Sandbox";
-    assert.equal(summarizeHelpContent("# Sandbox"), "Sandbox");
-    assert.equal(summarizeHelpContent(content), "Sandbox");
-  });
-
-  it("truncates long first paragraphs to 200 chars with ellipsis", () => {
-    const long = "x".repeat(500);
-    const content = `# Header\n\n${long}`;
-    const result = summarizeHelpContent(content);
-    assert.ok(result.startsWith("Header — "));
-    assert.ok(result.endsWith("…"));
-    // 200 for the paragraph cap + "Header — " prefix + trailing ellipsis
-    assert.ok(result.length <= "Header — ".length + 201);
-  });
-
-  it("skips headings between paragraphs when looking for a first paragraph", () => {
-    const content = "# Top\n\n## Sub\n\nFirst real paragraph after sub-heading.";
-    assert.equal(summarizeHelpContent(content), "Top — First real paragraph after sub-heading.");
-  });
-
-  it("returns empty string for content with nothing quotable", () => {
-    assert.equal(summarizeHelpContent(""), "");
-    assert.equal(summarizeHelpContent("\n\n\n"), "");
-  });
-});
-
-describe("buildInlinedHelpFiles", () => {
-  // Reuses the outer-scope `workspace` set by the top-level
-  // beforeEach/afterEach at the top of this file.
-  function writeHelp(name: string, content: string): void {
-    writeFileAt(workspace, `config/helps/${name}`, content);
-  }
-
-  it("inlines small help files verbatim", () => {
-    writeHelp("small.md", "# Small\n\nOne short line.");
-    const result = buildInlinedHelpFiles("Read helps/small.md for details.", workspace);
-    assert.equal(result.length, 1);
-    assert.ok(result[0].includes("### config/helps/small.md"));
-    assert.ok(result[0].includes("# Small\n\nOne short line."));
-    assert.ok(!result[0].includes("Detailed reference"));
-  });
-
-  it("summarizes + points to large help files", () => {
-    const bigBody = `\n\n${"filler paragraph. ".repeat(200)}`;
-    writeHelp("big.md", `# Big Help\n\nFirst real content paragraph explaining the feature.${bigBody}`);
-    const result = buildInlinedHelpFiles("See config/helps/big.md", workspace);
-    assert.equal(result.length, 1);
-    const [section] = result;
-    assert.ok(section.includes("### config/helps/big.md"));
-    assert.ok(section.includes("Big Help"));
-    assert.ok(section.includes("First real content paragraph"));
-    assert.ok(section.includes("Detailed reference: use Read on `config/helps/big.md`"));
-    assert.ok(!section.includes("filler paragraph. filler paragraph."));
-  });
-
-  it("deduplicates when the exact same ref appears twice", () => {
-    writeHelp("dup.md", "# Dup\n\nShort.");
-    const result = buildInlinedHelpFiles("Read helps/dup.md first, then helps/dup.md again.", workspace);
-    assert.equal(result.length, 1);
-  });
-
-  it("skips missing files without throwing", () => {
-    const result = buildInlinedHelpFiles("Read helps/ghost.md", workspace);
-    assert.deepEqual(result, []);
-  });
-
-  it("skips empty-content files", () => {
-    writeHelp("empty.md", "   \n\n   ");
-    const result = buildInlinedHelpFiles("Read helps/empty.md", workspace);
-    assert.deepEqual(result, []);
   });
 });
 

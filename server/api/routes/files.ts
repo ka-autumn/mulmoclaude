@@ -816,6 +816,22 @@ async function writeFileContent(absPath: string, content: string): Promise<void>
   }
 }
 
+// JSON config files are editable from the Files Explorer (#833 Phase
+// 1), but a hand-edit that breaks JSON syntax would corrupt a file the
+// app (or the agent) parses on read. Reject a malformed save before it
+// hits disk so the editor can surface the parser error inline. `.jsonl`
+// is intentionally excluded — each line is its own document, not one
+// JSON value, so `JSON.parse` of the whole file would always fail.
+function jsonSyntaxError(relPath: string, content: string): string | null {
+  if (!relPath.toLowerCase().endsWith(".json")) return null;
+  try {
+    JSON.parse(content);
+    return null;
+  } catch (err) {
+    return `Invalid JSON: ${errorMessage(err)}`;
+  }
+}
+
 // Write the body of an existing text file. Only text-classified files
 // (per `classify`) are editable — binary, image, audio, etc. are
 // refused so the endpoint can't be used to ship arbitrary uploads.
@@ -834,6 +850,12 @@ router.put(API_ROUTES.files.content, async (req: Request<object, unknown, WriteC
   if (!resolved.ok) {
     if (resolved.status === 404) notFound(res, resolved.message);
     else badRequest(res, resolved.message);
+    return;
+  }
+  const jsonError = jsonSyntaxError(relPath, content);
+  if (jsonError !== null) {
+    log.warn("files", "PUT content: invalid JSON", { pathPreview: previewSnippet(relPath) });
+    badRequest(res, jsonError);
     return;
   }
   try {

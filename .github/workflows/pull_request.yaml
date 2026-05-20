@@ -36,6 +36,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          persist-credentials: false  # no git push; zizmor artipacked
       - id: filter
         shell: bash
         run: |
@@ -61,6 +62,8 @@ jobs:
         os: [ubuntu-latest, windows-2022, macos-latest]
     steps:
     - uses: actions/checkout@v6
+      with:
+        persist-credentials: false  # no git push; zizmor artipacked
     - name: Use Node.js ${{ matrix.node-version }}
       uses: actions/setup-node@v6
       with:
@@ -115,16 +118,19 @@ jobs:
     # drift inside `node_modules` or the dist artifact.
     - run: yarn run plugins:codegen:check
     - run: yarn run build
-    # Bundle integrity: `yarn build` regenerates committed
-    # esbuild artifacts (currently `server/workspace/wiki-history/
-    # hook/snapshot.mjs`). If a developer changed the TS source but
-    # forgot to commit the new bundle, this fails — without the
-    # check a stale bundle would silently land on main. Limited to
-    # the build outputs we know about so edits to other generated
-    # files (e.g. dist/, packages/*/dist) don't false-positive.
-    # (Codex review iter-1 #955.)
-    - name: Verify built hook bundle is up-to-date
-      run: git diff --exit-code -- server/workspace/wiki-history/hook/snapshot.mjs
+    # Bundle integrity: `yarn build` regenerates committed esbuild
+    # artifacts (`server/workspace/wiki-history/hook/snapshot.mjs`
+    # and `server/build/dispatcher.mjs`). If a developer changed the
+    # TS source but forgot to commit the new bundle, this fails —
+    # without the check a stale bundle would silently land on main.
+    # Limited to the build outputs we know about so edits to other
+    # generated files (e.g. dist/, packages/*/dist) don't
+    # false-positive. The dispatcher bundle is sourcemap-free so its
+    # output is deterministic across rebuilds — this gate would have
+    # flapped on the old inline-sourcemap output. (Codex review
+    # iter-1 #955.)
+    - name: Verify built hook bundles are up-to-date
+      run: git diff --exit-code -- server/workspace/wiki-history/hook/snapshot.mjs server/build/dispatcher.mjs
     - run: yarn run test:coverage
 
   # Single Yarn 4 cell — Yarn 1 stays the primary tool for the lint_test
@@ -136,6 +142,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false  # no git push; zizmor artipacked
       - uses: actions/setup-node@v6
         with:
           node-version: 24.x
@@ -189,6 +197,8 @@ jobs:
         shard: [1, 2]
     steps:
     - uses: actions/checkout@v6
+      with:
+        persist-credentials: false  # no git push; zizmor artipacked
     - name: Use Node.js 22.x
       uses: actions/setup-node@v6
       with:

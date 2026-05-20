@@ -238,3 +238,46 @@ describe("PUT /api/files/content — missing targets", () => {
     assert.match((state.body as ErrorBody).error, /not a file/i);
   });
 });
+
+describe("PUT /api/files/content — JSON validation (#833)", () => {
+  it("rejects a syntactically invalid .json save with 400 and does not write to disk", async () => {
+    const rel = "config.json";
+    const original = '{\n  "a": 1\n}';
+    await writeFile(path.join(workspaceDir, rel), original, "utf-8");
+
+    const { state, res } = mockRes();
+    await putHandler(req({ path: rel, content: "{ broken" }), res);
+
+    assert.equal(state.status, 400);
+    assert.match((state.body as ErrorBody).error, /invalid json/i);
+    // The malformed body must never reach disk — the original stays.
+    const onDisk = await promises.readFile(path.join(workspaceDir, rel), "utf-8");
+    assert.equal(onDisk, original);
+  });
+
+  it("accepts a valid .json save", async () => {
+    const rel = "config.json";
+    await writeFile(path.join(workspaceDir, rel), "{}", "utf-8");
+
+    const { state, res } = mockRes();
+    await putHandler(req({ path: rel, content: '{\n  "theme": "dark"\n}' }), res);
+
+    assert.equal(state.status, 200);
+    const onDisk = await promises.readFile(path.join(workspaceDir, rel), "utf-8");
+    assert.equal(onDisk, '{\n  "theme": "dark"\n}');
+  });
+
+  it("does not apply JSON validation to .jsonl (multi-document; whole-file parse would always fail)", async () => {
+    const rel = "log.jsonl";
+    await writeFile(path.join(workspaceDir, rel), '{"n":1}\n', "utf-8");
+
+    const { state, res } = mockRes();
+    // Two newline-delimited objects: not a single JSON value, so a
+    // .json gate would reject it. .jsonl must remain writable.
+    await putHandler(req({ path: rel, content: '{"n":1}\n{"n":2}\n' }), res);
+
+    assert.equal(state.status, 200);
+    const onDisk = await promises.readFile(path.join(workspaceDir, rel), "utf-8");
+    assert.equal(onDisk, '{"n":1}\n{"n":2}\n');
+  });
+});

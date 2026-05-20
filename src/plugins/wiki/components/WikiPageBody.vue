@@ -61,6 +61,10 @@ function onClick(event: MouseEvent) {
 .wiki-content :deep(.wiki-link:hover) {
   text-decoration-style: solid;
 }
+.wiki-content :deep(a) {
+  color: #2563eb;
+  text-decoration: underline;
+}
 .wiki-content :deep(h1) {
   font-size: 1.5rem;
   font-weight: 700;

@@ -406,14 +406,19 @@ export const MCP_CATALOG: McpCatalogEntry[] = [
     displayName: "settingsMcpTab.catalog.entry.github.displayName",
     description: "settingsMcpTab.catalog.entry.github.description",
     audience: "general",
-    upstreamUrl: "https://github.com/modelcontextprotocol/servers/tree/main/src/github",
-    setupGuideUrl: "https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens",
+    upstreamUrl: "https://github.com/github/github-mcp-server",
+    setupGuideUrl: "https://docs.github.com/en/copilot/how-tos/provide-context/use-mcp/set-up-the-github-mcp-server",
+    // Switched stdio (@modelcontextprotocol/server-github) → the
+    // provider-hosted remote MCP (#1421 A1). HTTP transport works
+    // under the Docker sandbox, where the stdio reference server is
+    // dropped (server/agent/config.ts — no npx in the minimal
+    // image). PAT auth keeps it OAuth-free; the configSchema key
+    // and its i18n are unchanged so installs/migrations stay valid.
     spec: {
-      type: "stdio",
-      command: "npx",
-      args: ["-y", "@modelcontextprotocol/server-github"],
-      env: {
-        GITHUB_PERSONAL_ACCESS_TOKEN: "${GITHUB_PERSONAL_ACCESS_TOKEN}",
+      type: "http",
+      url: "https://api.githubcopilot.com/mcp/",
+      headers: {
+        Authorization: "Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}",
       },
     },
     configSchema: [

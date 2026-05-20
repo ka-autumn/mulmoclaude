@@ -72,6 +72,18 @@ export interface ProbeRuntimePluginsOptions {
    *  this name appears in the list with version `"dev"`. Used by the
    *  smoke variant that boots with `--dev-plugin <fixture>`. */
   expectedDevPlugin?: string | null;
+  /** Upper bound on how long to keep polling the list endpoint while
+   *  waiting for `expectedDevPlugin` to appear. Plugin loading is a
+   *  fire-and-forget IIFE that resolves after `app.listen()`, so a
+   *  single-shot probe can race the loader and see an empty array.
+   *  Ignored when `expectedDevPlugin` is absent. */
+  pollTimeoutMs?: number;
+  /** Delay between poll attempts when waiting for `expectedDevPlugin`. */
+  pollIntervalMs?: number;
+  /** Injectable clock for tests — defaults to `Date.now`. */
+  now?: () => number;
+  /** Injectable sleep for tests — defaults to a real `setTimeout`. */
+  sleep?: (ms: number) => Promise<void>;
 }
 
 export function probeRuntimePlugins(options: ProbeRuntimePluginsOptions): Promise<RuntimePluginProbeResult>;

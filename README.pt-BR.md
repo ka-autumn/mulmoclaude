@@ -8,17 +8,11 @@
 
 [English](README.md) · [日本語](README.ja.md) · [简体中文](README.zh.md) · [한국어](README.ko.md) · [Español](README.es.md) · **Português (BR)** · [Français](README.fr.md) · [Deutsch](README.de.md)
 
-Chat GUI com Claude Code — memória de longo prazo, saída visual rica, execução em sandbox e acesso remoto de qualquer lugar.
+> **[How AI-Native Applications Should Be Built](MANIFEST.md)** — a tese de arquitetura, UX e protocolo por trás do MulmoClaude.
 
-**Memória de longo prazo**: um wiki pessoal integrado — inspirado na ideia de Andrej Karpathy de dar a um LLM um caderno que cresce com o tempo — dá ao Claude **conhecimento persistente** que se acumula a cada conversa.
+MulmoClaude é uma plataforma de aplicações AI-nativa, de código aberto, que roda localmente na sua máquina. Em vez de aplicativos isolados, as capacidades são construídas como plugins dentro de um único registro. As aplicações que rodam nela hoje incluem um sistema contábil completo (com lógica real de escrituração no lado do servidor), o motor de obrigações Encore, um wiki pessoal e um leitor de documentos da SEC (Edgar). O Claude atua como um controlador universal que compõe através desses plugins.
 
-Converse com o Claude Code e receba de volta não apenas texto, mas **saída visual interativa**: documentos, planilhas, mapas mentais, gráficos, imagens, formulários, cenas 3D e muito mais.
-
-**Execução em sandbox**: o Claude Code é executado dentro de um sandbox, protegendo seu sistema contra ataques de injeção de prompt.
-
-**Acesso de qualquer lugar**: conecte Telegram, Slack, LINE, Discord ou [10 outros aplicativos de mensagens](#messaging-bridges) para conversar com seu agente de IA pelo celular.
-
-**Tarefas agendadas**: delegue trabalhos recorrentes — resumos diários, verificações periódicas, lembretes programados — ao agendador integrado, que executa seu agente via cron.
+Você interage em linguagem natural, e o Claude invoca a GUI certa para a tarefa — respondendo em markdown, gráficos, formulários, wikis, planilhas ou cenas 3D. Todos os dados vivem como arquivos comuns no seu workspace.
 
 ## Início Rápido
 

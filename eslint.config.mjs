@@ -45,11 +45,11 @@ export default [
       // They're inputs to a parser test, not production code.
       "test/scripts/mulmoclaude/fixtures",
       // esbuild output committed to git (`yarn build:hooks`
-      // regenerates from server/workspace/hooks/dispatcher.ts).
-      // Linting the bundle is meaningless — it's machine-formatted
-      // and would force formatter-friendly output options on
-      // esbuild for no real win.
-      "server/workspace/hooks/dispatcher.mjs",
+      // regenerates from server/workspace/hooks/dispatcher.ts into
+      // server/build/). Linting the bundle is meaningless — it's
+      // machine-formatted and would force formatter-friendly output
+      // options on esbuild for no real win.
+      "server/build/**",
     ],
   },
   eslint.configs.recommended,

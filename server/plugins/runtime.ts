@@ -30,6 +30,7 @@ import type { TasksRuntimeApi } from "./runtime-tasks-api.js";
 import type { ChatRuntimeApi } from "./runtime-chat-api.js";
 import { startChat } from "../api/routes/agent.js";
 import { PLUGIN_SESSION_ORIGIN_PREFIX } from "../../src/types/session.js";
+import { BUILTIN_ROLE_IDS } from "../../src/config/roles.js";
 
 const DEFAULT_FETCH_TIMEOUT_MS = 10 * ONE_SECOND_MS;
 
@@ -254,15 +255,23 @@ function makeScopedPubSub(pkgName: string, hostPubSub: IPubSub): PluginRuntime["
 // ─────────────────────────────────────────────────────────────────────
 
 function makeScopedNotifier(pkgName: string): NotifierRuntimeApi {
-  // Both `publish` and `clear` are plugin-scoped:
+  // Every method is plugin-scoped:
   //   - publish forces `pluginPkg` to the caller's pkg name (the
   //     plugin literally cannot publish under another's namespace).
+  //   - update routes through `updateForPlugin` so a plugin can't
+  //     mutate another plugin's entries. Silent no-op on cross-
+  //     plugin id or validation failure.
   //   - clear routes through `clearForPlugin` so a plugin holding
   //     another plugin's id (e.g. via a future leak) silently no-ops
   //     instead of dismissing it. CodeRabbit review on PR #1198.
+  //   - get returns the entry only if it belongs to this plugin;
+  //     cross-plugin reads come back as `undefined`. Used for
+  //     ghost-bell detection in `action`-lifecycle reconcilers.
   return {
     publish: (input) => notifierEngine.publish({ ...input, pluginPkg: pkgName }),
+    update: (entryId, patch) => notifierEngine.updateForPlugin(pkgName, entryId, patch),
     clear: (entryId) => notifierEngine.clearForPlugin(pkgName, entryId),
+    get: (entryId) => notifierEngine.getForPlugin(pkgName, entryId),
   };
 }
 
@@ -304,7 +313,7 @@ function makeScopedTasks(pkgName: string, taskManager: ITaskManager): TasksRunti
 // Scoped chat (host extension — Phase 1 of Encore plan)
 // ─────────────────────────────────────────────────────────────────────
 
-const DEFAULT_PLUGIN_CHAT_ROLE = "general";
+const DEFAULT_PLUGIN_CHAT_ROLE = BUILTIN_ROLE_IDS.general;
 
 function makeScopedChat(pkgName: string): ChatRuntimeApi {
   return {

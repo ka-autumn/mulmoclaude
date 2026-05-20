@@ -39,7 +39,11 @@ export interface NotifierHistoryEntry extends NotifierEntry {
   terminalAt: string;
 }
 
-type NotifierEvent = { type: "published"; entry: NotifierEntry } | { type: "cleared"; id: string } | { type: "cancelled"; id: string };
+type NotifierEvent =
+  | { type: "published"; entry: NotifierEntry }
+  | { type: "cleared"; id: string }
+  | { type: "cancelled"; id: string }
+  | { type: "updated"; entry: NotifierEntry };
 
 const HISTORY_CAP = 50;
 
@@ -74,6 +78,22 @@ function applyEvent(event: NotifierEvent): void {
         entries.value = [...entries.value, event.entry];
       }
       return;
+    case "updated": {
+      // In-place replacement: same id, fresh title/body/severity.
+      // No history record — the entry is still active. If the id
+      // isn't in our local set (subscribed mid-flight, or the
+      // entry was optimistically cleared elsewhere), fall back to
+      // append so the bell at least surfaces live state.
+      const index = entries.value.findIndex((entry) => entry.id === event.entry.id);
+      if (index >= 0) {
+        const next = entries.value.slice();
+        next[index] = event.entry;
+        entries.value = next;
+      } else {
+        entries.value = [...entries.value, event.entry];
+      }
+      return;
+    }
     case "cleared":
     case "cancelled": {
       const removed = entries.value.find((entry) => entry.id === event.id);

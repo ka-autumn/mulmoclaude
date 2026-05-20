@@ -16,6 +16,11 @@ export interface StdioSpec {
   args?: string[];
   env?: Record<string, string>;
   enabled?: boolean;
+  /** Opt-in (#1421 Phase B): run on the HOST behind a stdio↔HTTP
+   *  gateway even in Docker sandbox mode, instead of being dropped.
+   *  Deliberately escapes the sandbox for this server — the MCP
+   *  settings UI gates this behind an explicit risk acknowledgment. */
+  hostExecInDocker?: boolean;
 }
 
 export type McpServerSpec = HttpSpec | StdioSpec;

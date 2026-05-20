@@ -71,21 +71,27 @@ In **Stack layout** this sidebar isn't rendered; the same data flows through `<S
 
 ```
 🔔[notification-bell]──┐
-   🔴[notification-badge: "N"] (red dot, only when unread > 0)
-   │  ┌─[notification-panel] (opens on click)──────────────────┐
-   │  │ Notifications              [notification-mark-all-read]│
-   │  ├─────────────────────────────────────────────────────────┤
-   │  │ 🔵 Title (bold)                                       ✕ │  ← unread
-   │  │ ◯  body line                                            │  data-unread="true"
-   │  │ ◯  N min ago                                            │
-   │  ├─────────────────────────────────────────────────────────┤
-   │  │ ⚪ Title (regular)                                    ✕ │  ← read
-   │  │     body line                                            │  data-unread="false"
-   │  └─────────────────────────────────────────────────────────┘
-   └─ each row: [notification-item-<id>]; click → router.push(target)
+   🔴[notification-badge: "N"] (worst-severity color; shown when active > 0)
+   │  ┌─[notification-panel] (opens on click) ─────────────────┐
+   │  │ Notifications                                          │
+   │  ├─ Active (N) ──────────────── [notification-clear-all]  │ (fyi rows only)
+   │  │ 🔔 Active row title                  ✕ (action only)   │
+   │  │     N min ago · pluginPkg                              │
+   │  │ … [notification-item-<id>]                             │
+   │  ├─ History (N) ─────────────────────────────────────────┤
+   │  │ ✓ / ✗  History row title                              │
+   │  │        N min ago · cleared|cancelled · pluginPkg      │
+   │  │ … initial 5 rows; rest hidden behind toggle           │
+   │  ├──────────────────────────────────────────────────────┤
+   │  │ [notification-history-toggle]                          │
+   │  │   "Show more (N)" / "Show less" (only when > 5 items) │
+   │  └──────────────────────────────────────────────────────┘
+   └─ active rows: [notification-item-<id>]
+      history rows: [notification-history-<id>]
 ```
 
-Click on a row → `useNotifications.markRead(id)` → badge decrements. The 🔵/⚪ leading dot disappears once read; bold title fades to gray.
+- **Active** rows: fyi (body click clears + navigates) vs action (× cancels; body click navigates only).
+- **History** rows: read-only; navigate on click when `navigateTarget` is present. Capped at `HISTORY_CAP` (50) FIFO server-side; bell collapses to the first 5 with a toggle so repetitive entries (e.g. recurring "docker not running") don't bury the rest. Toggle state resets each time the popup closes.
 
 ## /chat — the chat page
 

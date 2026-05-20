@@ -155,6 +155,18 @@ export function descriptorForPath(filePath: string): SystemFileDescriptor | null
   return null;
 }
 
+// editPolicy values for which the Files Explorer offers an inline
+// JSON editor (#833 Phase 1). A path with no descriptor is a plain
+// user-owned file → editable. `agent-managed` / `fragile-format` /
+// `ephemeral` are withheld: hand-edits there risk corrupting state the
+// agent or app owns, or a format too brittle for free-text editing.
+const JSON_EDITABLE_POLICIES: ReadonlySet<EditPolicy> = new Set<EditPolicy>(["user-editable", "agent-managed-but-hand-editable"]);
+
+export function jsonEditableByPolicy(filePath: string): boolean {
+  const descriptor = descriptorForPath(filePath);
+  return descriptor === null || JSON_EDITABLE_POLICIES.has(descriptor.editPolicy);
+}
+
 // Tailwind text colors used to tint a file-icon (or any single-color
 // glyph) according to the system file's edit policy. Same hue as the
 // banner's chip but text-only (no background) — the chip uses a

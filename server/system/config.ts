@@ -229,6 +229,14 @@ export interface McpStdioSpec {
   args?: string[];
   env?: Record<string, string>;
   enabled?: boolean;
+  /** Opt-in (#1421 Phase B): when true AND the agent runs in Docker
+   *  sandbox mode, this stdio server is NOT dropped — instead it is
+   *  spawned on the HOST behind a stdio↔HTTP gateway and the
+   *  sandboxed agent reaches it over `host.docker.internal`. This
+   *  DELIBERATELY escapes the sandbox for this one server; the
+   *  Settings UI requires an explicit risk acknowledgment to set
+   *  it. Unset / false → default behavior (dropped + warned). */
+  hostExecInDocker?: boolean;
 }
 
 export type McpServerSpec = McpHttpSpec | McpStdioSpec;
@@ -283,6 +291,7 @@ export function isMcpStdioSpec(value: unknown): value is McpStdioSpec {
   if (value.args !== undefined && !isStringArray(value.args)) return false;
   if (value.env !== undefined && !isStringRecord(value.env)) return false;
   if (value.enabled !== undefined && typeof value.enabled !== "boolean") return false;
+  if (value.hostExecInDocker !== undefined && typeof value.hostExecInDocker !== "boolean") return false;
   return true;
 }
 

@@ -75,10 +75,15 @@ describe("memory/format-detect — topic workspace", () => {
     await rm(scoped, { recursive: true, force: true });
   });
 
-  it("buildMemoryContext renders the topic file with its sections", async () => {
+  it("buildMemoryContext renders the topic INDEX line + section hints, NOT the body (#1432)", async () => {
     const out = buildMemoryContext(await loadMemorySnapshot(scoped), scoped);
+    // Index pointer + searchable section hints survive.
     assert.match(out, /\[interest\] interest\/music\.md — Rock \/ Metal, Punk \/ Melodic/);
-    assert.match(out, /Pantera, Metallica/);
+    // Bodies are no longer inlined — the agent Reads the file instead.
+    assert.doesNotMatch(out, /Pantera, Metallica/);
+    assert.doesNotMatch(out, /NOFX, Hi-STANDARD/);
+    // The index header tells the agent these are pointers to Read.
+    assert.match(out, /pointers only/);
   });
 
   it("buildMemoryContext skips both atomic-format files AND a stray legacy memory.md once topic format is active", async () => {
@@ -101,8 +106,10 @@ describe("memory/format-detect — topic workspace", () => {
     const out = buildMemoryContext(await loadMemorySnapshot(scoped), scoped);
     assert.doesNotMatch(out, /should-not-leak-from-atomic/, "atomic file at memory root must not bleed into topic-mode prompt");
     assert.doesNotMatch(out, /should-not-leak-from-legacy/, "legacy memory.md must not bleed into topic-mode prompt");
-    // The topic file's content is still visible.
-    assert.match(out, /Pantera, Metallica/);
+    // The topic file's index line is still surfaced (body is not —
+    // index-only, #1432).
+    assert.match(out, /\[interest\] interest\/music\.md — Rock \/ Metal, Punk \/ Melodic/);
+    assert.doesNotMatch(out, /Pantera, Metallica/);
   });
 
   it("buildMemoryManagementSection emits the topic-format instructions", async () => {

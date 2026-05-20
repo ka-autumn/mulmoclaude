@@ -8,17 +8,11 @@
 
 [English](README.md) · [日本語](README.ja.md) · [简体中文](README.zh.md) · **한국어** · [Español](README.es.md) · [Português (BR)](README.pt-BR.md) · [Français](README.fr.md) · [Deutsch](README.de.md)
 
-Claude Code와의 GUI 채팅 — 장기 기억, 풍부한 시각적 출력, 샌드박스 실행, 어디서나 원격 접근까지.
+> **[How AI-Native Applications Should Be Built](MANIFEST.md)** — MulmoClaude의 아키텍처, UX, 그리고 프로토콜에 대한 주장.
 
-**장기 기억**: 시간이 흐를수록 늘어나는 노트를 LLM에 부여하자는 Andrej Karpathy의 아이디어에서 영감을 받은 내장 개인 위키가, Claude에게 대화를 거듭할수록 쌓이는 **지속적인 지식**을 제공합니다.
+MulmoClaude는 로컬 머신에서 실행되는 오픈소스 AI-네이티브 애플리케이션 플랫폼입니다. 분리된 앱이 아니라, 각 기능은 하나의 레지스트리 안에 있는 플러그인으로 구축됩니다. 오늘 그 위에서 동작하는 애플리케이션에는 완전한 회계 시스템(실제 서버사이드 부기 로직 포함), Encore 의무 엔진, 개인 위키, SEC 공시 리더(Edgar) 등이 있습니다. Claude는 이들 플러그인을 가로질러 구성하는 유니버설 컨트롤러 역할을 합니다.
 
-Claude Code와 대화하면 단순한 텍스트가 아닌 **인터랙티브한 시각적 출력**을 받을 수 있습니다: 문서, 스프레드시트, 마인드맵, 차트, 이미지, 폼, 3D 장면 등.
-
-**샌드박스 실행**: Claude Code는 샌드박스 안에서 실행되어 프롬프트 인젝션 공격으로부터 시스템을 보호합니다.
-
-**어디서든 접근 가능**: Telegram, Slack, LINE, Discord 또는 [10개 이상의 메시징 앱](#messaging-bridges)과 연결하여 휴대폰에서 AI 에이전트와 대화하세요.
-
-**예약 작업**: 일일 요약, 정기 점검, 시간 기반 알림 같은 반복 작업은 내장 스케줄러에 맡겨 cron 일정으로 에이전트를 실행하세요.
+자연어로 상호작용하면, Claude가 작업에 적합한 GUI를 호출합니다 — markdown, 차트, 폼, 위키, 스프레드시트, 3D 장면 등으로 응답합니다. 모든 데이터는 워크스페이스 안의 일반 파일로 저장됩니다.
 
 ## 빠른 시작
 

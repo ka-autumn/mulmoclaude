@@ -99,13 +99,58 @@
           sandbox="allow-scripts"
           :title="t('fileContentRenderer.htmlPreview')"
         />
-        <!-- JSON: pretty-printed with simple syntax coloring. Fall
-             back to raw content if the file is malformed. -->
-        <pre v-else-if="isJson" class="p-4 text-xs whitespace-pre-wrap font-mono text-gray-800"><span
-          v-for="(tok, i) in jsonTokens"
-          :key="i"
-          :class="JSON_TOKEN_CLASS[tok.type]"
-        >{{ tok.value }}</span></pre>
+        <!-- JSON: read-only pretty-print, or an inline text editor for
+             policy-editable config files (#833 Phase 1). The server
+             JSON-validates on save and returns 400 → rawSaveError. -->
+        <div v-else-if="isJson" class="h-full flex flex-col overflow-auto">
+          <div class="shrink-0 flex items-center justify-end gap-2 px-4 pt-3">
+            <template v-if="jsonEditing">
+              <button
+                class="h-8 px-2.5 flex items-center gap-1 text-sm rounded border border-gray-300 text-gray-600 hover:bg-gray-50"
+                data-testid="files-json-cancel-btn"
+                @click="cancelJsonEdit"
+              >
+                {{ t("common.cancel") }}
+              </button>
+              <span v-if="!jsonDraftValid" class="text-xs text-red-600 self-center" data-testid="files-json-invalid-hint">
+                {{ t("fileContentRenderer.invalidJson") }}
+              </span>
+              <button
+                class="h-8 px-2.5 flex items-center gap-1 text-sm rounded bg-green-600 hover:bg-green-700 text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                data-testid="files-json-save-btn"
+                :disabled="!jsonDraftValid"
+                :title="jsonDraftValid ? undefined : t('fileContentRenderer.invalidJson')"
+                @click="saveJsonEdit"
+              >
+                <span class="material-icons text-sm">save</span>
+                {{ t("common.save") }}
+              </button>
+            </template>
+            <button
+              v-else-if="jsonEditable"
+              class="h-8 px-2.5 flex items-center gap-1 text-sm rounded border border-gray-300 text-gray-600 hover:bg-gray-50"
+              data-testid="files-json-edit-btn"
+              @click="startJsonEdit"
+            >
+              <span class="material-icons text-sm">edit</span>
+              {{ t("fileContentRenderer.editJson") }}
+            </button>
+          </div>
+          <JsonEditor v-if="jsonEditing" v-model="jsonDraft" :editor-label="t('fileContentRenderer.jsonEditorLabel')" class="flex-1 min-h-0 m-4" />
+          <pre v-else class="flex-1 p-4 text-xs whitespace-pre-wrap font-mono text-gray-800"><span
+            v-for="(tok, i) in jsonTokens"
+            :key="i"
+            :class="JSON_TOKEN_CLASS[tok.type]"
+          >{{ tok.value }}</span></pre>
+          <div
+            v-if="rawSaveError"
+            class="shrink-0 m-4 mt-0 rounded border border-red-300 bg-red-50 p-2 text-xs text-red-700"
+            role="alert"
+            data-testid="files-json-save-error"
+          >
+            ⚠ {{ rawSaveError }}
+          </div>
+        </div>
         <!-- JSONL / NDJSON: one pretty-printed + colored record per line -->
         <div v-else-if="isJsonl" class="p-4 space-y-2">
           <div v-for="(line, i) in jsonlLines" :key="i" class="rounded border bg-gray-50 p-3" :class="line.parseError ? 'border-red-300' : 'border-gray-200'">
@@ -148,7 +193,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, defineAsyncComponent, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import TextResponseView from "../plugins/textResponse/View.vue";
 import CalendarView from "../plugins/scheduler/CalendarView.vue";
@@ -165,7 +210,10 @@ import type { JsonToken, JsonlLine } from "../utils/format/jsonSyntax";
 import { formatScalarField, type MarkdownDocView } from "../composables/useMarkdownDoc";
 import { rewriteMarkdownImageRefs } from "../utils/image/rewriteMarkdownImageRefs";
 import { API_ROUTES } from "../config/apiRoutes";
-import { descriptorForPath } from "../config/systemFileDescriptors";
+import { descriptorForPath, jsonEditableByPolicy } from "../config/systemFileDescriptors";
+// Lazy: CodeMirror (~390 KB raw) is only fetched when a user actually
+// opens the inline JSON editor, keeping it out of the initial bundle.
+const JsonEditor = defineAsyncComponent(() => import("./JsonEditor.vue"));
 
 const { t } = useI18n();
 
@@ -195,6 +243,51 @@ const emit = defineEmits<{
 }>();
 
 const systemDescriptor = computed(() => (props.selectedPath ? descriptorForPath(props.selectedPath) : null));
+
+// Inline JSON editor (#833 Phase 1). Available only for policy-editable
+// JSON config files; the read-only pretty-print stays the default.
+const jsonEditing = ref(false);
+const jsonDraft = ref("");
+
+const jsonEditable = computed(() => props.isJson && props.selectedPath !== null && props.content?.kind === "text" && jsonEditableByPolicy(props.selectedPath));
+
+// Client-side guard: block Save when the draft isn't valid JSON, so
+// the user gets immediate feedback instead of a server round-trip
+// ending in a 400. The server check stays as defence in depth.
+const jsonDraftValid = computed(() => {
+  try {
+    JSON.parse(jsonDraft.value);
+    return true;
+  } catch {
+    return false;
+  }
+});
+
+function startJsonEdit(): void {
+  if (props.content?.kind !== "text") return;
+  jsonDraft.value = props.content.content;
+  jsonEditing.value = true;
+}
+
+function cancelJsonEdit(): void {
+  jsonEditing.value = false;
+}
+
+function saveJsonEdit(): void {
+  emit("updateSource", jsonDraft.value);
+}
+
+// Leave edit mode whenever the underlying content changes — that's
+// either a successful save (parent swaps in the new content + clears
+// rawSaveError) or navigation to another file. A failed save leaves
+// content untouched and sets rawSaveError, so we stay in edit mode
+// with the error banner visible.
+watch(
+  () => props.content,
+  () => {
+    jsonEditing.value = false;
+  },
+);
 
 function rawUrl(filePath: string): string {
   return `${API_ROUTES.files.raw}?path=${encodeURIComponent(filePath)}`;

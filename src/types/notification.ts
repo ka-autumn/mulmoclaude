@@ -96,6 +96,7 @@ export type NotificationAction =
  *  client is on. Other notification kinds may opt in later. */
 export interface NotificationI18n {
   titleKey: string;
+  titleParams?: Readonly<Record<string, string | number | readonly string[]>>;
   bodyKey?: string;
   bodyParams?: Readonly<Record<string, string | number | readonly string[]>>;
 }

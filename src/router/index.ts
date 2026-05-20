@@ -71,6 +71,17 @@ const routes: RouteRecordRaw[] = [
   // experimental plugin features (notifier engine, etc.). Rendered by
   // the @mulmoclaude/debug-plugin runtime plugin.
   { path: "/debug", name: PAGE_ROUTES.debug, component: Stub },
+  // Encore page. Two surfaces share the route, picked in
+  // `src/plugins/encore/View.vue`:
+  //   - `/encore?pendingId=<uuid>` — chat-on-mount redirect.
+  //     The tick NEVER calls chat.start; instead it publishes
+  //     notifications pointing here. On click the View dispatches
+  //     `resolveNotification` (which calls chat.start server-side)
+  //     and full-navigates to /chat/<chatId>. Transient (~300ms).
+  //   - `/encore` (no pendingId) — read-only dashboard listing
+  //     active obligations + cycle history. Reached from the
+  //     top-bar launcher. See plans/feat-encore-as-builtin.md.
+  { path: "/encore", name: PAGE_ROUTES.encore, component: Stub },
   { path: "/:pathMatch(.*)*", redirect: "/chat" },
 ];
 

@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { ONE_MINUTE_MS } from "../../server/utils/time.ts";
-import { deleteSession, getCurrentSessionId, sendChatMessage, startNewSession, waitForAssistantResponseComplete } from "../fixtures/live-chat.ts";
+import { deleteSession, sendChatMessage, startGuaranteedNewSession, waitForAssistantResponseComplete } from "../fixtures/live-chat.ts";
 
 const L_ERR_TIMEOUT_MS = 2 * ONE_MINUTE_MS;
 
@@ -15,12 +15,31 @@ const L_ERR_TIMEOUT_MS = 2 * ONE_MINUTE_MS;
 // into a forced error event (prod never reaches fake-echo).
 test.describe("agent error banner (fake-echo forced error)", () => {
   test("L-ERR: backend error event renders as an [Error] text card and the turn ends", async ({ page }) => {
+    // This canary drives the forced-error branch via the
+    // `__FAKE_ERROR__` marker, which is implemented only in
+    // `server/agent/backend/fake-echo.ts`'s `defaultResponse` —
+    // there is no equivalent shortcut in the real-Claude backend.
+    // The matching CI job (`.github/workflows/e2e_live_no_llm.yaml`,
+    // `error-banner` matrix entry) boots the dev server with
+    // `MULMOCLAUDE_FAKE_AGENT=1` and sets `E2E_LIVE_NO_LLM=1` on the
+    // test process; gate on that env var so local `yarn test:e2e:live`
+    // runs (real Claude backend, where the marker has no meaning and
+    // the model politely refuses) skip the spec instead of asserting
+    // against a fake-echo-only error string.
+    test.skip(process.env.E2E_LIVE_NO_LLM !== "1", "L-ERR exercises fake-echo's `__FAKE_ERROR__` branch; the real-Claude backend has no equivalent trigger");
     test.setTimeout(L_ERR_TIMEOUT_MS);
     let sessionIdForCleanup: string | null = null;
     try {
-      await startNewSession(page);
-      await page.waitForURL(/\/chat\/[0-9a-f-]+/);
-      sessionIdForCleanup = getCurrentSessionId(page);
+      // Use startGuaranteedNewSession (not startNewSession) to dodge
+      // the SPA's bootstrap-resume race: page.goto("/") can land on
+      // /chat/<existing>, and if that session has an in-flight turn
+      // sendChatMessage hits POST /api/agent and gets 409 "Session
+      // is already running" — which then renders as the *wrong*
+      // [Error] card and the assertion on the fake-echo error
+      // message fails. The guarded variant baselines the server's
+      // existing session ids before clicking and only resolves once
+      // the URL settles on a brand-new id (#1345).
+      sessionIdForCleanup = await startGuaranteedNewSession(page);
 
       // The marker drives fake-echo's forced-error branch. We embed
       // it in an otherwise normal sentence so the detector's

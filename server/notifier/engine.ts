@@ -20,7 +20,15 @@ import { PUBSUB_CHANNELS } from "../../src/config/pubsubChannels.js";
 import { log } from "../system/logger/index.js";
 import { WORKSPACE_PATHS } from "../workspace/paths.js";
 import { loadActive, loadHistory, saveActive, saveHistory } from "./store.js";
-import { HISTORY_CAP, type NotifierEntry, type NotifierEvent, type NotifierFile, type NotifierHistoryEntry, type PublishInput } from "./types.js";
+import {
+  HISTORY_CAP,
+  type NotifierEntry,
+  type NotifierEvent,
+  type NotifierFile,
+  type NotifierHistoryEntry,
+  type NotifierSeverity,
+  type PublishInput,
+} from "./types.js";
 
 // ── Dependency injection (matches server/events/notifications.ts) ──
 
@@ -375,6 +383,99 @@ export async function cancel(entryId: string): Promise<void> {
       historyEntry: buildHistoryEntry(entry, "cancelled"),
     };
   });
+}
+
+/** In-place update for an active entry. Only the fields present on
+ *  `patch` are rewritten; `id`, `pluginPkg`, `lifecycle`, and
+ *  `createdAt` stay fixed. Emits a single `"updated"` event with
+ *  the post-mutation entry — no history record is written because
+ *  the entry is still active, just with refreshed content.
+ *
+ *  This is the missing primitive for "state-of-the-world"
+ *  notifications: action-lifecycle entries that mirror an
+ *  ongoing obligation whose presentation drifts (e.g. a renamed
+ *  todo, an Encore obligation's `displayName` amended). Callers
+ *  used to clear-then-publish to refresh, which polluted history
+ *  with `cleared` records and assigned new ids — both wrong for a
+ *  same-obligation refresh.
+ *
+ *  No-ops (no throw) when:
+ *    - the id is unknown,
+ *    - the entry belongs to a different plugin,
+ *    - the merged shape would violate `validatePublishInput` (e.g.
+ *      action + info severity, empty title, oversized body). The
+ *      silent skip matches `clearForPlugin`'s isolation semantics —
+ *      the plugin can't distinguish "id never existed" from "id
+ *      belongs to another plugin" from "patch would invalidate", so
+ *      we never throw across that line. Validation failures are
+ *      logged for diagnosis.
+ *
+ *  Passing only fields you want to change is the contract — omit a
+ *  field to leave it alone. There is no "clear this field" affordance
+ *  (e.g. removing a body once set); a future caller that needs it
+ *  can add an explicit sentinel. */
+export async function updateForPlugin<TPluginData = unknown>(
+  pluginPkg: string,
+  entryId: string,
+  patch: {
+    severity?: NotifierSeverity;
+    title?: string;
+    body?: string;
+    navigateTarget?: string;
+    pluginData?: TPluginData;
+  },
+): Promise<void> {
+  await enqueue((state) => {
+    const entry = state.entries[entryId];
+    if (!entry) return null;
+    if (entry.pluginPkg !== pluginPkg) return null;
+    const next: NotifierEntry = {
+      ...entry,
+      ...(patch.severity !== undefined ? { severity: patch.severity } : {}),
+      ...(patch.title !== undefined ? { title: patch.title } : {}),
+      ...(patch.body !== undefined ? { body: patch.body } : {}),
+      ...(patch.navigateTarget !== undefined ? { navigateTarget: patch.navigateTarget } : {}),
+      ...(patch.pluginData !== undefined ? { pluginData: patch.pluginData } : {}),
+    };
+    // Re-validate the merged shape so an update can't degrade the
+    // entry below publish-time invariants. Mirrors the
+    // `validatePublishInput` call in `publish` — same audit, just
+    // applied post-merge.
+    const validationError = validatePublishInput({
+      pluginPkg: next.pluginPkg,
+      severity: next.severity,
+      title: next.title,
+      body: next.body,
+      lifecycle: next.lifecycle,
+      navigateTarget: next.navigateTarget,
+      pluginData: next.pluginData,
+    });
+    if (validationError) {
+      log.warn("notifier", "update rejected by validation", { entryId, pluginPkg, error: validationError });
+      return null;
+    }
+    state.entries[entryId] = next;
+    return { event: { type: "updated", entry: next } };
+  });
+}
+
+/** Plugin-scoped point lookup. Returns the entry by id, but only if
+ *  it belongs to the caller's plugin; otherwise undefined. Used by
+ *  runtime plugins to detect ghost-bell ids (entry was dismissed
+ *  out-of-band via the bell UI or wiped by a crash) so the
+ *  reconciler can fall back to a fresh publish instead of
+ *  rewriting a ticket as if a silent-no-op update succeeded.
+ *
+ *  Cross-plugin reads return undefined for isolation — same
+ *  property as `clearForPlugin` / `updateForPlugin`. The plugin
+ *  can't distinguish "id never existed" from "belongs to another
+ *  plugin" from the caller side, which is the intended behaviour. */
+export async function getForPlugin(pluginPkg: string, entryId: string): Promise<NotifierEntry | undefined> {
+  const state = await loadActive(activeFilePath);
+  const entry = state.entries[entryId];
+  if (!entry) return undefined;
+  if (entry.pluginPkg !== pluginPkg) return undefined;
+  return entry;
 }
 
 /** Plugin-scoped clear. Same as `clear` but no-ops if the entry's

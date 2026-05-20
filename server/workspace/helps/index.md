@@ -35,21 +35,23 @@ Under the hood it uses the Claude Code Agent SDK as its LLM core. Claude has ful
 
 The wiki (`wiki/` in the workspace) acts as Claude's long-term memory. Unlike the conversation history which resets each session, the wiki is a persistent, compounding knowledge base that Claude builds and maintains over time. You feed it sources — articles, URLs, notes — and Claude ingests them into structured, interlinked Markdown pages. The more you add, the smarter it gets.
 
-See [Wiki](helps/wiki.md) for details on how it works.
+See [Wiki](config/helps/wiki.md) for details on how it works.
 
 ## Help Pages
 
-- [Wiki](helps/wiki.md) — how the personal knowledge wiki works, its folder layout, page format, and operations
-- [Gemini API Key](helps/gemini.md) — why `GEMINI_API_KEY` is strongly recommended (images, audio, video) and how to get one from Google AI Studio
-- [MulmoScript](helps/mulmoscript.md) — format reference for authoring multimedia stories: beats, image types, speech, audio, and a minimal example
-- [Business Presentation Template](helps/business.md) — MulmoScript template and rules for business presentations in the Office role
-- [Storyteller Template](helps/storyteller.md) — MulmoScript template and rules for character-driven narrated stories in the Storyteller role
-- [Guide & Planner Templates](helps/guide.md) — document structures and form-field hints per guide type for the Guide & Planner role
-- [Spreadsheet](helps/spreadsheet.md) — cell format, formulas, date handling, and format codes for the presentSpreadsheet plugin
-- [presentHtml](helps/presenthtml.md) — self-contained HTML rules and the three-`../` relative-path convention used by the presentHtml plugin to keep generated files portable under `file://`
-- [Sandbox](helps/sandbox.md) — how the Docker sandbox isolates the agent, what it can access, and how to disable it
-- [Telegram Bridge](helps/telegram.md) — how to talk to MulmoClaude from the Telegram app: creating a bot, starting the bridge, allowlisting chat IDs, commands, and troubleshooting
-- [Information Sources](helps/sources.md) — registering RSS feeds / GitHub repos / arXiv queries, the daily-brief pipeline, and where its files live on disk
+- [Wiki](config/helps/wiki.md) — how the personal knowledge wiki works, its folder layout, page format, and operations
+- [Gemini API Key](config/helps/gemini.md) — why `GEMINI_API_KEY` is strongly recommended (images, audio, video) and how to get one from Google AI Studio
+- [MulmoScript](config/helps/mulmoscript.md) — format reference for authoring multimedia stories: beats, image types, speech, audio, and a minimal example
+- [Business Presentation Template](config/helps/business.md) — MulmoScript template and rules for business presentations in the Office role
+- [Storyteller Template](config/helps/storyteller.md) — MulmoScript template and rules for character-driven narrated stories in the Storyteller role
+- [Guide & Planner Templates](config/helps/guide.md) — document structures and form-field hints per guide type for the Guide & Planner role
+- [Spreadsheet](config/helps/spreadsheet.md) — cell format, formulas, date handling, and format codes for the presentSpreadsheet plugin
+- [presentHtml](config/helps/presenthtml.md) — self-contained HTML rules and the three-`../` relative-path convention used by the presentHtml plugin to keep generated files portable under `file://`
+- [Sandbox](config/helps/sandbox.md) — how the Docker sandbox isolates the agent, what it can access, and how to disable it
+- [Telegram Bridge](config/helps/telegram.md) — how to talk to MulmoClaude from the Telegram app: creating a bot, starting the bridge, allowlisting chat IDs, commands, and troubleshooting
+- [Information Sources](config/helps/sources.md) — registering RSS feeds / GitHub repos / arXiv queries, the daily-brief pipeline, and where its files live on disk
+- [Encore — recurring obligations DSL](config/helps/encore-dsl.md) — YAML DSL for recurring obligations (payments, services, check-ins), firing plans, multi-target bundles, and the bell-click resume loop
+- [GitHub repositories in the workspace](config/helps/github.md) — clone-destination rules under `github/<name>/` and how to handle existing directories with matching or different remotes
 
 ## Workspace Layout
 
@@ -60,6 +62,6 @@ See [Wiki](helps/wiki.md) for details on how it works.
   calendar/      ← calendar events
   contacts/      ← address book
   wiki/          ← personal knowledge wiki (long-term memory)
-  helps/         ← help pages (synced from app on every start)
+  config/helps/  ← help pages (synced from app on every start)
   memory.md      ← distilled facts loaded into every session
 ```

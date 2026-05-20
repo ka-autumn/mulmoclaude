@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { descriptorForPath, SYSTEM_FILE_DESCRIPTORS } from "../../src/config/systemFileDescriptors.js";
+import { descriptorForPath, jsonEditableByPolicy, SYSTEM_FILE_DESCRIPTORS } from "../../src/config/systemFileDescriptors.js";
 
 describe("descriptorForPath — exact matches", () => {
   it("returns the interests descriptor for config/interests.json", () => {
@@ -99,5 +99,28 @@ describe("SYSTEM_FILE_DESCRIPTORS — invariants", () => {
         assert.ok(!entry.path.startsWith("/"), `${entry.path} must be workspace-relative`);
       }
     }
+  });
+});
+
+describe("jsonEditableByPolicy (#833)", () => {
+  it("allows a plain user file with no descriptor", () => {
+    assert.equal(jsonEditableByPolicy("notes/scratch.json"), true);
+  });
+
+  it("allows user-editable system files (settings/mcp)", () => {
+    assert.equal(jsonEditableByPolicy("config/settings.json"), true);
+    assert.equal(jsonEditableByPolicy("config/mcp.json"), true);
+  });
+
+  it("allows agent-managed-but-hand-editable (interests)", () => {
+    assert.equal(jsonEditableByPolicy("config/interests.json"), true);
+  });
+
+  it("withholds editing from agent-managed files (scheduler tasks)", () => {
+    assert.equal(jsonEditableByPolicy("config/scheduler/tasks.json"), false);
+  });
+
+  it("withholds editing from ephemeral state files", () => {
+    assert.equal(jsonEditableByPolicy("data/sources/_state/example.json"), false);
   });
 });

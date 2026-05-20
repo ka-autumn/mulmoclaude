@@ -1,10 +1,11 @@
-import { dirname, join } from "path";
+import { basename, dirname, join } from "path";
 import { homedir, tmpdir } from "os";
 import { createRequire } from "node:module";
 import type { Role } from "../../src/config/roles.js";
 import { mcpTools, isMcpToolEnabled } from "./mcp-tools/index.js";
 import { getActiveToolDescriptors } from "./activeTools.js";
 import type { EffortLevel, McpServerSpec } from "../system/config.js";
+import { startStdioHttpShim, type ShimHandle } from "./stdioHttpShim.js";
 import { getCurrentToken } from "../api/auth/token.js";
 import type { Attachment } from "@mulmobridge/protocol";
 import { isImageMime, isNativeAttachmentMime } from "@mulmobridge/client";
@@ -14,7 +15,14 @@ import { preflightUserServers, logPreflightResult } from "./mcpPreflight.js";
 
 export const CONTAINER_WORKSPACE_PATH = "/home/node/mulmoclaude";
 
-const BASE_ALLOWED_TOOLS = ["Bash", "Read", "Write", "Edit", "Glob", "Grep", "WebFetch", "WebSearch"];
+// `Skill` is the tool Claude Code uses to execute a discovered
+// `.claude/skills/<name>/SKILL.md`. Because `--allowedTools` is passed
+// as a strict allowlist, omitting it permission-denies every
+// `Skill({skill:"…"})` call — the harness errors with
+// `Execute skill: <name>` and the model falls back to Glob+Read.
+// Bare `Skill` (no parens) permits all skills. See
+// plans/fix-skill-tool-allowlist.md.
+const BASE_ALLOWED_TOOLS = ["Bash", "Read", "Write", "Edit", "Glob", "Grep", "WebFetch", "WebSearch", "Skill"];
 
 /** Tool names the agent is allowed to call this session. Drives
  *  `PLUGIN_NAMES` env (the MCP child's filter) and the CLI's
@@ -73,7 +81,21 @@ function prepareUserStdioServer(spec: Extract<McpServerSpec, { type: "stdio" }>,
   return { ...spec, args };
 }
 
-export function prepareUserServers(userServers: Record<string, McpServerSpec>, useDocker: boolean, hostWorkspacePath: string): Record<string, McpServerSpec> {
+export interface PreparedUserServers {
+  servers: Record<string, McpServerSpec>;
+  /** Host-side stdio→HTTP gateways started for opted-in servers
+   *  (#1421 Phase B). The caller MUST `close()` each one when the
+   *  agent turn ends, or host processes / ports leak. */
+  shims: ShimHandle[];
+}
+
+// Async because the opt-in stdio→HTTP path spawns a host gateway and
+// waits for it to listen before the spec can be rewritten to http.
+export async function prepareUserServers(
+  userServers: Record<string, McpServerSpec>,
+  useDocker: boolean,
+  hostWorkspacePath: string,
+): Promise<PreparedUserServers> {
   // Drop catalog-known entries that are missing required config (#1352).
   // The dedup cache inside `logPreflightResult` keeps per-agent-run
   // calls quiet so a Settings UI fix only logs once when it transitions
@@ -81,31 +103,43 @@ export function prepareUserServers(userServers: Record<string, McpServerSpec>, u
   const preflight = preflightUserServers(userServers);
   logPreflightResult(preflight, "agent-run");
   const out: Record<string, McpServerSpec> = {};
+  const shims: ShimHandle[] = [];
   for (const [serverId, spec] of Object.entries(preflight.ready)) {
     if (spec.enabled === false) continue;
     if (spec.type === "http") {
       out[serverId] = prepareUserHttpServer(spec, useDocker);
-    } else {
-      // Stay symmetric with `userServerAllowedToolNames`: stdio
-      // servers can't run inside the sandbox image (see
-      // docs/mcp-sandbox.md for the full rationale — #162 / #1334).
-      // Claude CLI 2.1.x silently exits 1 when a stdio MCP fails to
-      // start, so passing the spec through here would mask the
-      // failure as a generic boot error. Drop + log per skipped
-      // entry so an operator scanning the log knows why their MCP
-      // didn't load.
-      if (useDocker) {
-        log.info("mcp", "skipping stdio server in Docker sandbox", {
-          serverId,
-          transport: "stdio",
-          reason: "sandbox image is too minimal to host arbitrary stdio MCP runtimes",
-        });
+      continue;
+    }
+    if (!useDocker) {
+      out[serverId] = prepareUserStdioServer(spec, useDocker, hostWorkspacePath);
+      continue;
+    }
+    // Docker mode + stdio. Default: drop (the sandbox image can't
+    // host arbitrary stdio runtimes — docs/mcp-sandbox.md, #162 /
+    // #1334). Exception: an explicit, UI-acknowledged opt-in
+    // (#1421 Phase B) runs the server on the HOST behind a
+    // stdio↔HTTP gateway and rewrites the spec to http so the
+    // sandboxed agent can still reach it.
+    if (spec.hostExecInDocker === true) {
+      const shim = await startStdioHttpShim(serverId, spec, hostWorkspacePath);
+      if (shim) {
+        shims.push(shim);
+        out[serverId] = { type: "http", url: rewriteLocalhostForDocker(shim.url, useDocker) };
         continue;
       }
-      out[serverId] = prepareUserStdioServer(spec, useDocker, hostWorkspacePath);
+      // Shim failed to come up — fall through to the safe default
+      // (drop + log) rather than wiring a half-broken server.
     }
+    log.info("mcp", "skipping stdio server in Docker sandbox", {
+      serverId,
+      transport: "stdio",
+      reason:
+        spec.hostExecInDocker === true
+          ? "host-exec shim unavailable — see mcp-shim warnings"
+          : "sandbox image is too minimal to host arbitrary stdio MCP runtimes",
+    });
   }
-  return out;
+  return { servers: out, shims };
 }
 
 // When running in Docker the MCP server subprocess won't inherit the host
@@ -381,13 +415,22 @@ export interface McpConfigPaths {
   argPath: string;
 }
 
+// `sessionId` reaches a filesystem path here. `basename` strips any
+// directory components (the recognised path-traversal barrier — a
+// crafted `../../x` collapses to `x`); the char-strip then removes
+// any residual non-id chars (CodeQL js/path-injection).
+function safeSessionSegment(sessionId: string): string {
+  return basename(sessionId).replace(/[^A-Za-z0-9_-]/g, "_");
+}
+
 export function resolveMcpConfigPaths(opts: { workspacePath: string; sessionId: string; useDocker: boolean }): McpConfigPaths {
+  const sid = safeSessionSegment(opts.sessionId);
   if (opts.useDocker) {
-    const hostPath = join(opts.workspacePath, ".mulmoclaude", `mcp-${opts.sessionId}.json`);
-    const argPath = `${CONTAINER_WORKSPACE_PATH}/.mulmoclaude/mcp-${opts.sessionId}.json`;
+    const hostPath = join(opts.workspacePath, ".mulmoclaude", `mcp-${sid}.json`);
+    const argPath = `${CONTAINER_WORKSPACE_PATH}/.mulmoclaude/mcp-${sid}.json`;
     return { hostPath, argPath };
   }
-  const hostPath = join(tmpdir(), `mulmoclaude-mcp-${opts.sessionId}.json`);
+  const hostPath = join(tmpdir(), `mulmoclaude-mcp-${sid}.json`);
   return { hostPath, argPath: hostPath };
 }
 

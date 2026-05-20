@@ -8,17 +8,11 @@
 
 [English](README.md) · [日本語](README.ja.md) · [简体中文](README.zh.md) · [한국어](README.ko.md) · **Español** · [Português (BR)](README.pt-BR.md) · [Français](README.fr.md) · [Deutsch](README.de.md)
 
-Chat GUI con Claude Code — memoria a largo plazo, salida visual rica, ejecución en sandbox y acceso remoto desde cualquier lugar.
+> **[How AI-Native Applications Should Be Built](MANIFEST.md)** — la tesis sobre arquitectura, UX y protocolo que hay detrás de MulmoClaude.
 
-**Memoria a largo plazo**: una wiki personal integrada — inspirada en la idea de Andrej Karpathy de darle a un LLM un cuaderno que crece con el tiempo — le da a Claude **conocimiento persistente** que se acumula con cada conversación.
+MulmoClaude es una plataforma de aplicaciones AI-nativa, de código abierto, que se ejecuta localmente en tu máquina. En lugar de aplicaciones aisladas, las capacidades se construyen como plugins dentro de un único registro. Las aplicaciones que se ejecutan en ella hoy incluyen un sistema contable completo (con lógica real de contabilidad del lado del servidor), el motor de obligaciones Encore, una wiki personal y un lector de documentos de la SEC (Edgar). Claude actúa como un controlador universal que compone a través de estos plugins.
 
-Conversa con Claude Code y recibe no solo texto, sino **resultados visuales interactivos**: documentos, hojas de cálculo, mapas mentales, gráficos, imágenes, formularios, escenas 3D y mucho más.
-
-**Ejecución en sandbox**: Claude Code se ejecuta dentro de un sandbox, protegiendo tu sistema frente a ataques de inyección de prompts.
-
-**Accede desde cualquier lugar**: conecta Telegram, Slack, LINE, Discord u [otras 10 aplicaciones de mensajería](#puentes-de-mensajería) para hablar con tu agente de IA desde el teléfono.
-
-**Tareas programadas**: delega el trabajo recurrente — resúmenes diarios, comprobaciones periódicas, recordatorios programados — al planificador integrado, que ejecuta tu agente con cron.
+Interactúas en lenguaje natural, y Claude invoca la GUI adecuada para la tarea — respondiendo en markdown, gráficos, formularios, wikis, hojas de cálculo o escenas 3D. Todos los datos viven como archivos planos en tu workspace.
 
 ## Inicio rápido
 
