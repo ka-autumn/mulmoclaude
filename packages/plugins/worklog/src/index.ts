@@ -71,7 +71,6 @@ export default definePlugin((runtime) => {
         const res = await handleList(files.data, input);
         if (res.kind === "error") return { error: res.error, status: res.status };
         return {
-          data: res.data,
           message: res.message,
           jsonData: res.jsonData,
           instructions: "Display the weekly summary or logged list.",
