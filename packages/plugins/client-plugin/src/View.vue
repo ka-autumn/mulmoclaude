@@ -152,7 +152,12 @@
                 <label class="field-label">{{ t("rate") }}</label>
                 <div class="rate-input-row">
                   <input v-model.number="cand.data.rate.amount" type="number" class="form-input font-mono flex-1" />
-                  <input v-model="cand.data.rate.currency" type="text" class="form-input text-xs w-16 text-center font-mono" placeholder="USD" />
+                  <input
+                    v-model="cand.data.rate.currency"
+                    type="text"
+                    class="form-input text-xs w-16 text-center font-mono"
+                    :placeholder="t('currencyPlaceholder')"
+                  />
                   <select v-model="cand.data.rate.unit" class="form-select text-xs w-20">
                     <option value="hour">{{ t("rateHour") }}</option>
                     <option value="fixed">{{ t("rateFixed") }}</option>
@@ -161,7 +166,7 @@
                 </div>
               </div>
               <div class="field-group">
-                <label class="field-label">{{ t("tags") }} (comma separated)</label>
+                <label class="field-label">{{ t("tagsCommaSeparated") }}</label>
                 <input
                   :value="cand.data.tags.join(', ')"
                   type="text"
@@ -170,7 +175,7 @@
                 />
               </div>
               <div class="field-group">
-                <label class="field-label">{{ t("notes") }} (Markdown)</label>
+                <label class="field-label">{{ t("notesMarkdown") }}</label>
                 <textarea v-model="cand.data.notes" class="form-textarea" rows="3"></textarea>
               </div>
 
@@ -237,7 +242,7 @@
                 <input v-model="cand.data.expectedDeliverables" type="text" class="form-input" />
               </div>
               <div class="field-group">
-                <label class="field-label">{{ t("notes") }} (Markdown)</label>
+                <label class="field-label">{{ t("notesMarkdown") }}</label>
                 <textarea v-model="cand.data.notes" class="form-textarea" rows="3"></textarea>
               </div>
             </div>
@@ -308,7 +313,12 @@
                   <label class="field-label">{{ t("rate") }}</label>
                   <div class="rate-input-row">
                     <input v-model.number="editClientForm.rate.amount" type="number" class="form-input font-mono flex-1" />
-                    <input v-model="editClientForm.rate.currency" type="text" class="form-input text-xs w-16 text-center font-mono" placeholder="USD" />
+                    <input
+                      v-model="editClientForm.rate.currency"
+                      type="text"
+                      class="form-input text-xs w-16 text-center font-mono"
+                      :placeholder="t('currencyPlaceholder')"
+                    />
                     <select v-model="editClientForm.rate.unit" class="form-select text-xs w-20">
                       <option value="hour">{{ t("rateHour") }}</option>
                       <option value="fixed">{{ t("rateFixed") }}</option>

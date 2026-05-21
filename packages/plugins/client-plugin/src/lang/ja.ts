@@ -102,4 +102,7 @@ export default {
   feeModelHour: "時間制",
   feeModelFixed: "固定額",
   feeModelRetainer: "月額契約",
+  currencyPlaceholder: "USD",
+  tagsCommaSeparated: "タグ（カンマ区切り）",
+  notesMarkdown: "メモ（Markdown）",
 };

@@ -58,7 +58,6 @@ export function parseYaml(yamlText: string): any {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("#")) continue;
 
-    const indent = line.search(/\S/);
     const kvMatch = line.match(/^(\s*)([A-Za-z0-9_-]+):\s*(.*)$/);
     const itemMatch = line.match(/^(\s*)-\s*(.*)$/);
 
@@ -87,7 +86,7 @@ export function parseYaml(yamlText: string): any {
         }
       }
     } else if (itemMatch) {
-      const [, spaces, valRaw] = itemMatch;
+      const [, , valRaw] = itemMatch;
       const value = unquote(valRaw);
 
       if (currentObjKey) {

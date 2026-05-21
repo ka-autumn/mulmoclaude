@@ -102,4 +102,7 @@ export default {
   feeModelHour: "Horaire",
   feeModelFixed: "Forfait",
   feeModelRetainer: "Acompte",
+  currencyPlaceholder: "USD",
+  tagsCommaSeparated: "Tags (séparés par des virgules)",
+  notesMarkdown: "Notes (Markdown)",
 };

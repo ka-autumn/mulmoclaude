@@ -101,4 +101,7 @@ export default {
   feeModelHour: "按小时",
   feeModelFixed: "固定价",
   feeModelRetainer: "月聘",
+  currencyPlaceholder: "USD",
+  tagsCommaSeparated: "标签（逗号分隔）",
+  notesMarkdown: "备注（Markdown）",
 };

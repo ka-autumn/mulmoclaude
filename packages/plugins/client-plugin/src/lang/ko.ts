@@ -101,4 +101,7 @@ export default {
   feeModelHour: "시간제",
   feeModelFixed: "고정",
   feeModelRetainer: "리테이너",
+  currencyPlaceholder: "USD",
+  tagsCommaSeparated: "태그 (쉼표로 구분)",
+  notesMarkdown: "메모 (Markdown)",
 };

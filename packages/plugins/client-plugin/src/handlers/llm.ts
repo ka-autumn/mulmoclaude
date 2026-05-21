@@ -158,7 +158,6 @@ export async function handleManageClient(
 
       for (const entry of rootFiles) {
         if (!entry.endsWith(".md")) continue;
-        const slug = entry.slice(0, -".md".length);
         try {
           const raw = await files.data.read(entry);
           const client = deserialiseClient(raw);

@@ -102,4 +102,7 @@ export default {
   feeModelHour: "Stundenweise",
   feeModelFixed: "Festpreis",
   feeModelRetainer: "Pauschale",
+  currencyPlaceholder: "USD",
+  tagsCommaSeparated: "Tags (kommagetrennt)",
+  notesMarkdown: "Notizen (Markdown)",
 };
