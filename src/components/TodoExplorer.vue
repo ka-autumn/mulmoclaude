@@ -404,7 +404,11 @@ function onMarkDone(columnId: string): void {
 
 async function onRemoveAllItemsInColumn(columnId: string): Promise<void> {
   const col = columns.value.find((column) => column.id === columnId);
-  if (!col) return;
+  // Defense-in-depth: the menu entry is rendered only on done
+  // columns, but a programmatic caller could still hit this with any
+  // column id. Bulk delete is destructive, so refuse outside the
+  // done-column contract. (CodeRabbit follow-up on #1452.)
+  if (!col || !col.isDone) return;
   // Items without an explicit status render in the first column in
   // the kanban view, so apply the same fallback here.
   const fallbackColumnId = columns.value[0]?.id;
