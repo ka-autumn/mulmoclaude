@@ -141,6 +141,28 @@ describe("Encore dispatch — component tests", () => {
     assert.equal(obligations[0].obligationId, setup.obligationId);
   });
 
+  // Boundary tests for `QueryArgs`'s `.trim().min(1).optional()` on
+  // both id fields — parity with the `defineEncore` boundary tests
+  // below. Without the trim guard, the empty / whitespace id would
+  // route into path math and bubble as an opaque 500 from
+  // `assertSafeSegment` instead of a structured 4xx (Codex review
+  // on the PR that added the guard).
+  it('query with `obligationId: ""` rejects at parse time', async () => {
+    await assert.rejects(dispatch({ kind: "query", obligationId: "" }), /invalid args[\s\S]*obligationId/);
+  });
+
+  it("query with whitespace-only `obligationId` rejects at parse time", async () => {
+    await assert.rejects(dispatch({ kind: "query", obligationId: "   " }), /invalid args[\s\S]*obligationId/);
+  });
+
+  it('query with `targetId: ""` rejects at parse time', async () => {
+    await assert.rejects(dispatch({ kind: "query", targetId: "" }), /invalid args[\s\S]*targetId/);
+  });
+
+  it("query with whitespace-only `targetId` rejects at parse time", async () => {
+    await assert.rejects(dispatch({ kind: "query", targetId: "   " }), /invalid args[\s\S]*targetId/);
+  });
+
   it("amendDefinition pauses the obligation", async () => {
     const setup = (await dispatch({ kind: "setup", definition: hisayoDefinition })) as SetupResult;
     const result = await dispatch({

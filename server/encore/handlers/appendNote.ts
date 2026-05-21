@@ -30,38 +30,40 @@ export const AppendNoteArgs = z.object({
 });
 
 export async function handleAppendNote(args: z.infer<typeof AppendNoteArgs>): Promise<EncoreDispatchResult> {
-  if (args.cycleId) {
-    const rel = cycleFilePath(args.obligationId, args.cycleId);
-    const raw = await readTextOrNull(rel);
-    if (raw === null) {
-      throw new EncoreError(404, `cycle file ${args.obligationId}/${args.cycleId}.md not found`);
-    }
-    const { state, body } = parseCycleFile(raw);
-    const newBody = appendBody(body, args.body);
-    await writeText(rel, serializeCycleFile(state, newBody));
-    log.info("encore", "appendNote: cycle body updated", { obligationId: args.obligationId, cycleId: args.cycleId });
-    return {
-      ok: true,
-      message: `Note appended to cycle ${args.cycleId} of ${args.obligationId}.`,
-      obligationId: args.obligationId,
-      cycleId: args.cycleId,
-      path: workspaceRelativePath(rel),
-    };
-  }
+  return args.cycleId ? appendToCycle(args.obligationId, args.cycleId, args.body) : appendToObligation(args.obligationId, args.body);
+}
 
-  const indexRel = obligationIndexPath(args.obligationId);
-  const raw = await readTextOrNull(indexRel);
+async function appendToCycle(obligationId: string, cycleId: string, note: string): Promise<EncoreDispatchResult> {
+  const rel = cycleFilePath(obligationId, cycleId);
+  const raw = await readTextOrNull(rel);
   if (raw === null) {
-    throw new EncoreError(404, `obligation ${JSON.stringify(args.obligationId)} not found`);
+    throw new EncoreError(404, `cycle file ${obligationId}/${cycleId}.md not found`);
   }
-  const { dsl, body } = parseIndexFile(raw);
-  const newBody = appendBody(body, args.body);
-  await writeText(indexRel, serializeIndexFile(dsl, newBody));
-  log.info("encore", "appendNote: obligation body updated", { obligationId: args.obligationId });
+  const { state, body } = parseCycleFile(raw);
+  await writeText(rel, serializeCycleFile(state, appendBody(body, note)));
+  log.info("encore", "appendNote: cycle body updated", { obligationId, cycleId });
   return {
     ok: true,
-    message: `Note appended to obligation ${args.obligationId}.`,
-    obligationId: args.obligationId,
+    message: `Note appended to cycle ${cycleId} of ${obligationId}.`,
+    obligationId,
+    cycleId,
+    path: workspaceRelativePath(rel),
+  };
+}
+
+async function appendToObligation(obligationId: string, note: string): Promise<EncoreDispatchResult> {
+  const indexRel = obligationIndexPath(obligationId);
+  const raw = await readTextOrNull(indexRel);
+  if (raw === null) {
+    throw new EncoreError(404, `obligation ${JSON.stringify(obligationId)} not found`);
+  }
+  const { dsl, body } = parseIndexFile(raw);
+  await writeText(indexRel, serializeIndexFile(dsl, appendBody(body, note)));
+  log.info("encore", "appendNote: obligation body updated", { obligationId });
+  return {
+    ok: true,
+    message: `Note appended to obligation ${obligationId}.`,
+    obligationId,
     path: workspaceRelativePath(indexRel),
   };
 }

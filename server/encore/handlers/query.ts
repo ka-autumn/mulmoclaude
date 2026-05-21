@@ -17,9 +17,16 @@ import { EncoreError, workspaceRelativePath, type EncoreDispatchResult } from ".
 
 export const QueryArgs = z.object({
   kind: z.literal("query"),
-  obligationId: z.string().optional(),
+  // `.trim().min(1)` parity with every other Encore handler
+  // (amend / appendNote / markStepDone / recordValues /
+  // markTargetSkipped / defineEncore). Without it, the empty /
+  // whitespace-only id would silently flow into path math and
+  // surface as an opaque 500 from `assertSafeSegment`. Same
+  // hardening CodeRabbit asked for on #1441; query.ts was missed
+  // in that sweep.
+  obligationId: z.string().trim().min(1).optional(),
   range: z.union([z.literal("current"), z.literal("all"), z.number().int().positive()]).optional(),
-  targetId: z.string().optional(),
+  targetId: z.string().trim().min(1).optional(),
 });
 
 interface QueryCycleResult {
