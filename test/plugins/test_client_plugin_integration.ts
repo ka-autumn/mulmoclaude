@@ -216,11 +216,12 @@ describe("Client plugin — end-to-end integration through the loader", () => {
     });
 
     assert.ok(plugin);
-    assert.ok(plugin.execute);
+    const { execute } = plugin;
+    assert.ok(execute);
 
     const CONCURRENCY = 5;
     const promises = Array.from({ length: CONCURRENCY }, (_, i) =>
-      plugin.execute(
+      execute(
         {},
         {
           action: "create",
@@ -234,7 +235,7 @@ describe("Client plugin — end-to-end integration through the loader", () => {
 
     await Promise.all(promises);
 
-    const listRes = (await plugin.execute({}, { action: "list" })) as any;
+    const listRes = (await execute({}, { action: "list" })) as any;
     assert.ok(listRes.ok);
     assert.equal(listRes.candidates.length, CONCURRENCY);
   });
