@@ -25,7 +25,19 @@ export async function handleManageClient(
   rawArgs: unknown,
 ): Promise<any> {
   const actionSchema = z.object({
-    action: z.enum(["create", "update", "list", "show", "createProject", "showProject", "listProjects", "approveClient", "approveProject", "deleteCandidate"]),
+    action: z.enum([
+      "create",
+      "update",
+      "list",
+      "show",
+      "createProject",
+      "showProject",
+      "listProjects",
+      "approveClient",
+      "approveProject",
+      "deleteCandidate",
+      "present",
+    ]),
     id: z.string().optional(),
     projectId: z.string().optional(),
     patch: z.any().optional(),
@@ -190,10 +202,22 @@ export async function handleManageClient(
         log.warn("Failed to load client candidates", e);
       }
 
+      // Narration-only response (matches worklog convention): no `data` so the MCP
+      // bridge does not auto-mount the dashboard View — that's the `present` action's
+      // job. The LLM gets `message` to read aloud and `jsonData` to reason over.
       return {
         ok: true,
-        clients,
-        candidates,
+        message: `Listed ${clients.length} client(s) and ${candidates.length} pending draft(s).`,
+        jsonData: { clients, candidates },
+      };
+    }
+
+    case "present": {
+      return {
+        ok: true,
+        data: {},
+        message: "Presented the client dashboard.",
+        instructions: "Show the Client/CRM dashboard with active clients, projects, and pending drafts.",
       };
     }
 

@@ -41,8 +41,12 @@ function t(key: keyof typeof messages.value, params?: Record<string, string | nu
 // Typing for dispatch calls
 interface ListClientsResponse {
   ok: boolean;
-  clients?: Client[];
-  candidates?: ClientCandidate[];
+  // `list` is a narration-only action (worklog convention): the LLM-facing payload
+  // lives under `jsonData`; no top-level `clients`/`candidates`, no `data` field.
+  jsonData?: {
+    clients?: Client[];
+    candidates?: ClientCandidate[];
+  };
 }
 
 interface ListProjectsResponse {
@@ -67,11 +71,11 @@ async function refresh(): Promise<void> {
       dispatch<ListProjectsResponse>({ action: "listProjects" }),
     ]);
 
-    if (clientsRes?.ok && Array.isArray(clientsRes.clients)) {
-      clients.value = clientsRes.clients;
+    if (clientsRes?.ok && Array.isArray(clientsRes.jsonData?.clients)) {
+      clients.value = clientsRes.jsonData.clients;
     }
-    if (clientsRes?.ok && Array.isArray(clientsRes.candidates)) {
-      clientCandidates.value = clientsRes.candidates;
+    if (clientsRes?.ok && Array.isArray(clientsRes.jsonData?.candidates)) {
+      clientCandidates.value = clientsRes.jsonData.candidates;
     }
     if (projectsRes?.ok && Array.isArray(projectsRes.projects)) {
       projects.value = projectsRes.projects;

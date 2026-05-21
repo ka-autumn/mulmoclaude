@@ -84,8 +84,12 @@ describe("Client plugin — end-to-end integration through the loader", () => {
     // 1. Initial list has empty clients and candidates.
     let listRes = (await plugin.execute({}, { action: "list" })) as any;
     assert.ok(listRes.ok);
-    assert.deepEqual(listRes.clients, []);
-    assert.deepEqual(listRes.candidates, []);
+    // `list` returns narration-only shape (worklog convention): no top-level `data`,
+    // payload under `jsonData`. The MCP bridge would emit just `message` to the LLM.
+    assert.equal(listRes.data, undefined, "list must NOT set `data` — that would auto-mount the UI; use `present` for that");
+    assert.equal(typeof listRes.message, "string", "list must set a `message` so the LLM doesn't fall back to 'Done'");
+    assert.deepEqual(listRes.jsonData.clients, []);
+    assert.deepEqual(listRes.jsonData.candidates, []);
 
     // 2. Create client candidate (action: "create").
     const createRes = (await plugin.execute(
@@ -114,10 +118,10 @@ describe("Client plugin — end-to-end integration through the loader", () => {
     // 3. List shows the client candidate.
     listRes = (await plugin.execute({}, { action: "list" })) as any;
     assert.ok(listRes.ok);
-    assert.equal(listRes.candidates.length, 1);
-    assert.equal(listRes.candidates[0].candidateId, clientCandidateId);
-    assert.equal(listRes.candidates[0].data.name, "Acme Corporation");
-    assert.equal(listRes.clients.length, 0);
+    assert.equal(listRes.jsonData.candidates.length, 1);
+    assert.equal(listRes.jsonData.candidates[0].candidateId, clientCandidateId);
+    assert.equal(listRes.jsonData.candidates[0].data.name, "Acme Corporation");
+    assert.equal(listRes.jsonData.clients.length, 0);
 
     // 4. Approve the candidate (action: "approveClient").
     const approveRes = (await plugin.execute({}, { action: "approveClient", candidateId: clientCandidateId })) as any;
@@ -129,10 +133,10 @@ describe("Client plugin — end-to-end integration through the loader", () => {
     // 5. List shows client committed and candidate deleted.
     listRes = (await plugin.execute({}, { action: "list" })) as any;
     assert.ok(listRes.ok);
-    assert.equal(listRes.candidates.length, 0);
-    assert.equal(listRes.clients.length, 1);
-    assert.equal(listRes.clients[0].id, "acme-corp");
-    assert.equal(listRes.clients[0].name, "Acme Corporation");
+    assert.equal(listRes.jsonData.candidates.length, 0);
+    assert.equal(listRes.jsonData.clients.length, 1);
+    assert.equal(listRes.jsonData.clients[0].id, "acme-corp");
+    assert.equal(listRes.jsonData.clients[0].name, "Acme Corporation");
 
     // 6. Show client details.
     let showRes = (await plugin.execute({}, { action: "show", id: "acme-corp" })) as any;
@@ -239,7 +243,7 @@ describe("Client plugin — end-to-end integration through the loader", () => {
 
     let listRes = (await execute({}, { action: "list" })) as any;
     assert.ok(listRes.ok);
-    assert.equal(listRes.candidates.length, CONCURRENCY);
+    assert.equal(listRes.jsonData.candidates.length, CONCURRENCY);
 
     // Issue second batch of concurrent creations using the SAME conflicting ID to verify contention safety
     const conflictPromises = Array.from({ length: CONCURRENCY }, () =>
@@ -260,9 +264,31 @@ describe("Client plugin — end-to-end integration through the loader", () => {
     listRes = (await execute({}, { action: "list" })) as any;
     assert.ok(listRes.ok);
     // All 5 conflict candidates should have been saved cleanly (total = CONCURRENCY + 5)
-    assert.equal(listRes.candidates.length, CONCURRENCY + 5);
-    const conflictCands = listRes.candidates.filter((cand: any) => cand.data.id === "client-conflict");
+    assert.equal(listRes.jsonData.candidates.length, CONCURRENCY + 5);
+    const conflictCands = listRes.jsonData.candidates.filter((cand: any) => cand.data.id === "client-conflict");
     assert.equal(conflictCands.length, CONCURRENCY, "Should save all conflict candidate records safely");
+  });
+
+  it("`present` returns a render-trigger envelope (data set, message set) so the MCP bridge mounts the dashboard View", async (ctx) => {
+    if (!existsSync(PLUGIN_DIST_INDEX)) {
+      ctx.skip("dist not built");
+      return;
+    }
+
+    const { pubsub } = makeRecordingPubSub();
+    const plugin = await loadPluginFromCacheDir(PKG_NAME, VERSION, PLUGIN_DIR, {
+      runtimeFactory: (pkgName) => makePluginRuntime({ pkgName, pubsub, locale: "en", taskManager: createTaskManager() }),
+    });
+    assert.ok(plugin);
+    const { execute } = plugin;
+    assert.ok(execute);
+
+    const presentRes = (await execute({}, { action: "present" })) as any;
+    assert.ok(presentRes.ok);
+    // `data` MUST be set (even as `{}`) — the MCP bridge only pushes the visual ToolResult
+    // when `result.data !== undefined`. Without this, the dashboard never mounts.
+    assert.notEqual(presentRes.data, undefined, "present must set `data` so the bridge mounts the dashboard");
+    assert.equal(typeof presentRes.message, "string", "present must set `message` for the LLM");
   });
 
   it("listProjects returns an approved project whose expectedDeliverables/notes are empty (regression: dashboard showed zero)", async (ctx) => {

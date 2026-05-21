@@ -6,15 +6,28 @@ export const TOOL_DEFINITION = {
   type: "function" as const,
   name: "manageClient" as const,
   prompt:
-    "When users ask to add, list, show, or update clients and projects, use manageClient. Always run 'show' for a single client to see details rather than listing.",
-  description: "Manage client and project profiles — add new clients/projects (as candidates), view profiles, list active engagements, or archive records.",
+    "When users ask to add, list, show, or update clients and projects, use manageClient. Use 'present' when the user asks to show / open / display the client dashboard (the CRM UI); use 'list' when the user asks how many / which clients exist and wants a verbal summary. Always run 'show' for a single client to see details rather than listing.",
+  description:
+    "Manage client and project profiles — add new clients/projects (as candidates), view profiles, list active engagements, archive records, or open the client dashboard.",
   parameters: {
     type: "object" as const,
     properties: {
       action: {
         type: "string",
-        enum: ["create", "update", "list", "show", "createProject", "showProject", "listProjects", "approveClient", "approveProject", "deleteCandidate"],
-        description: "The action to perform.",
+        enum: [
+          "create",
+          "update",
+          "list",
+          "show",
+          "createProject",
+          "showProject",
+          "listProjects",
+          "approveClient",
+          "approveProject",
+          "deleteCandidate",
+          "present",
+        ],
+        description: "The action to perform. 'list' returns a verbal summary; 'present' opens the dashboard UI.",
       },
       id: {
         type: "string",

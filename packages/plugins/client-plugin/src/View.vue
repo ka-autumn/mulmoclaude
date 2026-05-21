@@ -573,8 +573,12 @@ function localizedFeeModel(model: "hour" | "fixed" | "retainer"): string {
 // Typing for dispatch responses
 interface ListResponse {
   ok: boolean;
-  clients?: Client[];
-  candidates?: ClientCandidate[];
+  // `list` is a narration-only action (worklog convention): the LLM-facing payload
+  // lives under `jsonData`; no top-level `clients`/`candidates`, no `data` field.
+  jsonData?: {
+    clients?: Client[];
+    candidates?: ClientCandidate[];
+  };
 }
 
 interface ListProjectsResponse {
@@ -709,11 +713,11 @@ async function refreshAll(): Promise<void> {
       dispatch<ListProjectsResponse>({ action: "listProjects" }),
     ]);
 
-    if (clientsRes?.ok && Array.isArray(clientsRes.clients)) {
-      clients.value = clientsRes.clients;
+    if (clientsRes?.ok && Array.isArray(clientsRes.jsonData?.clients)) {
+      clients.value = clientsRes.jsonData.clients;
     }
-    if (clientsRes?.ok && Array.isArray(clientsRes.candidates)) {
-      clientCandidates.value = clientsRes.candidates;
+    if (clientsRes?.ok && Array.isArray(clientsRes.jsonData?.candidates)) {
+      clientCandidates.value = clientsRes.jsonData.candidates;
     }
     if (projectsRes?.ok && Array.isArray(projectsRes.projects)) {
       projects.value = projectsRes.projects;
