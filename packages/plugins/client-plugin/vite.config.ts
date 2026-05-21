@@ -8,7 +8,8 @@ export default defineConfig({
     dts({
       include: ["src/**/*.{ts,vue}"],
       outDir: "dist",
-      compilerOptions: { rootDir: "src" },
+      entryRoot: "src",
+      compilerOptions: { rootDir: "../.." },
     }),
   ],
   build: {

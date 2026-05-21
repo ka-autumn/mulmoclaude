@@ -7,6 +7,10 @@
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRuntime } from "gui-chat-protocol/vue";
 import { useT, format } from "./lang";
+import ConfirmModal from "../../shared/components/ConfirmModal.vue";
+import { useConfirm } from "../../shared/components/confirm";
+
+const { openConfirm } = useConfirm();
 
 interface RecipeSummary {
   slug: string;
@@ -108,7 +112,12 @@ watch(
 async function deleteRecipe(): Promise<void> {
   if (!detail.value) return;
   const { slug, title } = detail.value;
-  if (!window.confirm(format(t.value.confirmDelete, { title }))) return;
+  if (!(await openConfirm({
+    title: t.value.delete || "Delete",
+    message: format(t.value.confirmDelete, { title }),
+    confirmText: t.value.delete || "Delete",
+    variant: "danger",
+  }))) return;
   deleting.value = true;
   try {
     await dispatch({ kind: "delete", slug });
@@ -260,6 +269,7 @@ function formatInline(input: string): string {
         </template>
       </section>
     </div>
+    <ConfirmModal />
   </div>
 </template>
 

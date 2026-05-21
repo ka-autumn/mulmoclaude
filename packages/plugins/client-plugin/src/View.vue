@@ -142,14 +142,12 @@
                   <input v-model="cand.data.paymentTerms" type="text" class="form-input" />
                 </div>
               </div>
-              <div class="field-row">
-                <div class="field-group flex-1">
-                  <label class="field-label">Billing Rate</label>
-                  <input v-model.number="cand.data.rate.amount" type="number" class="form-input font-mono" />
-                </div>
-                <div class="field-group flex-1">
-                  <label class="field-label">Unit</label>
-                  <select v-model="cand.data.rate.unit" class="form-select">
+              <div class="field-group">
+                <label class="field-label">Billing Rate</label>
+                <div class="rate-input-row">
+                  <input v-model.number="cand.data.rate.amount" type="number" class="form-input font-mono flex-1" />
+                  <input v-model="cand.data.rate.currency" type="text" class="form-input text-xs w-16 text-center font-mono" placeholder="USD" />
+                  <select v-model="cand.data.rate.unit" class="form-select text-xs w-20">
                     <option value="hour">hour</option>
                     <option value="fixed">fixed</option>
                     <option value="month">month</option>
@@ -494,6 +492,7 @@
         </div>
       </section>
     </main>
+    <ConfirmModal />
   </div>
 </template>
 
@@ -502,7 +501,11 @@ import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRuntime } from "gui-chat-protocol/vue";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import { useT, format } from "./lang";
-import type { Client, Project, ClientCandidate, ProjectCandidate } from "./types";
+import type { Client, Project, ClientCandidate, ProjectCandidate, ExtendedToolResultComplete } from "./types";
+import ConfirmModal from "../../shared/components/ConfirmModal.vue";
+import { useConfirm } from "../../shared/components/confirm";
+
+const { openConfirm } = useConfirm();
 
 const messages = useT();
 
@@ -536,7 +539,7 @@ interface ActionResponse {
   error?: string;
 }
 
-const props = defineProps<{ selectedResult?: ToolResultComplete<any> }>();
+const props = defineProps<{ selectedResult?: ExtendedToolResultComplete }>();
 
 const { dispatch, pubsub, log } = useRuntime();
 
@@ -623,12 +626,21 @@ const renderedNotes = computed(() => {
   return renderMarkdownLite(notesText);
 });
 
+function syncActiveTab(action: string | undefined, candidateCount: number) {
+  if (action === "create" || action === "createProject" || (activeTab.value === "spreadsheet" && candidateCount > 0)) {
+    activeTab.value = "review";
+  }
+}
+
 // Auto-select first client or candidates if passed via props
 watch(
   () => props.selectedResult,
   (next) => {
     if (next) {
-      void refreshAll();
+      syncActiveTab(next.args?.action, pendingReviewCount.value);
+      void refreshAll().then(() => {
+        syncActiveTab(next.args?.action, pendingReviewCount.value);
+      });
     }
   },
   { immediate: true },
@@ -792,7 +804,12 @@ function updateCandidateTags(cand: ClientCandidate, csv: string) {
 
 async function approveClientCandidate(cand: ClientCandidate) {
   const name = cand.data.name;
-  if (!window.confirm(format(t("confirmApprove"), { name }))) return;
+  if (!(await openConfirm({
+    title: t("approve"),
+    message: format(t("confirmApprove"), { name }),
+    confirmText: t("approve"),
+    variant: "success",
+  }))) return;
 
   approving.value[cand.candidateId] = true;
   errorMsg.value = "";
@@ -838,7 +855,12 @@ async function approveClientCandidate(cand: ClientCandidate) {
 
 async function approveProjectCandidate(cand: ProjectCandidate) {
   const name = cand.data.name;
-  if (!window.confirm(format(t("confirmApprove"), { name }))) return;
+  if (!(await openConfirm({
+    title: t("approve"),
+    message: format(t("confirmApprove"), { name }),
+    confirmText: t("approve"),
+    variant: "success",
+  }))) return;
 
   approving.value[cand.candidateId] = true;
   errorMsg.value = "";
@@ -863,7 +885,12 @@ async function approveProjectCandidate(cand: ProjectCandidate) {
 }
 
 async function deleteCandidate(candidateId: string, name: string) {
-  if (!window.confirm(format(t("confirmDeleteCandidate"), { name }))) return;
+  if (!(await openConfirm({
+    title: t("reject"),
+    message: format(t("confirmDeleteCandidate"), { name }),
+    confirmText: t("reject"),
+    variant: "danger",
+  }))) return;
 
   deletingCand.value[candidateId] = true;
   errorMsg.value = "";
@@ -907,7 +934,12 @@ async function approveProjectCandidateDirect(cand: ProjectCandidate) {
 }
 
 async function deleteCandidateDirect(candidateId: string, name: string) {
-  if (!window.confirm(format(t("confirmDeleteCandidate"), { name }))) return;
+  if (!(await openConfirm({
+    title: t("reject"),
+    message: format(t("confirmDeleteCandidate"), { name }),
+    confirmText: t("reject"),
+    variant: "danger",
+  }))) return;
   try {
     await dispatch({ action: "deleteCandidate", candidateId });
     await refreshAll();
@@ -975,9 +1007,16 @@ async function submitProjectCandidate() {
 // Pubsub logic
 let unsub: (() => void) | undefined;
 onMounted(() => {
-  void refreshAll();
+  syncActiveTab(props.selectedResult?.args?.action, pendingReviewCount.value);
+
+  void refreshAll().then(() => {
+    syncActiveTab(props.selectedResult?.args?.action, pendingReviewCount.value);
+  });
+
   unsub = pubsub.subscribe("changed", () => {
-    void refreshAll();
+    void refreshAll().then(() => {
+      syncActiveTab(props.selectedResult?.args?.action, pendingReviewCount.value);
+    });
   });
 });
 

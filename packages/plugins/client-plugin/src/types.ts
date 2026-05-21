@@ -62,3 +62,12 @@ export interface ProjectCandidate {
   data: Project;
   createdAt: number;
 }
+
+import type { ToolResultComplete } from "gui-chat-protocol";
+
+export interface ExtendedToolResultComplete extends ToolResultComplete<any> {
+  args?: {
+    action?: string;
+    [key: string]: any;
+  };
+}

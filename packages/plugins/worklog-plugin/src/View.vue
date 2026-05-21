@@ -432,6 +432,7 @@
         </div>
       </div>
     </div>
+    <ConfirmModal />
   </div>
 </template>
 
@@ -440,6 +441,10 @@ import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useRuntime } from "gui-chat-protocol/vue";
 import type { WorklogEntry, CandidateEntry, ExtendedToolResultComplete } from "./types";
 import { useT } from "./lang";
+import ConfirmModal from "../../shared/components/ConfirmModal.vue";
+import { useConfirm } from "../../shared/components/confirm";
+
+const { openConfirm } = useConfirm();
 
 const props = defineProps<{ selectedResult: ExtendedToolResultComplete }>();
 const t = useT();
@@ -747,7 +752,12 @@ async function saveEditCommitted(id: string) {
 }
 
 async function deleteCommitted(id: string) {
-  if (confirm(t.value.confirmDelete)) {
+  if (await openConfirm({
+    title: t.value.delete,
+    message: t.value.confirmDelete,
+    confirmText: t.value.delete,
+    variant: "danger",
+  })) {
     const result = await dispatch<RefreshResponse>({
       kind: "committedDelete",
       id,
