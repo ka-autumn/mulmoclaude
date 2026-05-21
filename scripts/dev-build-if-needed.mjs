@@ -60,9 +60,9 @@ function discoverPluginDirs(repoRoot) {
     const { name, scripts } = parsed ?? {};
     if (typeof name !== "string") continue;
     if (!name.startsWith("@mulmoclaude/")) continue;
-    if (!name.endsWith("-plugin") && name !== "@mulmoclaude/worklog") continue;
+    if (!name.endsWith("-plugin")) continue;
     if (!scripts || typeof scripts.build !== "string") continue;
-    found.push(`packages/plugins/${entry.name}`);
+    found.push(join("packages", "plugins", entry.name));
   }
   found.sort();
   return found;

@@ -86,7 +86,7 @@ function findWorkspaces({ relDir, scope, nameSuffix }) {
     const { name, scripts } = pkg ?? {};
     if (typeof name !== "string") continue;
     if (!name.startsWith(scopePrefix)) continue;
-    if (nameSuffix && !name.endsWith(nameSuffix) && name !== "@mulmoclaude/worklog") continue;
+    if (nameSuffix && !name.endsWith(nameSuffix)) continue;
     if (!scripts || typeof scripts.build !== "string") continue;
     found.push(name);
   }

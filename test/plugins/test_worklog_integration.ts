@@ -18,10 +18,10 @@ import type { IPubSub } from "../../server/events/pub-sub/index.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const PLUGIN_DIR = path.resolve(__dirname, "../../packages/plugins/worklog");
+const PLUGIN_DIR = path.resolve(__dirname, "../../packages/plugins/worklog-plugin");
 const PLUGIN_DIST_INDEX = path.join(PLUGIN_DIR, "dist", "index.js");
 
-const PKG_NAME = "@mulmoclaude/worklog";
+const PKG_NAME = "@mulmoclaude/worklog-plugin";
 const VERSION = "0.1.0";
 
 function makeRecordingPubSub(): { pubsub: IPubSub; published: { channel: string; data: unknown }[] } {

@@ -136,9 +136,7 @@ function parseBound(boundValue: string, isEnd: boolean, fieldName: string): numb
   if (!strictIsoRegex.test(boundValue)) {
     throw new Error(`Invalid range.${fieldName} format: "${boundValue}"`);
   }
-  const normalizedStr = /^\d{4}-\d{2}-\d{2}$/.test(boundValue)
-    ? `${boundValue}T${isEnd ? "23:59:59.999Z" : "00:00:00.000Z"}`
-    : boundValue;
+  const normalizedStr = /^\d{4}-\d{2}-\d{2}$/.test(boundValue) ? `${boundValue}T${isEnd ? "23:59:59.999Z" : "00:00:00.000Z"}` : boundValue;
   const time = new Date(normalizedStr).getTime();
   if (isNaN(time)) {
     throw new Error(`Invalid range.${fieldName} format: "${boundValue}"`);

@@ -45,7 +45,7 @@
             <span class="material-icons text-base text-gray-500">analytics</span>
             <span>{{ t.weeklyRollup }} {{ t.summary }}</span>
           </h2>
-          
+
           <div class="flex items-center gap-3">
             <!-- Reset to current week on the left (future navigation) -->
             <button
@@ -218,7 +218,10 @@
                   ></textarea>
                 </div>
                 <div class="flex justify-end gap-2 mt-2">
-                  <button @click="editingEntryId = null" class="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 text-gray-600">
+                  <button
+                    @click="editingEntryId = null"
+                    class="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 text-gray-600"
+                  >
                     <span class="material-icons text-xs leading-none">close</span>
                     <span>{{ t.cancel }}</span>
                   </button>
@@ -291,7 +294,10 @@
           </h2>
         </div>
 
-        <div v-if="candidates.length === 0" class="px-6 py-12 text-center text-gray-400 border border-dashed border-gray-200 rounded-xl bg-gray-50/50 flex flex-col items-center justify-center gap-2">
+        <div
+          v-if="candidates.length === 0"
+          class="px-6 py-12 text-center text-gray-400 border border-dashed border-gray-200 rounded-xl bg-gray-50/50 flex flex-col items-center justify-center gap-2"
+        >
           <span class="material-icons text-3xl">assignment</span>
           <p class="text-sm">{{ t.noCandidates }}</p>
         </div>
@@ -486,11 +492,11 @@ function syncActiveTab(action: string | undefined, candidateCount: number) {
 let unsub: (() => void) | undefined;
 onMounted(() => {
   syncActiveTab(props.selectedResult?.args?.action, candidates.value.length);
-  
+
   void refresh().then(() => {
     syncActiveTab(props.selectedResult?.args?.action, candidates.value.length);
   });
-  
+
   unsub = pubsub.subscribe("changed", () => {
     void refresh().then(() => {
       syncActiveTab(props.selectedResult?.args?.action, candidates.value.length);
@@ -505,9 +511,9 @@ watch(
     committed.value = props.selectedResult.data?.committed ?? [];
     candidates.value = props.selectedResult.data?.candidates ?? [];
     weekOffset.value = 0;
-    
+
     syncActiveTab(props.selectedResult?.args?.action, candidates.value.length);
-    
+
     void refresh().then(() => {
       syncActiveTab(props.selectedResult?.args?.action, candidates.value.length);
     });
@@ -532,15 +538,7 @@ function getStartOfWeek(offsetWeeks = 0): Date {
 }
 
 function buildWeekdayLabels(base: Date, tVal: any): { dateStr: string; label: string }[] {
-  const weekdays = [
-    tVal.mon || "Mon",
-    tVal.tue || "Tue",
-    tVal.wed || "Wed",
-    tVal.thu || "Thu",
-    tVal.fri || "Fri",
-    tVal.sat || "Sat",
-    tVal.sun || "Sun",
-  ];
+  const weekdays = [tVal.mon || "Mon", tVal.tue || "Tue", tVal.wed || "Wed", tVal.thu || "Thu", tVal.fri || "Fri", tVal.sat || "Sat", tVal.sun || "Sun"];
   const days: { dateStr: string; label: string }[] = [];
   for (let i = 0; i < 7; i++) {
     const d = new Date(base);

@@ -1,5 +1,5 @@
 {
-  "name": "@mulmoclaude/worklog",
+  "name": "@mulmoclaude/worklog-plugin",
   "version": "0.1.0",
   "description": "Worklog plugin for Solopreneur OS suite — Manual Mode. Dynamic runtime plugin.",
   "type": "module",
