@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
-import { homedir, tmpdir } from "node:os";
+import { homedir, tmpdir, userInfo } from "node:os";
 import { WORKSPACE_DIRS, WORKSPACE_PATHS, WORKSPACE_FILES, EAGER_WORKSPACE_DIRS, workspacePath } from "../../server/workspace/paths.js";
 
 const expectedWorkspacePath = path.join(homedir(), "mulmoclaude");
@@ -13,7 +13,18 @@ describe("workspacePath", () => {
       process.execArgv.includes("--test") ||
       process.argv.some((arg) => arg.includes("test")) ||
       typeof process.env.NODE_TEST_CONTEXT !== "undefined";
-    const expected = process.env.MULMOCLAUDE_WORKSPACE_PATH || (isTestEnv ? path.join(tmpdir(), "mulmoclaude-test") : expectedWorkspacePath);
+
+    const realUserHome = (() => {
+      try {
+        return userInfo().homedir;
+      } catch {
+        return homedir();
+      }
+    })();
+    const isHomeOverridden = homedir() !== realUserHome;
+
+    const expected =
+      process.env.MULMOCLAUDE_WORKSPACE_PATH || (isTestEnv && !isHomeOverridden ? path.join(tmpdir(), "mulmoclaude-test") : expectedWorkspacePath);
     assert.equal(workspacePath, expected);
   });
 });

@@ -424,6 +424,9 @@ export async function handleManageClient(
         // Commit active client record
         const slug = validated.data.id;
         const filePath = `${slug}.md`;
+        if (await files.data.exists(filePath)) {
+          return { ok: false, error: "client_exists", message: `Client '${slug}' already exists in active records.` };
+        }
         await files.data.write(filePath, serialiseClient(validated.data));
 
         // Delete candidate draft
@@ -473,6 +476,9 @@ export async function handleManageClient(
 
         // Commit active project record
         const filePath = `${clientSlug}/projects/${projectSlug}.md`;
+        if (await files.data.exists(filePath)) {
+          return { ok: false, error: "project_exists", message: `Project '${projectSlug}' already exists under client '${clientSlug}'.` };
+        }
         await files.data.write(filePath, serialiseProject(validated.data));
 
         // Delete candidate draft

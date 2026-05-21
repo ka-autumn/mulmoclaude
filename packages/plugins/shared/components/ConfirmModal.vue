@@ -124,7 +124,10 @@ function onKeyDown(event: KeyboardEvent) {
   if (event.key === "Escape") {
     event.preventDefault();
     handleConfirm(false);
-  } else if (event.key === "Enter") {
+    return;
+  }
+
+  if (event.key === "Enter") {
     // Let buttons handle themselves if they have active focus, otherwise trigger confirm
     const active = document.activeElement;
     if (active === cancelBtn.value) {
@@ -132,6 +135,18 @@ function onKeyDown(event: KeyboardEvent) {
     } else if (active !== confirmBtn.value) {
       event.preventDefault();
       handleConfirm(true);
+    }
+    return;
+  }
+
+  if (event.key === "Tab") {
+    const active = document.activeElement;
+    if (event.shiftKey && active !== confirmBtn.value) {
+      event.preventDefault();
+      confirmBtn.value?.focus();
+    } else if (!event.shiftKey && active !== cancelBtn.value) {
+      event.preventDefault();
+      cancelBtn.value?.focus();
     }
   }
 }
