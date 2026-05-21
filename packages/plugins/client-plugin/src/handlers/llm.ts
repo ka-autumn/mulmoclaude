@@ -218,6 +218,7 @@ export async function handleManageClient(
       return {
         ok: true,
         data: {},
+        args: { action: "present", id: args.id },
         message: "Presented the client dashboard.",
         instructions: "Show the Client/CRM dashboard with active clients, projects, and pending drafts.",
       };
@@ -267,6 +268,7 @@ export async function handleManageClient(
         ok: true,
         client,
         projects,
+        args: { action: args.action, id: args.id },
         message: `Details for client **${client.name}**:\n- Status: ${client.status}\n- Rate: ${rateStr}\n- Payment Terms: ${client.paymentTerms}\n- First Engagement: ${client.firstEngagement}\n- Contacts: ${contactsStr}\n- Projects: ${projectsStr}\n- Notes:\n${client.notes || "None"}`,
         jsonData: { client, projects },
         instructions: `Open details page for client ${client.name}.`,
@@ -359,6 +361,7 @@ export async function handleManageClient(
       return {
         ok: true,
         project,
+        args: { action: args.action, id: args.id, projectId: args.projectId },
         message: `Details for project **${project.name}** under client **${clientSlug}**:\n- Status: ${project.status}\n- Fee Model: ${project.feeModel}\n- Rate: ${rateStr}\n- Started: ${project.startDate}\n- Expected Deliverables: ${project.expectedDeliverables || "None"}\n- Notes:\n${project.notes || "None"}`,
         jsonData: { project },
         instructions: `Open project details page for project ${project.name} under client ${clientSlug}.`,
