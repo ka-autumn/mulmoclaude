@@ -700,6 +700,8 @@ function syncActiveTab(action: string | undefined, candidateCount: number) {
     props.selectedResult?.args?.id
   ) {
     void selectClient(props.selectedResult.args.id);
+  } else if (action === "present") {
+    activeTab.value = "spreadsheet";
   } else if (action === "create" || action === "createProject" || (activeTab.value === "spreadsheet" && candidateCount > 0)) {
     activeTab.value = "review";
   }
