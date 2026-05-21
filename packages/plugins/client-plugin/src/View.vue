@@ -815,22 +815,15 @@ async function approveThenUpdate(cand: ClientCandidate) {
     action: "approveClient",
     candidateId: cand.candidateId,
   });
-
-  if (approveRes?.ok) {
-    await dispatch<ActionResponse>({
-      action: "update",
-      id: approveRes.id,
-      patch: {
-        name: cand.data.name,
-        paymentTerms: cand.data.paymentTerms,
-        rate: cand.data.rate,
-        tags: cand.data.tags,
-        contacts: cand.data.contacts,
-        notes: cand.data.notes,
-      },
-    });
-  }
-  return approveRes;
+  if (!approveRes?.ok) return approveRes;
+  const realId = cand.data.id || approveRes.id;
+  const patch = { id: realId, ...cand.data };
+  const updateRes = await dispatch<ActionResponse>({
+    action: "update",
+    id: realId,
+    patch,
+  });
+  return updateRes?.ok ? approveRes : { ok: false, error: updateRes?.error || "Failed to save client changes." };
 }
 
 async function approveClientCandidate(cand: ClientCandidate) {
@@ -863,10 +856,11 @@ async function approveClientCandidate(cand: ClientCandidate) {
   }
 }
 
-async function approveProjectRequest(candidateId: string) {
+async function approveProjectRequest(candidateId: string, patch?: Project) {
   return await dispatch<ActionResponse>({
     action: "approveProject",
     candidateId,
+    patch,
   });
 }
 
@@ -886,7 +880,7 @@ async function approveProjectCandidate(cand: ProjectCandidate) {
   errorMsg.value = "";
 
   try {
-    const res = await approveProjectRequest(cand.candidateId);
+    const res = await approveProjectRequest(cand.candidateId, cand.data);
     if (res?.ok) {
       successMsg.value = `Project "${name}" committed successfully!`;
       await refreshAll();
@@ -945,6 +939,7 @@ async function approveProjectCandidateDirect(cand: ProjectCandidate) {
     const res = await dispatch<ActionResponse>({
       action: "approveProject",
       candidateId: cand.candidateId,
+      patch: cand.data,
     });
     if (res?.ok) {
       successMsg.value = `Project "${cand.data.name}" committed!`;

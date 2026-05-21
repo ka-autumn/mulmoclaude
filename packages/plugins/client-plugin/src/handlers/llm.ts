@@ -415,7 +415,8 @@ export async function handleManageClient(
           return { ok: false, error: "invalid_candidate_type", message: "Candidate is not a client candidate." };
         }
 
-        const validated = ClientSchema.safeParse(parsed.data);
+        const mergedData = { ...parsed.data, ...(args.patch || {}) };
+        const validated = ClientSchema.safeParse(mergedData);
         if (!validated.success) {
           return { ok: false, error: "validation_failed", errors: validated.error.format() };
         }
@@ -456,7 +457,8 @@ export async function handleManageClient(
           return { ok: false, error: "invalid_candidate_type", message: "Candidate is not a project candidate." };
         }
 
-        const validated = ProjectSchema.safeParse(parsed.data);
+        const mergedData = { ...parsed.data, ...(args.patch || {}) };
+        const validated = ProjectSchema.safeParse(mergedData);
         if (!validated.success) {
           return { ok: false, error: "validation_failed", errors: validated.error.format() };
         }
