@@ -66,17 +66,20 @@ function onClick(event: MouseEvent) {
   text-decoration: underline;
 }
 /* Interaction + visited states for external / markdown-rendered
-   anchors. `.wiki-link` (internal cross-refs) has its own hover
-   rule above; this covers all other anchors inside the wiki body
-   so keyboard focus and visit history are visible to the user.
-   (Sourcery follow-up on #1453.) */
-.wiki-content :deep(a:hover) {
-  color: #1d4ed8;
-}
-.wiki-content :deep(a:visited) {
+   anchors. Scope with `:not(.wiki-link)` so the rules don't override
+   the dotted-underline / solid-on-hover styling that internal
+   cross-refs already carry above (Codex follow-up on #1466).
+   Order follows LVHA: visited before hover so a visited+hovered
+   link shows the hover color, not the visited one (Sourcery
+   follow-up on #1466). focus-visible is appended; it can stack
+   with any state to give keyboard users a visible outline. */
+.wiki-content :deep(a:not(.wiki-link):visited) {
   color: #6d28d9;
 }
-.wiki-content :deep(a:focus-visible) {
+.wiki-content :deep(a:not(.wiki-link):hover) {
+  color: #1d4ed8;
+}
+.wiki-content :deep(a:not(.wiki-link):focus-visible) {
   outline: 2px solid #2563eb;
   outline-offset: 2px;
 }
