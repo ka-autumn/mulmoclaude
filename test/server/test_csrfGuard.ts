@@ -161,6 +161,16 @@ function makeRes(): FakeRes {
   return res;
 }
 
+// Baseline middleware fixture: a `requireSameOriginWith([])` instance
+// rather than the env-bound `requireSameOrigin` export. The baseline
+// tests below assert "default localhost-only" behaviour, so they
+// must NOT inherit the test process's `MULMOCLAUDE_TRUSTED_ORIGINS`
+// (which is normally unset, but a future test or CI matrix entry
+// could set it and silently corrupt these assertions). The dedicated
+// env-bound smoke test further down still exercises the exported
+// `requireSameOrigin`.
+const baselineMiddleware = requireSameOriginWith([]);
+
 function run(req: FakeReq, res: FakeRes): { nextCalled: boolean; statusCode: number; body: unknown } {
   let nextCalled = false;
   const next: NextFunction = () => {
@@ -169,7 +179,7 @@ function run(req: FakeReq, res: FakeRes): { nextCalled: boolean; statusCode: num
   // The types differ slightly from real Express — cast through
   // `unknown` since the middleware only touches `method`,
   // `headers`, `status`, `json`.
-  requireSameOrigin(req as unknown as Request, res as unknown as Response, next);
+  baselineMiddleware(req as unknown as Request, res as unknown as Response, next);
   return {
     nextCalled,
     statusCode: res.statusCode,
