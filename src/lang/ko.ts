@@ -119,6 +119,8 @@ const koMessages = {
     availableTools: "사용 가능한 도구",
     toggleToolDescription: "도구 설명 토글",
     toolCallHistory: "도구 호출 기록",
+    copyHistory: "도구 호출 기록 복사",
+    copiedHistory: "복사됨!",
     noToolCalls: "아직 도구 호출이 없습니다",
     arguments: "인자",
     error: "오류",

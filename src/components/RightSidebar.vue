@@ -34,8 +34,20 @@
         </div>
       </div>
 
-      <div class="p-4 border-b border-gray-200 bg-white">
+      <div class="p-4 border-b border-gray-200 bg-white flex items-center justify-between gap-2">
         <h2 class="text-lg font-semibold">{{ t("rightSidebar.toolCallHistory") }}</h2>
+        <button
+          type="button"
+          class="h-8 w-8 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          :class="{ '!text-green-600': copied }"
+          data-testid="copy-tool-call-history"
+          :disabled="toolCallHistory.length === 0"
+          :title="copied ? t('rightSidebar.copiedHistory') : t('rightSidebar.copyHistory')"
+          :aria-label="copied ? t('rightSidebar.copiedHistory') : t('rightSidebar.copyHistory')"
+          @click="onCopyHistory"
+        >
+          <span class="material-icons text-lg" aria-hidden="true">{{ copied ? "check" : "content_copy" }}</span>
+        </button>
       </div>
 
       <div class="p-2 space-y-2 bg-gray-100">
@@ -92,15 +104,22 @@ import { ref, nextTick } from "vue";
 import { useI18n } from "vue-i18n";
 import type { ToolCallHistoryItem } from "../types/toolCallHistory";
 import { formatTime } from "../utils/format/date";
+import { useClipboardCopy } from "../composables/useClipboardCopy";
 
 const { t } = useI18n();
 
-defineProps<{
+const props = defineProps<{
   toolCallHistory: ToolCallHistoryItem[];
   availableTools: string[];
   rolePrompt: string;
   toolDescriptions: Record<string, string>;
 }>();
+
+const { copied, copy } = useClipboardCopy();
+
+async function onCopyHistory(): Promise<void> {
+  await copy(formatJson(props.toolCallHistory));
+}
 
 const showSystemPrompt = ref(false);
 const expandedTools = ref(new Set<string>());

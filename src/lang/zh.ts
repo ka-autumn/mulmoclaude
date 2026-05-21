@@ -114,6 +114,8 @@ const zhMessages = {
     availableTools: "可用工具",
     toggleToolDescription: "切换工具说明",
     toolCallHistory: "工具调用历史",
+    copyHistory: "复制工具调用历史",
+    copiedHistory: "已复制!",
     noToolCalls: "还没有工具调用",
     arguments: "参数",
     error: "错误",

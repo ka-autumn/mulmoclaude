@@ -114,6 +114,8 @@ const deMessages = {
     availableTools: "Verfügbare Tools",
     toggleToolDescription: "Tool-Beschreibung umschalten",
     toolCallHistory: "Tool-Aufrufverlauf",
+    copyHistory: "Tool-Aufrufverlauf kopieren",
+    copiedHistory: "Kopiert!",
     noToolCalls: "Noch keine Tool-Aufrufe",
     arguments: "Argumente",
     error: "Fehler",

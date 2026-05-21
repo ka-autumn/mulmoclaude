@@ -112,6 +112,8 @@ const ptBRMessages = {
     availableTools: "Ferramentas disponíveis",
     toggleToolDescription: "Alternar descrição da ferramenta",
     toolCallHistory: "Histórico de chamadas de ferramentas",
+    copyHistory: "Copiar histórico de chamadas de ferramentas",
+    copiedHistory: "Copiado!",
     noToolCalls: "Ainda não há chamadas de ferramentas",
     arguments: "Argumentos",
     error: "Erro",

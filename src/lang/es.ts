@@ -117,6 +117,8 @@ const esMessages = {
     availableTools: "Herramientas disponibles",
     toggleToolDescription: "Alternar descripción de la herramienta",
     toolCallHistory: "Historial de llamadas a herramientas",
+    copyHistory: "Copiar historial de llamadas a herramientas",
+    copiedHistory: "¡Copiado!",
     noToolCalls: "Aún no hay llamadas a herramientas",
     arguments: "Argumentos",
     error: "Error",

@@ -117,6 +117,8 @@ const jaMessages = {
     availableTools: "利用可能ツール",
     toggleToolDescription: "ツール説明の表示切替",
     toolCallHistory: "ツール呼び出し履歴",
+    copyHistory: "ツール呼び出し履歴をコピー",
+    copiedHistory: "コピーしました!",
     noToolCalls: "ツール呼び出しはまだありません",
     arguments: "引数",
     error: "エラー",

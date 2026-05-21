@@ -132,6 +132,8 @@ const enMessages = {
     availableTools: "Available Tools",
     toggleToolDescription: "Toggle tool description",
     toolCallHistory: "Tool Call History",
+    copyHistory: "Copy tool call history",
+    copiedHistory: "Copied!",
     noToolCalls: "No tool calls yet",
     arguments: "Arguments",
     error: "Error",

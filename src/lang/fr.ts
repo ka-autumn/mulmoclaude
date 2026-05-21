@@ -112,6 +112,8 @@ const frMessages = {
     availableTools: "Outils disponibles",
     toggleToolDescription: "Basculer la description de l'outil",
     toolCallHistory: "Historique des appels d'outils",
+    copyHistory: "Copier l'historique des appels d'outils",
+    copiedHistory: "Copié !",
     noToolCalls: "Aucun appel d'outil pour le moment",
     arguments: "Arguments",
     error: "Erreur",
