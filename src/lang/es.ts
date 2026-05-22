@@ -93,6 +93,11 @@ const esMessages = {
     notResponding:
       "{command} está instalado pero no se está ejecutando — las funciones relacionadas se han desactivado. Inicia {command} y reinicia MulmoClaude para habilitarlas.",
   },
+  backendOffline: {
+    title: "No se puede conectar con el backend",
+    body: "Es posible que el servidor de MulmoClaude no esté en ejecución. Comprueba el servidor de desarrollo y vuelve a intentarlo.",
+    retry: "Reintentar",
+  },
   pluginErrorBoundary: {
     title: "El plugin {pkg} se ha bloqueado",
     subtitle: "El plugin no se pudo renderizar. El error se ha registrado en la consola.",

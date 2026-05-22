@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { apiCall, apiGet, apiPost, apiPut, apiDelete, setAuthToken } from "../../src/utils/api.ts";
+import { apiCall, apiGet, apiPost, apiPut, apiDelete, backendReachable, lastBackendError, setAuthToken } from "../../src/utils/api.ts";
 
 // fetch mocking. Capture the URL + init passed by the api module, and
 // reply with a pre-scripted response. Each test installs its own mock
@@ -186,5 +186,64 @@ describe("apiCall — query and headers", () => {
       headers: { "X-Custom": "1" },
     });
     assert.equal(getHeader(calls[0], "X-Custom"), "1");
+  });
+});
+
+// #1479 — backend-reachability signal. A `fetch` throw flips
+// `backendReachable` false (with the error message stored); any
+// subsequent HTTP reply (including 4xx/5xx) flips it back true.
+describe("apiCall — backendReachable signal", () => {
+  beforeEach(() => {
+    backendReachable.value = true;
+    lastBackendError.value = null;
+  });
+  afterEach(restoreMock);
+
+  it("flips to false on a fetch throw (network error / ERR_CONNECTION_REFUSED)", async () => {
+    globalThis.fetch = (() => Promise.reject(new Error("connection refused"))) as typeof fetch;
+    const result = await apiCall("/api/anything");
+    assert.equal(result.ok, false);
+    if (result.ok === false) {
+      assert.equal(result.status, 0);
+      assert.match(result.error, /connection refused/);
+    }
+    assert.equal(backendReachable.value, false);
+    assert.match(lastBackendError.value ?? "", /connection refused/);
+  });
+
+  it("flips back to true on the next successful HTTP reply", async () => {
+    globalThis.fetch = (() => Promise.reject(new Error("down"))) as typeof fetch;
+    await apiCall("/api/anything");
+    assert.equal(backendReachable.value, false);
+
+    installMock();
+    nextResponse = jsonResponse(200, { ok: true });
+    await apiCall("/api/anything");
+    assert.equal(backendReachable.value, true);
+    assert.equal(lastBackendError.value, null);
+  });
+
+  it("flips back to true even when the HTTP reply is a 4xx/5xx", async () => {
+    globalThis.fetch = (() => Promise.reject(new Error("down"))) as typeof fetch;
+    await apiCall("/api/anything");
+    assert.equal(backendReachable.value, false);
+
+    installMock();
+    nextResponse = jsonResponse(500, { error: "boom" });
+    await apiCall("/api/anything");
+    // Server replied → backend is reachable, even though the request itself failed.
+    assert.equal(backendReachable.value, true);
+  });
+
+  it("does NOT flip on caller-driven AbortError (normal cancel flow)", async () => {
+    // Simulate `AbortController.abort()` mid-flight: fetch rejects
+    // with a DOMException-shaped AbortError. This is a normal
+    // navigation/race flow — must not surface as backend-offline.
+    const abortErr = Object.assign(new Error("aborted"), { name: "AbortError" });
+    globalThis.fetch = (() => Promise.reject(abortErr)) as typeof fetch;
+    const result = await apiCall("/api/anything");
+    assert.equal(result.ok, false);
+    assert.equal(backendReachable.value, true);
+    assert.equal(lastBackendError.value, null);
   });
 });

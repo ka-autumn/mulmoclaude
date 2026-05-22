@@ -88,6 +88,11 @@ const frMessages = {
     notResponding:
       "{command} est installé mais n'est pas en cours d'exécution — les fonctionnalités associées ont été désactivées. Démarrez {command} et redémarrez MulmoClaude pour les activer.",
   },
+  backendOffline: {
+    title: "Impossible de joindre le backend",
+    body: "Le serveur MulmoClaude n'est peut-être pas démarré. Vérifiez le serveur de développement, puis réessayez.",
+    retry: "Réessayer",
+  },
   pluginErrorBoundary: {
     title: "Le plugin {pkg} a planté",
     subtitle: "Le plugin n'a pas pu être affiché. L'erreur a été consignée dans la console.",

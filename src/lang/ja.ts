@@ -93,6 +93,11 @@ const jaMessages = {
     notFound: "{command} がインストールされていないため、関連機能を停止しています。{command} をインストールしてから MulmoClaude を再起動してください。",
     notResponding: "{command} が起動していないため、関連機能を停止しています。{command} を起動してから MulmoClaude を再起動してください。",
   },
+  backendOffline: {
+    title: "バックエンドに接続できません",
+    body: "MulmoClaude サーバが起動していない可能性があります。dev サーバを確認してから再試行してください。",
+    retry: "再試行",
+  },
   pluginErrorBoundary: {
     title: "プラグイン {pkg} がクラッシュしました",
     subtitle: "プラグインのレンダリングに失敗しました。エラーはコンソールに記録されています。",

@@ -1,5 +1,9 @@
 <template>
   <div class="flex flex-col fixed inset-0 bg-gray-900 text-white">
+    <!-- Backend-offline banner (#1479) — pinned above the top bar so
+         it's the first thing the user sees when the server isn't
+         reachable. Self-hiding when fetchHealth succeeds. -->
+    <BackendOfflineBanner :on-retry="fetchHealth" />
     <!-- Global top bar — shown in every view mode -->
     <div class="shrink-0 bg-white text-gray-900">
       <!-- Row 1: title + plugin launcher -->
@@ -304,6 +308,7 @@ import { useI18n } from "vue-i18n";
 import { v4 as uuidv4 } from "uuid";
 import { getPlugin } from "./tools";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
+import BackendOfflineBanner from "./components/BackendOfflineBanner.vue";
 import RightSidebar from "./components/RightSidebar.vue";
 import SidebarHeader from "./components/SidebarHeader.vue";
 import SessionHeaderControls from "./components/SessionHeaderControls.vue";

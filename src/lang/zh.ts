@@ -90,6 +90,11 @@ const zhMessages = {
     notFound: "未找到 {command} — 相关功能已被禁用。请安装 {command} 后重启 MulmoClaude 以启用。",
     notResponding: "{command} 已安装但未运行 — 相关功能已被禁用。请启动 {command} 后重启 MulmoClaude 以启用。",
   },
+  backendOffline: {
+    title: "无法连接到后端",
+    body: "MulmoClaude 服务器可能未运行。请检查开发服务器后再重试。",
+    retry: "重试",
+  },
   pluginErrorBoundary: {
     title: "插件 {pkg} 已崩溃",
     subtitle: "插件渲染失败。错误已记录到控制台。",
