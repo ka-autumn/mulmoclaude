@@ -69,6 +69,12 @@ ESM resolver は `import { env } from "../system/env.js"` を un-queried URL で
 
 ## 影響範囲
 
-- 追加: `test/server/test_csrfGuard_env_wiring.ts`, `plans/test-csrf-env-wiring-1463.md`
-- 修正: `package.json` (`scripts.test:csrf-wiring` を追加), `.github/workflows/pull_request.yaml` (CI step を追加)
+- 追加:
+  - `test/server/test_csrfGuard_env_wiring.ts` — env-bound wiring smoke spec
+  - `test/server/helpers/fakeExpressMiddleware.ts` — shared fake Express helpers (`FakeReq` / `FakeRes` / `makeReq` / `makeReqWithRawOrigin` / `makeRes`)、既存 spec との duplicate を解消するため抽出
+  - `plans/test-csrf-env-wiring-1463.md`
+- 修正:
+  - `package.json` (`scripts.test:csrf-wiring` を追加)
+  - `.github/workflows/pull_request.yaml` (lint_test job に CI step を追加)
+  - `test/server/test_csrfGuard.ts` — 上記 helper module を import するように refactor。仕様変更なし、net -47 lines
 - production code (`server/api/csrfGuard.ts`, `server/system/env.ts`) は触らない
