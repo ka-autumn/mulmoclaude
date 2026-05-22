@@ -132,6 +132,14 @@ jobs:
     - name: Verify built hook bundles are up-to-date
       run: git diff --exit-code -- server/workspace/wiki-history/hook/snapshot.mjs server/build/dispatcher.mjs
     - run: yarn run test:coverage
+    # Subprocess-mode env-bound smoke for `requireSameOrigin` (#1463).
+    # The main `test:coverage` glob exercises the env-UNSET path; this
+    # step re-runs the same spec with `MULMOCLAUDE_TRUSTED_ORIGINS` set
+    # so the EXPORTED middleware is exercised against a listed LAN
+    # origin. Catches a typo like `requireSameOriginWith([])` at the
+    # export site that the in-process suite cannot see (Node's ESM
+    # resolver caches `env.ts` on first import).
+    - run: yarn run test:csrf-wiring
 
   # Single Yarn 4 cell — Yarn 1 stays the primary tool for the lint_test
   # matrix, but this guards against duplicate-workspace-name (Yarn 4 is
