@@ -311,7 +311,7 @@ e2e-live/
 
 ### Phase 1: 即着手可能 (高重要度 + 1 PR 完結)
 
-1. **L-30 skill symlink dangling (B-08、 docker)** — 重要度 **A**、 階層 1 (spec scope の broken symlink seed) で局所再現可、 ユーザー環境を一切触らない。 docker sandbox の挙動 / boot path 周辺が #1462 (docker e2e-live) / #1480 (backend-offline banner) で頻繁に動いている時期なので、 docker 系シナリオで唯一 e2e-live 化可能な L-30 の net を早く獲得する価値が大きい
+1. **L-30 skill symlink dangling (B-08、 docker)** — 重要度 **A**、 階層 1 (spec scope の broken symlink seed) で局所再現可、 ユーザー環境を一切触らない。 PR #1462 で docker e2e-live の cover が始まったばかり (L-23 / L-26 / L-28) の段階なので、 docker 系で唯一 e2e-live 化可能な L-30 を続いて早く積むと網が滑らかに繋がる
 2. **encore plugin dispatch canary (#1437 / #1440 / #1441 / #1443)** — 重要度 **A**、 L-21 (chart) shape を copy するだけ。 新 plugin の deferred-tool dispatch が壊れると plugin View 全消失する退行に直結。 runtime plugin が増えるトレンドで net 強化の効果が最大
 
 ### Phase 2: 前提 PR + 本体 PR (中〜高重要度、 要 infra 整備)
@@ -331,7 +331,9 @@ e2e-live/
 
 ### docker 系の優先度
 
-「docker 系は早い方が良い？」 の問いには **L-30 を Phase 1 に置く** ことで応えている。 docker 系で残る他 2 件 (L-24 / L-29) は再定義 / drop になるため、 e2e-live で着手できる docker シナリオは **L-30 が唯一かつ最大の ROI**。 docker sandbox boot path 周辺は最近 (#1462 / #1480 等) で頻繁に動いているので、 net の厚みを早く積む方が安全。
+「docker 系は早い方が良い？」 の問いには **L-30 を Phase 1 に置く** ことで応えている。 docker 系で残る他 2 件 (L-24 / L-29) は再定義 / drop になるため、 e2e-live で着手できる docker シナリオは **L-30 が唯一かつ最大の ROI**。 PR #1462 で docker e2e-live (L-23 / L-26 / L-28) の cover が landed し、 同じ docker.spec.ts に L-30 を追記する形で網を厚くできる。
+
+なお plan 上は dev server / sandbox image build / MCP catalog 初期化 / CLI spawn args 構築といった boot path 系の検証は、 すべて既存の unit test (`test/system/`、 `test/agent/test_agent_config.ts` の `buildDockerSpawnArgs` 11 cases) で構造的退行を cover している前提。 e2e-live で boot path 自体を見るシナリオは現時点で具体的な必要性が見えておらず、 新規シナリオ起こしは行わない。
 
 ## 実装の詳細
 
