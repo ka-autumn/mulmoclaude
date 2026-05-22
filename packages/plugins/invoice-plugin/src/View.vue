@@ -819,6 +819,13 @@ async function triggerPrintableGeneration() {
 let unsub: (() => void) | null = null;
 onMounted(async () => {
   await loadData();
+
+  // If the dashboard was opened as a result of saving settings, focus the settings tab
+  const args = props.selectedResult?.args as any;
+  if (args?.action === "saveSettings") {
+    activeTab.value = "settings";
+  }
+
   unsub = pubsub.subscribe("changed", () => {
     loadData();
   });

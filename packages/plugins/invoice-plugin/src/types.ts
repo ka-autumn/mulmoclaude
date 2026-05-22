@@ -48,6 +48,7 @@ export interface ExtendedToolResultComplete {
   error?: string;
   status?: number;
   instructions?: string;
+  args?: Record<string, any>;
 }
 
 export const InvoiceSettingsSchema = z.object({

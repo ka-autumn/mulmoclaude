@@ -345,7 +345,7 @@ export default definePlugin((runtime) => {
           if (!args.settings) return { ok: false, error: "Missing settings for saveSettings" };
           await saveSettings(files.data, args.settings);
           await pubsub.publish("changed", { at: new Date().toISOString() });
-          return { ok: true, jsonData: { settings: args.settings } };
+          return { ok: true, jsonData: { settings: args.settings }, data: {} };
         }
 
         case "startPrintableGenerationChat": {
