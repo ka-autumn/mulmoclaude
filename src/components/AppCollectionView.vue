@@ -106,7 +106,7 @@
               :id="`apps-field-${key}`"
               v-model="editing.draft[key]"
               :type="inputTypeFor(field.type)"
-              :required="field.required"
+              :required="isFieldRequiredInUi(field)"
               :disabled="field.primary === true && editing.mode === 'edit'"
               class="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:border-blue-400 focus:outline-none disabled:bg-gray-100 disabled:text-gray-500"
               :data-testid="`apps-input-${key}`"
@@ -116,7 +116,7 @@
               :id="`apps-field-${key}`"
               v-model="editing.draft[key]"
               :rows="field.type === 'markdown' ? 6 : 3"
-              :required="field.required"
+              :required="isFieldRequiredInUi(field)"
               class="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:border-blue-400 focus:outline-none"
               :data-testid="`apps-input-${key}`"
             />
@@ -246,6 +246,17 @@ function inputTypeFor(type: FieldType): string {
   return "text";
 }
 
+/** Mirror of the create-mode primary-key carve-out in `saveEditor`:
+ *  drop the HTML5 `required` flag on the primary field while creating
+ *  so browser-level form validation doesn't pop a "Please fill out
+ *  this field" tooltip when the user is intentionally leaving the
+ *  primary blank for server-side ID generation. */
+function isFieldRequiredInUi(field: FieldSpec): boolean {
+  if (!field.required) return false;
+  if (editing.value?.mode === "create" && field.primary === true) return false;
+  return true;
+}
+
 function formatCell(value: unknown, type: FieldType): string {
   if (value === undefined || value === null || value === "") return "—";
   if (type === "markdown" && typeof value === "string") {
@@ -301,9 +312,16 @@ async function saveEditor(): Promise<void> {
   if (!app.value || !editing.value) return;
   saveError.value = null;
 
-  // client-side required-field check — server doesn't enforce.
+  // Client-side required-field check — server doesn't enforce. Skip
+  // the primary key in create mode: the server auto-generates an id
+  // when the field is blank, so blocking here would deny the
+  // documented "blank → server-generated id" flow even for schemas
+  // (like mc-clients) that mark the primary field `required: true`
+  // for the edit-form-displays-it-as-a-real-field reason.
   for (const [key, field] of Object.entries(app.value.schema.fields)) {
-    if (field.required && !editing.value.draft[key]) {
+    if (!field.required) continue;
+    if (editing.value.mode === "create" && field.primary === true) continue;
+    if (!editing.value.draft[key]) {
       saveError.value = `${field.label}: ${t("appsView.requiredField")}`;
       return;
     }

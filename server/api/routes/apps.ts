@@ -84,17 +84,22 @@ router.post(API_ROUTES.apps.items, async (req: Request<{ slug: string }>, res: R
   const primaryRaw = record[app.schema.primaryKey];
   const itemId = typeof primaryRaw === "string" && primaryRaw.length > 0 ? primaryRaw : generateItemId();
   const recordWithId: AppItem = { ...record, [app.schema.primaryKey]: itemId };
-  const result = await writeItem(app.dataDir, itemId, recordWithId, { refuseOverwrite: true });
-  if (result.kind === "invalid-id") {
-    badRequest(res, `invalid item id: ${result.itemId}`);
-    return;
+  try {
+    const result = await writeItem(app.dataDir, itemId, recordWithId, { refuseOverwrite: true });
+    if (result.kind === "invalid-id") {
+      badRequest(res, `invalid item id: ${result.itemId}`);
+      return;
+    }
+    if (result.kind === "conflict") {
+      conflict(res, `item '${result.itemId}' already exists`);
+      return;
+    }
+    log.info("apps", "item created", { slug: app.slug, itemId: result.itemId });
+    res.json({ itemId: result.itemId, item: result.item });
+  } catch (err) {
+    log.warn("apps", "item create failed", { slug: app.slug, itemId, error: errorMessage(err) });
+    serverError(res, errorMessage(err));
   }
-  if (result.kind === "conflict") {
-    conflict(res, `item '${result.itemId}' already exists`);
-    return;
-  }
-  log.info("apps", "item created", { slug: app.slug, itemId: result.itemId });
-  res.json({ itemId: result.itemId, item: result.item });
 });
 
 router.put(API_ROUTES.apps.item, async (req: Request<{ slug: string; itemId: string }>, res: Response<ItemMutationResponse>) => {
@@ -112,19 +117,24 @@ router.put(API_ROUTES.apps.item, async (req: Request<{ slug: string; itemId: str
   // mismatched primary-key value in the body so the file's id and its
   // record id never drift.
   const recordWithId: AppItem = { ...record, [app.schema.primaryKey]: req.params.itemId };
-  const result = await writeItem(app.dataDir, req.params.itemId, recordWithId);
-  if (result.kind === "invalid-id") {
-    badRequest(res, `invalid item id: ${result.itemId}`);
-    return;
+  try {
+    const result = await writeItem(app.dataDir, req.params.itemId, recordWithId);
+    if (result.kind === "invalid-id") {
+      badRequest(res, `invalid item id: ${result.itemId}`);
+      return;
+    }
+    if (result.kind === "conflict") {
+      // refuseOverwrite was false — this branch is unreachable, but
+      // typescript needs the exhaustive switch.
+      serverError(res, "unexpected conflict on update");
+      return;
+    }
+    log.info("apps", "item updated", { slug: app.slug, itemId: result.itemId });
+    res.json({ itemId: result.itemId, item: result.item });
+  } catch (err) {
+    log.warn("apps", "item update failed", { slug: app.slug, itemId: req.params.itemId, error: errorMessage(err) });
+    serverError(res, errorMessage(err));
   }
-  if (result.kind === "conflict") {
-    // refuseOverwrite was false — this branch is unreachable, but
-    // typescript needs the exhaustive switch.
-    serverError(res, "unexpected conflict on update");
-    return;
-  }
-  log.info("apps", "item updated", { slug: app.slug, itemId: result.itemId });
-  res.json({ itemId: result.itemId, item: result.item });
 });
 
 router.delete(API_ROUTES.apps.item, async (req: Request<{ slug: string; itemId: string }>, res: Response<DeleteResponse>) => {
@@ -133,17 +143,22 @@ router.delete(API_ROUTES.apps.item, async (req: Request<{ slug: string; itemId: 
     notFound(res, `app '${req.params.slug}' not found`);
     return;
   }
-  const result = await deleteItem(app.dataDir, req.params.itemId);
-  if (result.kind === "invalid-id") {
-    badRequest(res, `invalid item id: ${result.itemId}`);
-    return;
+  try {
+    const result = await deleteItem(app.dataDir, req.params.itemId);
+    if (result.kind === "invalid-id") {
+      badRequest(res, `invalid item id: ${result.itemId}`);
+      return;
+    }
+    if (result.kind === "not-found") {
+      notFound(res, `item '${result.itemId}' not found`);
+      return;
+    }
+    log.info("apps", "item deleted", { slug: app.slug, itemId: result.itemId });
+    res.json({ deleted: true, itemId: result.itemId });
+  } catch (err) {
+    log.warn("apps", "item delete failed", { slug: app.slug, itemId: req.params.itemId, error: errorMessage(err) });
+    serverError(res, errorMessage(err));
   }
-  if (result.kind === "not-found") {
-    notFound(res, `item '${result.itemId}' not found`);
-    return;
-  }
-  log.info("apps", "item deleted", { slug: app.slug, itemId: result.itemId });
-  res.json({ deleted: true, itemId: result.itemId });
 });
 
 export default router;

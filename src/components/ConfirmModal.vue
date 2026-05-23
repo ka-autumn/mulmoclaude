@@ -148,13 +148,17 @@ function onKeyDown(event: KeyboardEvent): void {
   }
 
   if (event.key === "Tab") {
-    const active = document.activeElement;
-    if (event.shiftKey && active !== confirmBtn.value) {
-      event.preventDefault();
-      confirmBtn.value?.focus();
-    } else if (!event.shiftKey && active !== cancelBtn.value) {
-      event.preventDefault();
+    // Trap focus inside the two-button dialog. The previous
+    // conditional-preventDefault leaked focus out of the modal when
+    // Tab was pressed from the cancel button (or Shift+Tab from the
+    // confirm button), breaking WCAG focus containment. Always
+    // preventDefault and toggle between the two buttons — Tab and
+    // Shift+Tab both cycle, which is the standard 2-control pattern.
+    event.preventDefault();
+    if (document.activeElement === confirmBtn.value) {
       cancelBtn.value?.focus();
+    } else {
+      confirmBtn.value?.focus();
     }
   }
 }

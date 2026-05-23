@@ -69,12 +69,21 @@ async function loadOneApp(skillsRoot: string, slug: string, source: AppSource): 
     return null;
   }
 
-  // Verify the primary key is one of the declared fields and is
-  // flagged `primary` (defensive — catches obvious skill-author typos).
+  // Verify the primary key is one of the declared fields AND is
+  // flagged `primary: true`. Without the flag the CollectionView
+  // would render the field as editable (its disabled-on-edit check
+  // is `field.primary === true`), the user's rename would silently
+  // be pinned back to the URL itemId on save, and they'd never know
+  // the edit was dropped. Reject the schema up front rather than
+  // ship that UX.
   const schema = parsed.data;
   const primaryField = schema.fields[schema.primaryKey];
   if (!primaryField) {
     log.warn("apps", "schema.json primaryKey not found in fields, skipping", { slug: safeName, primaryKey: schema.primaryKey });
+    return null;
+  }
+  if (primaryField.primary !== true) {
+    log.warn("apps", "schema.json primaryKey field is not flagged primary: true, skipping", { slug: safeName, primaryKey: schema.primaryKey });
     return null;
   }
 
