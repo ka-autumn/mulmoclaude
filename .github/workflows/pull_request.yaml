@@ -84,7 +84,7 @@ jobs:
     # tree (yarn install fills in the diff) instead of a cold cache.
     - name: Cache node_modules (Windows)
       if: runner.os == 'Windows'
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: node_modules
         key: win-node-modules-${{ matrix.node-version }}-${{ hashFiles('yarn.lock') }}
@@ -99,7 +99,7 @@ jobs:
     # version because emitted JS can differ across them.
     - name: Cache packages/dist
       id: pkg-dist-cache
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: |
           packages/*/dist
@@ -210,7 +210,7 @@ jobs:
     # finishes building first warms the cache for the other.
     - name: Cache packages/dist
       id: pkg-dist-cache
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: |
           packages/*/dist

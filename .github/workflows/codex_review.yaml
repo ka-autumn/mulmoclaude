@@ -87,7 +87,7 @@ jobs:
           node-version: 22.x
 
       - name: Cache global npm tarballs
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.npm
           key: codex-cli-${{ env.CODEX_VERSION }}-node22
