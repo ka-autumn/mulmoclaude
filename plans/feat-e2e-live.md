@@ -151,6 +151,7 @@ e2e-live/
 | L-19 | ui | stack-rehydrate on reload (元 Tool Call History reload を発展) | ✅ |
 | L-20 | ui | Files view `/files?path=` → `/files/` rewrite | ✅ |
 | L-21 | skills | chart deferred-tool dispatch | ✅ |
+| L-21B | skills | encore defineEncore deferred-tool dispatch (#1437 / #1440 / #1441 / #1443) | ✅ |
 | L-22 | skills | 自作 skill end-to-end 実行 (B-08) | ✅ |
 | L-23 | docker | X MCP が Docker 内で .env から key を読める | ✅ |
 | L-24 | docker | `yarn sandbox:login` 前に image build (plan 再定義要) | 廃止 (L-FRESH-SANDBOX-BUILD に統合) |
@@ -315,6 +316,7 @@ e2e-live/
 | **L-WIKI-LINT-TAG-DRIFT** lint レポート UI で frontmatter tag と index tag の drift が診断に出る | ✅ 実装済 | wiki-nav.spec.ts (`describe.serial` 内)、 `findTagDrift` の end-to-end net。 page を YAML frontmatter `tags: [pageonly-<nonce>]` 付きで seed → `replaceWikiIndex` で同 slug を `#indexonly-<nonce>` タグ付きの bullet-link で 1 件のみ含む index に差し替え (slug は同じ → drift 条件成立、 page も index も両方ある → Missing/Orphan ノイズなし) → `/wiki/lint-report` 遷移 → `<li>` に `<slug>.md` + `Tag drift` + pageTag token + indexTag token を全部含む行が 1 件 を assert。 両 tag token を nonce-stamp して並列走の隣テストとの衝突を防ぐ |
 | **L-18** presentForm i18n raw key | ✅ 実装済 | ui.spec.ts、 LLM に「nickname text field 1 個の presentForm を表示して」 と依頼 → `present-form-view` testid (`src/plugins/presentForm/View.vue` に追加) が visible になったら `not.toContainText("pluginPresentForm.")` で B-34 を locale 非依存にカバー。 raw i18n key 漏れは prefix 文字列が DOM の visible text に出ることが regression shape なので submit ボタンや progress カウンタ単体に縛らずに view 全体の textContent を見る設計。 form は submit せず assistant turn を drain して trace を保全 |
 | **L-21** chart deferred-tool dispatch | ✅ 実装済 | skills.spec.ts、 「`L-21 sales` の bar chart を chart tool で render して」 と prompt → `chart-card-0` + `chart-canvas-0` testid (`src/plugins/chart/View.vue` 既存) が visible になることを assert (B-41 canary)。 L-03 (presentMulmoScript) と異なる plugin で 2 本目の deferred dispatch canary を立て、 deferred mode で 1 plugin だけ schema 取りこぼす shear 退行を網羅。 LLM のばらつきを「`Do not narrate the result.`」 で抑え、 textResponse fallback を防ぐ |
+| **L-21B** encore defineEncore deferred-tool dispatch (#1437 / #1440 / #1441 / #1443) | ✅ 実装済 | skills.spec.ts、 Personal role + 「`defineEncore` ツールに次の DSL object literal を渡して setup してください」 と prompt (DSL は service-type / daily cadence / 1 target / 1 step / 1 form field の最小構成を inline JSON で pin) → `encore-dashboard` testid + `encore-obligation-<slug>` testid が visible になることを assert (B-41 canary 第 2 弾)。 L-21 が presentChart で見ている deferred-tool dispatch を、 構造的に異なる encore plugin (2 つの MCP tool が 1 つの apiNamespace を共有、 `dsl` param は `z.toJSONSchema(EncoreDslInput)` で auto-derive される JSON Schema を持つ、 view は dashboard 自身が `/api/encore` を mount 後に self-fetch する) で 2 本目を立てる。 deferred mode で encore 1 plugin だけ schema mis-publish するような shear 退行を網羅。 slug は `slugify(displayName)` (`server/encore/paths.ts`) を spec 側で再現して `l-21b-encore-canary-<nonce>` を期待値に固定、 cleanup は新規 `removeEncoreObligation` helper で `data/plugins/encore/obligations/<slug>/` を rm。 orphan tickets は次 tick の `sweepStuckTickets` に任せて手は出さない |
 | **L-22** skill end-to-end 実行 (B-08) | ✅ 実装済 | skills.spec.ts、 合成 skill を `<workspace>/.claude/skills/<unique-slug>/SKILL.md` に seed (body には 「`/<slug>` で呼ばれたら `L22-OK-<nonce>` という marker を返答せよ」 の指示) → `/skills` 直叩き → 一覧に row 出現 → click で `skill-body-rendered` に marker が描画 → Run ボタン → `/chat/<id>` で agent ターン完走 → assistant 応答に同 marker が含まれることを assert。 discovery → list API → detail API → slash-command dispatch → skill body が agent context に乗る、 の 4 段全てが繋がっていないと marker が出ない設計。 nonce で他テストと衝突回避、 marker は ASCII の決定論的文字列で LLM 揺れ吸収 |
 | **L-31** mc-manage-skills bridge dispatch canary (post-#1298) | ✅ 実装済 | skills.spec.ts、 General role + 「次の挙動の skill を、 slug を `<explicit-slug>` にして保存してください」 prompt → `waitForAssistantTurn` で agent turn 完走 → `readSessionToolCalls(sessionId)` で `tool_call` jsonl を読み、 `Write` against `data/skills/<slug>/SKILL.md` (post-#1298 bridge staging path) が含まれることを assert。 #1284 / #1296 / #1298 全てが揃わないと成立しない: (a) mc-manage-skills が General に居る (b) preset SKILL.md が discovery される (c) 本文の指示通り agent が staging path に Write する。 同様の盤面で agent が `.claude/skills/` に直 Write すれば permission gate に hang する (これが #1298 で bridge が回避した regression)。 prompt は slug pin で plumbing canary を確実化、 ambiguity の検証は L-32 が担当 |
 | **L-32** end-to-end skill landing + Run canary (post-#1298) | ✅ 実装済 | skills.spec.ts、 General role + 「skill 化して」 (slug 任せ、 marker 入り body 要求) → `snapshotProjectSkillSlugs()` で baseline → `waitForAssistantTurn` → (1) bridge mirror が `.claude/skills/<new-slug>/SKILL.md` に landing し本文に marker を含むことを baseline diff + body read で assert → (2) `/skills` に navigate して `skill-item-<slug>` row が visible (`/api/config/refresh` 効果) → (3) row click → Run → assistant 応答に marker echo (slash dispatch + body 反映)。 discovery → dispatch → `Write` (staging) → bridge hook (mirror) → refresh → registry rescan → invocation の 7 段 end-to-end canary。 L-22 (直 seed→Run) では `refreshConfig` を経由しないので、 bridge → registry の繋ぎ込みは L-32 の Run leg だけが catch する設計。 cleanup は marker hit した new slug のみを target にして並列実行中の他 spec / future test の slug を巻き込まない、 creation session + run session 両方を delete |
@@ -357,7 +359,7 @@ e2e-live/
 ### Phase 1: 即着手可能 (高重要度 + 1 PR 完結)
 
 1. **L-30 skill symlink dangling (B-08、 docker)** — 重要度 **A**、 階層 1 (spec scope の broken symlink seed) で局所再現可、 ユーザー環境を一切触らない。 PR #1462 で docker e2e-live の cover が始まったばかり (L-23 / L-26 / L-28) の段階なので、 docker 系で唯一 e2e-live 化可能な L-30 を続いて早く積むと網が滑らかに繋がる
-2. **encore plugin dispatch canary (#1437 / #1440 / #1441 / #1443)** — 重要度 **A**、 L-21 (chart) shape を copy するだけ。 新 plugin の deferred-tool dispatch が壊れると plugin View 全消失する退行に直結。 runtime plugin が増えるトレンドで net 強化の効果が最大
+2. ~~**encore plugin dispatch canary (#1437 / #1440 / #1441 / #1443)**~~ — **L-21B として実装済** (skills.spec.ts)。 元: 重要度 **A**、 L-21 (chart) shape を copy するだけ。 新 plugin の deferred-tool dispatch が壊れると plugin View 全消失する退行に直結。 runtime plugin が増えるトレンドで net 強化の効果が最大
 
 ### Phase 2: 前提 PR + 本体 PR (中〜高重要度、 要 infra 整備)
 
@@ -865,7 +867,7 @@ active な未着手 / 関心事項:
 
 | PR | 内容 | 推奨対応 |
 |---|---|---|
-| **#1437 / #1440 / #1441 / #1443** encore plugin (deferred-tool dispatch + dashboard) | mock e2e (`encore-seeded.spec.ts`) で seeded fixture 経由の View mount は cover 済。 実 LLM dispatch 経路の canary は無し | L-21 (chart) shape の copy で encore deferred-tool canary を 1 本追加 (1 PR、 重要度 A) |
+| **#1437 / #1440 / #1441 / #1443** encore plugin (deferred-tool dispatch + dashboard) | mock e2e (`encore-seeded.spec.ts`) で seeded fixture 経由の View mount は cover 済。 実 LLM dispatch 経路の canary は無し | ✅ **L-21B として実装済** (skills.spec.ts、 L-21 chart shape を copy、 Personal role + defineEncore で `encore-dashboard` + `encore-obligation-<slug>` をassert) |
 | **#1287** mc-cooking-coach preset skill | preset skill が discovery → /<slug> dispatch → body 実行 まで通るか | L-32 形式の end-to-end canary を 1 本追加。 重要度 B |
 | **#1471 / #1464 / #1465 / #1475** solopreneur runtime plugin 群 (client / worklog / plans) | mock e2e で View mount は部分 cover、 LLM dispatch + plugin 切替 + 認証付きで動くかの canary なし | 各 plugin で 1 本ずつ runtime-plugin canary を立てる (3 PR、 各 1 シナリオ)。 plugin 数が今後増える前提で 「parameterized 化 / plugin ごと 1 spec」 のどちらに寄せるか別途整理 |
 | **#1451** notifier-update-op | notifier 拡張、 update operation 追加 | L-17 (二重通知 inject) のついでに、 update op の dispatch も同 spec でカバーする選択肢 |
@@ -874,7 +876,7 @@ active な未着手 / 関心事項:
 
 ### 反映候補のうち優先度判断
 
-- **encore plugin dispatch canary (重要度 A)**: 1 plugin で deferred-tool dispatch が壊れると plugin View が出ない退行に直結。 L-21 (chart) shape を再利用すれば 1 PR でカバー可能
+- ~~**encore plugin dispatch canary (重要度 A)**~~: ✅ **L-21B として実装済** (skills.spec.ts)。 元: 1 plugin で deferred-tool dispatch が壊れると plugin View が出ない退行に直結。 L-21 (chart) shape を再利用すれば 1 PR でカバー可能
 - **mc-cooking-coach skill canary (重要度 B)**: preset skill の 「seed されてから /<slug> dispatch まで」 の chain は L-32 で代表されているが、 cooking-coach は moderate complexity の body を持つ preset として加えると net が密になる
 - **solopreneur plugins**: plugin ごとに固有 View testid を持っているので canary 化のスコープは plugin 1 つあたり 1 spec が現実的
 

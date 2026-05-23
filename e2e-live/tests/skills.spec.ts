@@ -11,6 +11,7 @@ import {
   placeProjectSkill,
   readProjectSkillBody,
   readSessionToolCalls,
+  removeEncoreObligation,
   removeProjectSkill,
   selectRole,
   sendChatMessage,
@@ -23,15 +24,16 @@ import {
 } from "../fixtures/live-chat.ts";
 
 const L21_TIMEOUT_MS = 3 * ONE_MINUTE_MS;
+const L21B_TIMEOUT_MS = 3 * ONE_MINUTE_MS;
 const L22_TIMEOUT_MS = 3 * ONE_MINUTE_MS;
 const L31_TIMEOUT_MS = 3 * ONE_MINUTE_MS;
 const L32_TIMEOUT_MS = 3 * ONE_MINUTE_MS;
 
-// All four scenarios talk to the live LLM (L-21: chart tool dispatch,
-// L-22: skill execution, L-31: mc-manage-skills bridge dispatch
-// canary, L-32: end-to-end skill landing canary). They share no
-// state — run in parallel to cut wall time, mirroring the other
-// category specs.
+// All five scenarios talk to the live LLM (L-21: chart tool dispatch,
+// L-21B: encore defineEncore tool dispatch, L-22: skill execution,
+// L-31: mc-manage-skills bridge dispatch canary, L-32: end-to-end
+// skill landing canary). They share no state — run in parallel to
+// cut wall time, mirroring the other category specs.
 test.describe.configure({ mode: "parallel" });
 
 test.describe("skills (real LLM / static)", () => {
@@ -104,6 +106,139 @@ test.describe("skills (real LLM / static)", () => {
     } finally {
       for (const sid of sessionsToCleanup) {
         await deleteSession(page, sid);
+      }
+    }
+  });
+
+  test("L-21B: Personal role + defineEncore で deferred-tool dispatch が成功し EncoreDashboard が描画される", async ({ page }) => {
+    test.setTimeout(L21B_TIMEOUT_MS);
+    // Second B-41 canary, pinned on the encore plugin (PRs #1437 /
+    // #1440 / #1441 / #1443 added the deferred-tool dispatch + the
+    // dashboard view in late April 2026). L-21 already proves the
+    // dispatch chain on `presentChart`; this spec exercises a
+    // STRUCTURALLY DIFFERENT plugin in deferred-tools mode so a
+    // regression that shears just the encore (or the next runtime
+    // plugin landing on the same pattern) does not slip through.
+    //
+    // What "structurally different" means here:
+    //   - Two MCP tools share one apiNamespace (defineEncore +
+    //     manageEncore). The defineEncore tool's parameters carry a
+    //     full JSON Schema auto-derived from a runtime Zod validator
+    //     (`z.toJSONSchema(EncoreDslInput)`). The chart plugin has
+    //     no equivalent — a regression in how deferred mode publishes
+    //     auto-derived schemas (vs. inline literals) shows up here.
+    //   - The viewComponent renders a self-loading dashboard
+    //     (queries `/api/encore` for obligations on mount). The chart
+    //     renders straight from the tool result data. A regression in
+    //     the post-dispatch lifecycle that lets the View mount but
+    //     never re-fetches its own data would fail here, not in L-21.
+    //
+    // Why Personal: `availablePlugins` in `src/config/roles.ts:88`
+    // is the only built-in role that has both `defineEncore` and
+    // `manageEncore`. Office (L-21's choice) does not — running the
+    // canary on the wrong role would surface as "I can't find a
+    // defineEncore tool" and false-fail.
+    //
+    // Pinning the DSL: the encore DSL is too rich for the LLM to
+    // compose reliably from a one-liner prompt (and reading the help
+    // doc beforehand adds two Read calls of LLM jitter). The prompt
+    // gives the agent the literal DSL it should pass — same trick
+    // L-FRESH-PRESET-SKILL uses for skill payloads. The displayName
+    // carries the nonce so the slug
+    // (`slugify(displayName)` → `l-21b-encore-canary-<nonce>`) is
+    // unique per run and cleanup targets only this run's dir.
+    //
+    // Slug derivation: server-side `slugify` (server/encore/paths.ts)
+    // lowercases, NFKD-normalises, replaces non-alphanumerics with
+    // `-`, and trims. For ASCII inputs that are already kebab-shaped
+    // ("L-21B Encore canary <nonce>"), the round-trip is deterministic
+    // and reproducible test-side without an import — but if that
+    // function ever changes shape the spec will miss its own row and
+    // fail loudly, which is the right failure mode for a canary.
+    const nonce = `${Date.now()}-${randomUUID().slice(0, 6)}`;
+    const displayName = `L-21B Encore canary ${nonce}`;
+    const expectedSlug = `l-21b-encore-canary-${nonce}`;
+    const dsl = {
+      version: 1,
+      displayName,
+      type: "service",
+      cadence: { type: "daily" },
+      targets: [{ id: "me", displayName: "Me" }],
+      steps: [
+        {
+          id: "note",
+          displayName: "Note",
+          deadline: "cycle-deadline",
+          firingPlan: [{ at: "cycle-start", severity: "info" }],
+          fields: ["note"],
+        },
+      ],
+      formSchema: {
+        fields: [{ name: "note", type: "text", label: "Notes", required: false }],
+      },
+    };
+    const userPrompt = [
+      "Use the `defineEncore` tool to set up a NEW service-type obligation.",
+      "Pass this DSL object literal as the `dsl` argument (do NOT JSON-encode it, do NOT modify any value):",
+      "```json",
+      JSON.stringify(dsl, null, 2),
+      "```",
+      "Do not pass `obligationId` (this is a setup, not an amend).",
+      "Do not read `config/helps/encore-dsl.md`. Do not use any other tool. Do not narrate the result in text.",
+    ].join("\n");
+    const sessionsToCleanup: string[] = [];
+    try {
+      // Capture both the auto-created General session and the
+      // role-switched Personal session for cleanup — same dance as
+      // L-21 between General and Office.
+      await startNewSession(page);
+      await page.waitForURL(SESSION_URL_PATTERN);
+      const generalSessionId = getCurrentSessionId(page);
+      if (generalSessionId === null) {
+        throw new Error("getCurrentSessionId returned null after startNewSession + waitForURL — URL pattern likely drifted");
+      }
+      sessionsToCleanup.push(generalSessionId);
+      await selectRole(page, "personal");
+      await page.waitForURL((url) => SESSION_URL_PATTERN.test(url.pathname) && !url.pathname.endsWith(generalSessionId));
+      const personalSessionId = getCurrentSessionId(page);
+      if (personalSessionId !== null && personalSessionId !== generalSessionId) {
+        sessionsToCleanup.push(personalSessionId);
+      }
+      await expect(page.getByTestId("role-selector-btn"), "role chip must reflect personal after switch").toHaveAttribute("data-role", "personal");
+      await sendChatMessage(page, userPrompt);
+      // The tool result mounts EncoreDashboard (the encore plugin's
+      // viewComponent in `src/plugins/encore/index.ts`). The dashboard
+      // self-fetches `/api/encore` for obligations on mount, so the
+      // outer testid going visible proves the deferred-tool dispatch
+      // reached the View pipeline; the per-obligation testid proves
+      // the freshly-written obligation is queryable. A regression in
+      // deferred mode that lands the tool result in a text-only
+      // bubble (the L-21 failure mode) shows the same here — no
+      // encore-* testid would appear.
+      await expect(page.getByTestId("encore-dashboard"), "EncoreDashboard must mount after the tool call (B-41 canary)").toBeVisible({
+        timeout: 2 * ONE_MINUTE_MS,
+      });
+      await expect(
+        page.getByTestId(`encore-obligation-${expectedSlug}`),
+        "the newly-created obligation row must hydrate (proves dashboard query saw the just-written index.md)",
+      ).toBeVisible({ timeout: ONE_MINUTE_MS });
+
+      await waitForAssistantResponseComplete(page);
+    } finally {
+      for (const sid of sessionsToCleanup) {
+        await deleteSession(page, sid);
+      }
+      // Best-effort fs cleanup — the encore dispatcher has no
+      // "delete obligation" verb, and we never want a flake to
+      // leak a row into the dashboard listing on the next run.
+      // Catch lets the finally proceed past any unexpected throw
+      // (e.g. the slug derivation drifted upstream and our id
+      // never made it to disk) without masking the test's real
+      // failure.
+      try {
+        await removeEncoreObligation(expectedSlug);
+      } catch (err) {
+        console.warn(`L-21B finally: removeEncoreObligation failed for ${expectedSlug}`, err);
       }
     }
   });

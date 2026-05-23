@@ -244,6 +244,41 @@ export async function removeProjectSkill(slug: string): Promise<void> {
 }
 
 /**
+ * Server-side slug rule for an Encore obligation id (mirrors the
+ * `KEBAB` regex in `src/types/encore-dsl/schema.ts`). Any id flowing
+ * through {@link removeEncoreObligation} has to clear this gate
+ * before we touch the filesystem — same path-traversal defence the
+ * skill helpers use.
+ */
+const ENCORE_OBLIGATION_ID_RE = /^[a-z][a-z0-9-]*$/;
+
+/**
+ * Best-effort fs-level delete of an Encore obligation directory at
+ * `<workspace>/data/plugins/encore/obligations/<obligationId>/`.
+ * Recursive because the dir contains `index.md` plus one cycle file
+ * per period (`<cycleId>.md`).
+ *
+ * Why fs-level: the encore dispatcher has no "delete obligation"
+ * verb on the wire (the user-facing path is retire-by-amend, which
+ * leaves files behind). For e2e-live teardown we want the test's
+ * seeded obligation gone from disk so the dashboard row and any
+ * leftover bell don't bleed into the next run.
+ *
+ * Orphan tickets at `data/plugins/encore/tickets/*.json` that point
+ * at the deleted obligation are NOT touched here — the next encore
+ * tick (`server/encore/tick.ts` → `sweepStuckTickets`) reconciles
+ * them away. Keeping cleanup narrow means the helper can't
+ * accidentally clobber an unrelated obligation's tickets.
+ */
+export async function removeEncoreObligation(obligationId: string): Promise<void> {
+  if (!ENCORE_OBLIGATION_ID_RE.test(obligationId)) {
+    throw new Error(`removeEncoreObligation: invalid obligationId ${JSON.stringify(obligationId)} — must match ${ENCORE_OBLIGATION_ID_RE.source}`);
+  }
+  const target = resolveWorkspacePath(`data/plugins/encore/obligations/${obligationId}`);
+  await rm(target, { recursive: true, force: true });
+}
+
+/**
  * Delete a project-scope skill via the user-facing UI flow:
  * navigate to `/skills`, click the row, click the delete button,
  * accept the native `confirm()`, and wait for the row to disappear
