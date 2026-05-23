@@ -164,7 +164,7 @@
                 @change="handleInput(field.id)"
                 @blur="handleBlur(field.id)"
               />
-              <span class="text-gray-800">{{ choice }}</span>
+              <span class="text-gray-800">{{ getChoiceLabel(choice) }}</span>
             </label>
           </div>
 
@@ -184,7 +184,7 @@
           >
             <option :value="null" disabled>{{ t("pluginPresentForm.selectOption") }}</option>
             <option v-for="(choice, index) in field.choices" :key="index" :value="index">
-              {{ choice }}
+              {{ getChoiceLabel(choice) }}
             </option>
           </select>
 
@@ -212,7 +212,7 @@
                 @change="handleInput(field.id)"
                 @blur="handleBlur(field.id)"
               />
-              <span class="text-gray-800">{{ choice }}</span>
+              <span class="text-gray-800">{{ getChoiceLabel(choice) }}</span>
             </label>
           </div>
 
@@ -359,15 +359,62 @@ watch(
   { deep: true },
 );
 
+function getChoiceLabel(choice: unknown): string {
+  if (!choice) return "";
+  if (typeof choice === "string") return choice;
+  if (typeof choice === "object") {
+    if ("label" in choice && choice.label !== undefined && choice.label !== null) {
+      return String((choice as { label: unknown }).label || "");
+    }
+    if ("value" in choice && choice.value !== undefined && choice.value !== null) {
+      return String((choice as { value: unknown }).value || "");
+    }
+  }
+  return String(choice);
+}
+
+function getChoiceValue(choice: unknown): string {
+  if (!choice) return "";
+  if (typeof choice === "string") return choice;
+  if (typeof choice === "object") {
+    if ("value" in choice && choice.value !== undefined && choice.value !== null) {
+      return String((choice as { value: unknown }).value || "");
+    }
+    if ("label" in choice && choice.label !== undefined && choice.label !== null) {
+      return String((choice as { label: unknown }).label || "");
+    }
+  }
+  return String(choice);
+}
+
+function matchChoice(choice: unknown, val: unknown): boolean {
+  if (choice === val) return true;
+  if (!choice) return false;
+
+  const choiceVal = getChoiceValue(choice);
+  const choiceLabel = getChoiceLabel(choice);
+
+  let targetVal = val;
+  if (val && typeof val === "object") {
+    if ("value" in val) {
+      targetVal = (val as { value: unknown }).value;
+    } else if ("label" in val) {
+      targetVal = (val as { label: unknown }).label;
+    }
+  }
+
+  return String(choiceVal) === String(targetVal) || String(choiceLabel) === String(targetVal);
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function convertProvidedDefault(field: FormField, provided: any): any {
   if (field.type === "radio" || field.type === "dropdown") {
-    const choiceIndex = field.choices.indexOf(provided as string);
+    const choiceIndex = field.choices.findIndex((choice) => matchChoice(choice, provided));
     return choiceIndex !== -1 ? choiceIndex : null;
   }
   if (field.type === "checkbox") {
     if (!Array.isArray(provided)) return [];
-    return provided.map((val: string) => field.choices.indexOf(val)).filter((idx: number) => idx !== -1);
+    return provided.map((val: unknown) => field.choices.findIndex((choice) => matchChoice(choice, val))).filter((idx: number) => idx !== -1);
   }
   return provided;
 }
@@ -578,7 +625,10 @@ function indentContinuation(text: string): string {
 // LLM-authored title/label/choice strings — collapse any newline so they
 // can't smuggle phantom bullets into the payload. split-trim-join avoids
 // sonarjs's slow-regex flag on `\s*\n\s*`.
-function singleLine(text: string): string {
+function singleLine(text: unknown): string {
+  if (typeof text !== "string") {
+    return getChoiceLabel(text);
+  }
   return text
     .split(/\r?\n/)
     .map((segment) => segment.trim())

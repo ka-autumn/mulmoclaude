@@ -29,20 +29,20 @@ export interface TextareaField extends BaseField {
 
 export interface RadioField extends BaseField {
   type: "radio";
-  choices: string[];
+  choices: (string | { label: string; value?: string })[];
   defaultValue?: string;
 }
 
 export interface DropdownField extends BaseField {
   type: "dropdown";
-  choices: string[];
+  choices: (string | { label: string; value?: string })[];
   searchable?: boolean;
   defaultValue?: string;
 }
 
 export interface CheckboxField extends BaseField {
   type: "checkbox";
-  choices: string[];
+  choices: (string | { label: string; value?: string })[];
   minSelections?: number;
   maxSelections?: number;
   defaultValue?: string[];

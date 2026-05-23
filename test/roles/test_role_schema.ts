@@ -230,6 +230,9 @@ describe("Accounting role", () => {
     assert.ok(role);
     assert.deepStrictEqual([...role.availablePlugins].sort(), [
       "manageAccounting",
+      "manageClient",
+      "manageInvoice",
+      "manageWorklog",
       "presentChart",
       "presentDocument",
       "presentForm",

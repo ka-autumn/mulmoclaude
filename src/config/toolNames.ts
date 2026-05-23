@@ -83,6 +83,7 @@ const HOST_TOOL_NAMES = {
   manageSpotify: "manageSpotify",
   manageWorklog: "manageWorklog",
   manageClient: "manageClient",
+  manageInvoice: "manageInvoice",
   // manageRecipes removed (#1286) — recipe-book-plugin dropped from
   // PRESET_PLUGINS; recipe management moved to the `mc-cooking-coach`
   // preset skill which drives files directly via Read/Write/Edit.

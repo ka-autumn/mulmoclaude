@@ -39,6 +39,9 @@ export const PRESET_PLUGINS: readonly PresetPlugin[] = [
   // Solopreneur OS Client plugin (Manual Mode v1.0).
   // Identity layer mapping clients, contacts, rates, and projects.
   { packageName: "@mulmoclaude/client-plugin" },
+  // Solopreneur OS Invoice plugin (Manual Mode v1.0).
+  // Printable Japanese invoice generator and dynamic double-entry bookkeeping journals mapper.
+  { packageName: "@mulmoclaude/invoice-plugin" },
   // #1162 — Spotify integration (Liked Songs / playlists / recently
   // played). PR 1 ships OAuth + token persistence; PR 2 adds the
   // listening-data kinds and the Vue View. Loaded the same way as

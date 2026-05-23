@@ -290,6 +290,9 @@ export const ROLES: Role[] = [
       'When the user asks to compare a metric over time — "chart my quarterly revenue", "show net income month-over-month", "plot the cash balance by month" — call `getTimeSeries` with the right `metric` (revenue / expense / netIncome / accountBalance), `granularity` (month / quarter / year), and `from`/`to`. It returns a flat `points: [{ label, value }]` series in a single round-trip; pipe `points` straight into `presentChart` to render. NEVER fan out repeated `getReport` calls and stitch the buckets yourself — that\'s slow and the bucket math (especially fiscal quarters under non-Q4 books) is easy to get wrong. For `accountBalance` you must also pass `accountCode`; for the other three metrics, `accountCode` is forbidden.',
     availablePlugins: [
       TOOL_NAMES.manageAccounting,
+      TOOL_NAMES.manageWorklog,
+      TOOL_NAMES.manageClient,
+      TOOL_NAMES.manageInvoice,
       TOOL_NAMES.presentForm,
       TOOL_NAMES.presentDocument,
       TOOL_NAMES.presentSpreadsheet,
