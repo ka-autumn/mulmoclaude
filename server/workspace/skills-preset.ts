@@ -25,6 +25,26 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, statSync } fr
 import path from "node:path";
 import { errorMessage } from "../utils/errors.js";
 
+// Recursively mirror `srcDir` into `destDir`. Used by the preset
+// sync so a preset skill that ships sibling assets (e.g.
+// `schema.json` for schema-driven apps, `templates/*.html`) gets
+// copied alongside `SKILL.md` rather than silently dropped. Only
+// regular files and directories are followed — symlinks / FIFOs /
+// sockets are skipped because the preset tree is launcher-managed
+// and shouldn't contain them.
+function copyDirTreeSync(srcDir: string, destDir: string): void {
+  mkdirSync(destDir, { recursive: true });
+  for (const entry of readdirSync(srcDir, { withFileTypes: true })) {
+    const srcPath = path.join(srcDir, entry.name);
+    const destPath = path.join(destDir, entry.name);
+    if (entry.isDirectory()) {
+      copyDirTreeSync(srcPath, destPath);
+    } else if (entry.isFile()) {
+      copyFileSync(srcPath, destPath);
+    }
+  }
+}
+
 const PRESET_SLUG_PREFIX = "mc-";
 const SKILL_FILENAME = "SKILL.md";
 
@@ -128,7 +148,14 @@ function copySourcesIntoDest(sourceDir: string, destDir: string, opts: SyncPrese
       opts.onWarn?.("preset entry skipped", { slug: entry, reason, destSlugDir });
       continue;
     }
-    copyFileSync(path.join(sourceDir, entry, SKILL_FILENAME), path.join(destSlugDir, SKILL_FILENAME));
+    // Wipe-and-replace so stale sibling assets (e.g. a schema.json
+    // dropped between releases) don't linger. The catalog preset
+    // slot is launcher-owned per the file header; user edits here
+    // are not preserved across boots. SKILL.md alone would survive
+    // the legacy single-file copy, but schema-driven apps and
+    // template-bearing skills need the full tree to be authoritative.
+    rmSync(destSlugDir, { recursive: true, force: true });
+    copyDirTreeSync(path.join(sourceDir, entry), destSlugDir);
     synced.add(entry);
     result.copied.push(entry);
   }

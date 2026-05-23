@@ -287,6 +287,7 @@ const koMessages = {
     automations: { label: "자동화" },
     encore: { label: "Encore" },
     wiki: { label: "위키" },
+    apps: { label: "앱" },
     sources: { label: "소스" },
     news: { label: "뉴스" },
     skills: { label: "스킬" },
@@ -1310,6 +1311,17 @@ const koMessages = {
     // `<code>` 태그는 스타일을 유지하면서 본문은 번역 가능합니다.
     explanation:
       "{allowedTools} 를 통해 Claude 에 전달할 추가 도구 이름. 한 줄에 하나씩. {claudeMcp} 로 인증을 완료한 후 Claude Code 내장 MCP 서버 (Gmail / Google 캘린더 등) 를 사용할 때 유용합니다.",
+  },
+  appsView: {
+    title: "앱",
+    backToIndex: "앱 목록으로 돌아가기",
+    indexEmpty: "설치된 앱이 없습니다. Skills 페이지에서 스키마를 포함한 스킬에 별표를 추가하면 여기에 표시됩니다.",
+    editItem: "편집",
+    confirmDelete: "이 항목을 삭제하시겠습니까? 되돌릴 수 없습니다.",
+    itemsEmpty: "아직 항목이 없습니다. + 를 눌러 추가하세요.",
+    appNotFound: "앱을 찾을 수 없습니다",
+    loadFailed: "불러오기에 실패했습니다",
+    requiredField: "이 필드는 필수입니다",
   },
 };
 

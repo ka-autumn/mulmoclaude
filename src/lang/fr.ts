@@ -283,6 +283,7 @@ const frMessages = {
     automations: { label: "Actions" },
     encore: { label: "Encore" },
     wiki: { label: "Wiki" },
+    apps: { label: "Apps" },
     sources: { label: "Sources" },
     news: { label: "Actualités" },
     skills: { label: "Skills" },
@@ -1317,6 +1318,17 @@ const frMessages = {
     // style tandis que le texte reste traduisible.
     explanation:
       "Noms d'outils supplémentaires à transmettre à Claude via {allowedTools}. Un par ligne. Utile pour les serveurs MCP intégrés à Claude Code comme Gmail / Google Agenda après authentification via {claudeMcp}.",
+  },
+  appsView: {
+    title: "Apps",
+    backToIndex: "Retour aux apps",
+    indexEmpty: "Aucune app installée. Mettez une étoile sur une compétence avec un schema depuis la page Skills pour la voir ici.",
+    editItem: "Modifier",
+    confirmDelete: "Supprimer cet élément ? Cette action est irréversible.",
+    itemsEmpty: "Aucun élément pour l'instant. Cliquez sur + pour en ajouter un.",
+    appNotFound: "App introuvable",
+    loadFailed: "Échec du chargement",
+    requiredField: "Ce champ est obligatoire",
   },
 };
 

@@ -279,6 +279,7 @@ const zhMessages = {
     automations: { label: "自动化" },
     encore: { label: "Encore" },
     wiki: { label: "百科" },
+    apps: { label: "应用" },
     sources: { label: "信息源" },
     news: { label: "新闻" },
     skills: { label: "技能" },
@@ -1300,6 +1301,17 @@ const zhMessages = {
     // 以便保留 `<code>` 标签的样式,同时文本可本地化。
     explanation:
       "要通过 {allowedTools} 传递给 Claude 的额外工具名。每行一个。适用于在 {claudeMcp} 完成授权后,调用 Claude Code 内置的 MCP 服务器(如 Gmail / Google 日历)。",
+  },
+  appsView: {
+    title: "应用",
+    backToIndex: "返回应用列表",
+    indexEmpty: "尚未安装任何应用。在「技能」页面对带有 schema 的技能加星即可在此显示。",
+    editItem: "编辑",
+    confirmDelete: "删除此项？此操作无法撤销。",
+    itemsEmpty: "暂无项目。点击 + 添加一个。",
+    appNotFound: "未找到应用",
+    loadFailed: "加载失败",
+    requiredField: "此字段为必填项",
   },
 };
 

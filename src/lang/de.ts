@@ -286,6 +286,7 @@ const deMessages = {
     automations: { label: "Aktionen" },
     encore: { label: "Encore" },
     wiki: { label: "Wiki" },
+    apps: { label: "Apps" },
     sources: { label: "Quellen" },
     news: { label: "Nachrichten" },
     skills: { label: "Skills" },
@@ -1328,6 +1329,17 @@ const deMessages = {
     // behalten, während der Text übersetzbar ist.
     explanation:
       "Zusätzliche Tool-Namen, die Claude über {allowedTools} übergeben werden sollen. Einer pro Zeile. Nützlich für in Claude Code integrierte MCP-Server wie Gmail / Google Kalender, nachdem Sie sich über {claudeMcp} authentifiziert haben.",
+  },
+  appsView: {
+    title: "Apps",
+    backToIndex: "Zurück zu Apps",
+    indexEmpty: "Keine Apps installiert. Markiere auf der Skills-Seite eine Skill mit Schema, um sie hier zu sehen.",
+    editItem: "Bearbeiten",
+    confirmDelete: "Diesen Eintrag löschen? Das kann nicht rückgängig gemacht werden.",
+    itemsEmpty: "Noch keine Einträge. Klicke auf +, um einen hinzuzufügen.",
+    appNotFound: "App nicht gefunden",
+    loadFailed: "Laden fehlgeschlagen",
+    requiredField: "Dieses Feld ist erforderlich",
   },
 };
 

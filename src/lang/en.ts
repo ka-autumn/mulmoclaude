@@ -302,6 +302,7 @@ const enMessages = {
     automations: { label: "Actions" },
     encore: { label: "Encore" },
     wiki: { label: "Wiki" },
+    apps: { label: "Apps" },
     sources: { label: "Sources" },
     news: { label: "News" },
     skills: { label: "Skills" },
@@ -1310,6 +1311,17 @@ const enMessages = {
     // is translatable.
     explanation:
       "Extra tool names to pass to Claude via {allowedTools}. One per line. Useful for built-in Claude Code MCP servers like Gmail / Google Calendar after you have authenticated via {claudeMcp}.",
+  },
+  appsView: {
+    title: "Apps",
+    backToIndex: "Back to apps",
+    indexEmpty: "No apps installed. Star a skill that ships a schema from the Skills page to see it here.",
+    editItem: "Edit",
+    confirmDelete: "Delete this item? This cannot be undone.",
+    itemsEmpty: "No items yet. Click + to add one.",
+    appNotFound: "App not found",
+    loadFailed: "Failed to load",
+    requiredField: "This field is required",
   },
 };
 

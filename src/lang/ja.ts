@@ -285,6 +285,7 @@ const jaMessages = {
     automations: { label: "自動化" },
     encore: { label: "Encore" },
     wiki: { label: "Wiki" },
+    apps: { label: "アプリ" },
     sources: { label: "ソース" },
     news: { label: "ニュース" },
     skills: { label: "スキル" },
@@ -1307,6 +1308,17 @@ const jaMessages = {
   settingsToolsTab: {
     explanation:
       "{allowedTools} を介して Claude に渡す追加ツール名。1行につき1つ。Gmail / Google Calendar などの Claude Code 組み込み MCP サーバを、{claudeMcp} で認証した後に利用する場合に便利です。",
+  },
+  appsView: {
+    title: "アプリ",
+    backToIndex: "アプリ一覧に戻る",
+    indexEmpty: "インストール済みのアプリがありません。スキーマを含むスキルを Skills ページからスター付けすると、ここに表示されます。",
+    editItem: "編集",
+    confirmDelete: "この項目を削除しますか？元に戻せません。",
+    itemsEmpty: "まだ項目がありません。+ を押して追加してください。",
+    appNotFound: "アプリが見つかりません",
+    loadFailed: "読み込みに失敗しました",
+    requiredField: "この項目は必須です",
   },
 };
 

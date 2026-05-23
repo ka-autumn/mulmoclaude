@@ -289,6 +289,7 @@ const esMessages = {
     automations: { label: "Acciones" },
     encore: { label: "Encore" },
     wiki: { label: "Wiki" },
+    apps: { label: "Apps" },
     sources: { label: "Fuentes" },
     news: { label: "Noticias" },
     skills: { label: "Skills" },
@@ -1323,6 +1324,17 @@ const esMessages = {
     // su estilo mientras el texto se traduce.
     explanation:
       "Nombres adicionales de herramientas que pasar a Claude mediante {allowedTools}. Uno por línea. Útil para servidores MCP integrados en Claude Code como Gmail / Google Calendar tras autenticarte mediante {claudeMcp}.",
+  },
+  appsView: {
+    title: "Apps",
+    backToIndex: "Volver a apps",
+    indexEmpty: "No hay apps instaladas. Marca con estrella una skill que incluya un schema desde la página Skills para verla aquí.",
+    editItem: "Editar",
+    confirmDelete: "¿Eliminar este elemento? Esta acción no se puede deshacer.",
+    itemsEmpty: "Aún no hay elementos. Pulsa + para añadir uno.",
+    appNotFound: "App no encontrada",
+    loadFailed: "Error al cargar",
+    requiredField: "Este campo es obligatorio",
   },
 };
 

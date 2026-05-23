@@ -221,6 +221,13 @@
           <RolesView v-else-if="currentPage === 'roles'" />
           <SourcesView v-else-if="currentPage === 'sources'" />
           <NewsView v-else-if="currentPage === 'news'" />
+          <!-- Schema-driven apps. The route is `/apps/:slug?`; with
+               a slug we mount the CollectionView, without one we
+               mount the index. Both are host components (no
+               PluginScopedRoot needed) — they call the host's
+               /api/apps endpoints directly. -->
+          <AppCollectionView v-else-if="currentPage === 'apps' && route.params.slug" :key="String(route.params.slug)" />
+          <AppsIndexView v-else-if="currentPage === 'apps'" />
           <!-- Debug page (encore plan PR 1 follow-up). The View ships
                inside the @mulmoclaude/debug-plugin runtime package; we
                look it up by tool name and render the registered
@@ -331,6 +338,8 @@ import SkillsView from "./plugins/manageSkills/View.vue";
 import RolesView from "./components/RolesView.vue";
 import SourcesView from "./components/SourcesView.vue";
 import NewsView from "./components/NewsView.vue";
+import AppsIndexView from "./components/AppsIndexView.vue";
+import AppCollectionView from "./components/AppCollectionView.vue";
 import PluginScopedRoot from "./components/PluginScopedRoot.vue";
 import SettingsModal from "./components/SettingsModal.vue";
 import { PAGE_ROUTES, type PageRouteName } from "./router";

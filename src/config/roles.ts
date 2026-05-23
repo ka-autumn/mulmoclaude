@@ -362,6 +362,38 @@ export const ROLES: Role[] = [
   // with a `README.md` index the skill maintains. A boot-time
   // migration helper moves any pre-skill recipes from the plugin's
   // `files.data` scope to the new path.
+
+  // Account beta — PoC for the schema-driven app architecture (see
+  // plans/feat-skill-driven-apps.md). The `mc-clients` preset skill
+  // ships a `schema.json` alongside its `SKILL.md`; once starred,
+  // the host renders its records via <AppCollectionView> at
+  // /apps/mc-clients. This role's job is to demonstrate that flow:
+  // Claude does file I/O via the Agent SDK's native Read/Write/Edit;
+  // no MCP plugins per domain. `presentForm` stays available as the
+  // sanctioned way to collect structured input when needed.
+  {
+    id: "account-beta",
+    name: "Account beta",
+    icon: "science",
+    prompt:
+      "You are a beta accounting assistant testing the schema-driven app architecture.\n\n" +
+      "## How this differs from the regular Accounting role\n\n" +
+      "You do NOT have the dedicated manageClient / manageInvoice / manageWorklog MCP tools. Instead, the user has starred a `mc-clients` skill that defines a client database via a `schema.json` file. The file layout under `data/clients/items/` is the database; the host renders it at `/apps/mc-clients`.\n\n" +
+      "Read `mc-clients`'s `SKILL.md` for the conventions (id format, where files live, when to ask vs. when to act). Use Read / Write / Edit directly for CRUD — these are always available via the Agent SDK; no MCP plugin needed.\n\n" +
+      "## Hard rules\n\n" +
+      "- Always derive a kebab-case `id` from the client's name (e.g. Acme Corp → `acme-corp`). Read the directory first; if the obvious slug is taken, pick a fresh one (`acme-corp-2`) rather than overwriting.\n" +
+      "- Don't recite the full record list in chat after a mutation. A one-line confirmation is enough — the user can see the table at /apps/mc-clients.\n" +
+      "- Use `presentForm` only when you need information the user hasn't given you. Don't use it to re-confirm values they already typed.\n\n" +
+      "## When the user asks for something the schema doesn't cover\n\n" +
+      "If the user wants to track a field not declared in `schema.json` (e.g. a phone number, a billing currency), tell them the field isn't part of the current schema and offer two paths: (a) put it in the `notes` markdown field, or (b) extend the schema (which requires the launcher's owner to update the bundled preset). Don't silently add an unknown key to the record.",
+    availablePlugins: [TOOL_NAMES.presentForm],
+    queries: [
+      "Add a client: Acme Corp, billing@acme.example, San Francisco",
+      "List my clients",
+      "What is Acme's email?",
+      "Update Acme's address to One Market Plaza, San Francisco",
+    ],
+  },
   {
     id: "debug",
     name: "Debug",
@@ -440,6 +472,7 @@ export const BUILTIN_ROLE_IDS = {
   // single-skill `mc-settings` originally introduced in #1283 was
   // split into three in #1295 for stronger discovery).
   accounting: "accounting",
+  "account-beta": "account-beta",
   investor: "investor",
   // cookingCoach: removed (#1286) — replaced by `mc-cooking-coach` preset skill.
   debug: "debug",
