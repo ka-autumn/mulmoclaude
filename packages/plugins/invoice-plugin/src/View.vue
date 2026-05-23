@@ -179,8 +179,8 @@
                 <!-- Approved Invoices Actions -->
                 <template v-else-if="recordStatus === 'approved'">
                   <button type="button" class="btn btn-indigo" :disabled="actionPending" @click="triggerPrintableGeneration">
-                    <span class="material-icons">auto_awesome</span>
-                    Generate Layout (AI)
+                    <span class="material-icons">picture_as_pdf</span>
+                    Generate PDF
                   </button>
                   <button type="button" class="btn btn-emerald" :disabled="actionPending" @click="promptMarkPaid">
                     <span class="material-icons">payments</span>
@@ -195,8 +195,8 @@
                 <!-- Paid Invoices Actions -->
                 <template v-else-if="recordStatus === 'paid'">
                   <button type="button" class="btn btn-indigo" :disabled="actionPending" @click="triggerPrintableGeneration">
-                    <span class="material-icons">auto_awesome</span>
-                    Generate Layout (AI)
+                    <span class="material-icons">picture_as_pdf</span>
+                    Generate PDF
                   </button>
                   <button type="button" class="btn btn-danger" :disabled="actionPending" @click="promptVoid">
                     <span class="material-icons">block</span>
