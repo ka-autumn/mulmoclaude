@@ -42,7 +42,7 @@
 
     <!-- Profile Incomplete Setup Warning Banner -->
     <transition name="slide-down">
-      <div v-if="!settings.companyName && activeTab !== 'settings'" class="setup-warning-banner glass-panel">
+      <div v-if="dataLoaded && !settings.companyName && activeTab !== 'settings'" class="setup-warning-banner glass-panel">
         <span class="material-icons warning-icon animate-pulse">warning_amber</span>
         <div class="warning-content">
           <h4 class="warning-title">Issuer Profile Incomplete</h4>
@@ -411,20 +411,22 @@
         </div>
       </div>
     </transition>
+    <ConfirmModal />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRuntime } from "gui-chat-protocol/vue";
-import { useRouter } from "vue-router";
 import { marked } from "marked";
 import type { Invoice, InvoiceCandidate, InvoiceSettings, ExtendedToolResultComplete } from "./types";
+import ConfirmModal from "../../shared/components/ConfirmModal.vue";
+import { useConfirm } from "../../shared/components/confirm";
 
 const props = defineProps<{ selectedResult?: ExtendedToolResultComplete }>();
 
 const { dispatch, pubsub, log } = useRuntime();
-const router = useRouter();
+const { openConfirm } = useConfirm();
 
 // UI Navigation and alerts
 const activeTab = ref<"invoices" | "settings">("invoices");
@@ -432,6 +434,7 @@ const viewMode = ref<"details" | "preview">("details");
 const successMsg = ref("");
 const errorMsg = ref("");
 const actionPending = ref(false);
+const dataLoaded = ref(false);
 
 // Local DB State
 const invoices = ref<Invoice[]>([]);
@@ -622,6 +625,8 @@ async function loadData() {
   } catch (err: any) {
     errorMsg.value = "Failed to load bookkeeping and invoice data.";
     log.error("Data loading failed", { error: err.message });
+  } finally {
+    dataLoaded.value = true;
   }
 }
 
@@ -676,6 +681,14 @@ async function saveIssuerSettings() {
 
 async function approveCandidate() {
   if (!selectedRecord.value) return;
+  const confirmed = await openConfirm({
+    title: "Approve Billing Draft",
+    message: "Are you sure you want to approve this candidate and commit it as an invoice? This will dynamically generate double-entry bookkeeping journal entries in your active ledger.",
+    confirmText: "Approve & Journal",
+    variant: "success",
+  });
+  if (!confirmed) return;
+
   actionPending.value = true;
   successMsg.value = "";
   errorMsg.value = "";
@@ -699,7 +712,14 @@ async function approveCandidate() {
 
 async function deleteDraft() {
   if (!selectedRecord.value) return;
-  if (!confirm("Are you sure you want to discard this billing draft?")) return;
+  const confirmed = await openConfirm({
+    title: "Discard Billing Draft",
+    message: "Are you sure you want to discard this billing draft?",
+    confirmText: "Discard",
+    variant: "danger",
+  });
+  if (!confirmed) return;
+
   actionPending.value = true;
   successMsg.value = "";
   errorMsg.value = "";
@@ -799,11 +819,7 @@ async function triggerPrintableGeneration() {
     if (res?.ok && res?.jsonData?.chatId) {
       successMsg.value = "Generative invoice layout session started. Redirecting to chat...";
       setTimeout(() => {
-        if (router) {
-          router.push(`/chat/${res.jsonData.chatId}`);
-        } else {
-          window.location.href = `/chat/${res.jsonData.chatId}`;
-        }
+        window.location.href = `/chat/${res.jsonData.chatId}`;
       }, 1200);
     } else {
       errorMsg.value = res?.error || "Failed to spin up layout generation chat.";
