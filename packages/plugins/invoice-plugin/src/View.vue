@@ -227,10 +227,16 @@
             </div>
 
             <!-- View Modes Tabs -->
-            <div class="view-mode-tabs">
-              <button type="button" class="view-mode-btn" :class="{ active: viewMode === 'details' }" @click="viewMode = 'details'">Line Items</button>
-              <button type="button" class="view-mode-btn" :class="{ active: viewMode === 'preview' }" @click="viewMode = 'preview'">
-                Printable Layout Preview
+            <div class="view-mode-tabs" style="justify-content: space-between; align-items: center;">
+              <div style="display: flex;">
+                <button type="button" class="view-mode-btn" :class="{ active: viewMode === 'details' }" @click="viewMode = 'details'">Line Items</button>
+                <button type="button" class="view-mode-btn" :class="{ active: viewMode === 'preview' }" @click="viewMode = 'preview'">
+                  Printable Layout Preview
+                </button>
+              </div>
+              <button v-if="viewMode === 'preview'" type="button" class="btn btn-indigo" @click="printInvoice" style="padding: 0.3rem 0.75rem; font-size: 0.75rem; display: flex; align-items: center; gap: 0.35rem; margin-bottom: 4px;">
+                <span class="material-icons" style="font-size: 0.95rem;">picture_as_pdf</span>
+                Print / Save PDF
               </button>
             </div>
 
@@ -1005,6 +1011,75 @@ async function copyToClipboard(text: string) {
     successMsg.value = "Instruction copied to clipboard! You can paste it in your active chat.";
   } catch (err) {
     errorMsg.value = "Failed to copy instruction to clipboard.";
+  }
+}
+
+function printInvoice() {
+  const record = selectedRecord.value;
+  if (!record) return;
+
+  const invoiceHtml = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Invoice - ${recordId.value}</title>
+        <meta charset="utf-8">
+        <style>
+          @page {
+            size: A4;
+            margin: 1.5cm;
+          }
+          body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color: #2c3e50;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          /* Override any custom components to look standard and premium in print */
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 24px;
+          }
+          th, td {
+            padding: 8px;
+            text-align: left;
+          }
+          th {
+            border-bottom: 2px solid #1a365d;
+            color: #1a365d;
+          }
+          td {
+            border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+          }
+        </style>
+      </head>
+      <body>
+        <div>
+          ${renderedInvoiceTemplate.value}
+        </div>
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+              setTimeout(function() { window.close(); }, 500);
+            }, 300);
+          }
+        <\/script>
+      </body>
+    </html>
+  `;
+
+  const printWindow = window.open("", "_blank");
+  if (printWindow) {
+    printWindow.document.open();
+    printWindow.document.write(invoiceHtml);
+    printWindow.document.close();
+  } else {
+    errorMsg.value = "Failed to open print window. Please allow popup windows for this application.";
   }
 }
 
