@@ -546,13 +546,23 @@ const renderedInvoiceTemplate = computed(() => {
   const record = selectedRecord.value;
   if (!record) return "";
 
+  const client = clients.value.find((c) => c.id === record.clientId || c.name === record.clientId);
+  const currency = client?.rate?.currency || "JPY";
+  const isJP = currency === "JPY";
+  const symbol = getCurrencySymbol(currency);
+
   const clientName = getClientName(record.clientId);
   const bankAccountTypeJa = settings.value.bankAccountType === "checking" ? "当座預金" : "普通預金";
-  const issueDateJa = formatDateJa(record.date);
-  const dueDateJa = formatDateJa(record.dueDate);
+  const bankAccountTypeEn = settings.value.bankAccountType === "checking" ? "Checking" : "Ordinary";
   const recordIdVal = isCandidate.value ? "(Draft)" : (record as Invoice).id;
 
-  const markdown = `
+  let markdown = "";
+
+  if (isJP) {
+    const issueDateJa = formatDateJa(record.date);
+    const dueDateJa = formatDateJa(record.dueDate);
+
+    markdown = `
 <div style="font-family: 'Helvetica Neue', 'Hiragino Sans', sans-serif; padding: 20px; color: #2c3e50;">
 
 <div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #1a365d; padding-bottom: 12px; margin-bottom: 24px;">
@@ -640,7 +650,101 @@ const renderedInvoiceTemplate = computed(() => {
 </div>
 
 </div>
-  `;
+    `;
+  } else {
+    const issueDateEn = formatDateEn(record.date);
+    const dueDateEn = formatDateEn(record.dueDate);
+
+    markdown = `
+<div style="font-family: 'Helvetica Neue', 'Arial', sans-serif; padding: 20px; color: #2c3e50;">
+
+<div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #1a365d; padding-bottom: 12px; margin-bottom: 24px;">
+  <div>
+    <h1 style="font-size: 30px; letter-spacing: 6px; margin: 0; color: #1a365d; font-weight: 300;">INVOICE</h1>
+    <p style="margin: 2px 0 0; color: #718096; font-size: 12px; letter-spacing: 2px;">BILLING INVOICE</p>
+  </div>
+  <div style="text-align: right; font-size: 12px; color: #4a5568;">
+    <div><strong style="color:#1a365d;">Invoice No.</strong> ${recordIdVal}</div>
+    <div><strong style="color:#1a365d;">Date Issued:</strong> ${issueDateEn}</div>
+    <div><strong style="color:#1a365d;">Due Date:</strong> ${dueDateEn}</div>
+  </div>
+</div>
+
+<table style="width:100%; border:none; margin-bottom: 24px;">
+  <tr style="border:none;">
+    <td style="border:none; vertical-align: top; width: 55%; padding: 0;">
+      <div style="font-size: 10px; color: #718096; letter-spacing: 1px; margin-bottom: 6px;">BILL TO</div>
+      <div style="font-size: 18px; font-weight: 600; color: #1a365d; border-bottom: 1px solid #1a365d; padding-bottom: 4px; display: inline-block;">${clientName}</div>
+      <p style="margin-top: 8px; color: #4a5568; font-size: 12px;">Thank you for your business. Please find your billing details below:</p>
+    </td>
+    <td style="border:none; vertical-align: top; width: 45%; padding: 0 0 0 16px;">
+      <div style="background: rgba(255,255,255,0.05); border-left: 3px solid #1a365d; padding: 12px 16px; font-size: 12px; line-height: 1.6;">
+        <div style="font-size: 10px; color: #718096; letter-spacing: 1px; margin-bottom: 4px;">FROM</div>
+        <div style="font-weight: 600; color: #1a365d; font-size: 14px;">${settings.value.companyName || "(Issuer Name Not Set)"}</div>
+        ${settings.value.taxRegistrationId ? `<div style="color: #718096; font-size: 11px;">Tax ID: ${settings.value.taxRegistrationId}</div>` : ""}
+        <div style="margin-top: 4px;">ZIP Code: ${settings.value.postalCode || ""}</div>
+        <div>${settings.value.address || ""}</div>
+        <div style="margin-top: 4px; color: #4a5568;">${settings.value.email || ""}</div>
+      </div>
+    </td>
+  </tr>
+</table>
+
+<div style="font-size: 10px; color: #718096; letter-spacing: 1px; margin-bottom: 6px;">DETAILS</div>
+
+<table style="width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 13px;">
+  <thead>
+    <tr style="border-bottom: 2px solid #1a365d; color: #1a365d;">
+      <th style="padding: 8px; text-align: left;">Item Description</th>
+      <th style="padding: 8px; text-align: center; width: 80px;">Qty</th>
+      <th style="padding: 8px; text-align: right; width: 120px;">Amount</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${record.items
+      .map(
+        (item: any) => `<tr style="border-bottom:1px solid rgba(0,0,0,0.08);"><td style="padding:8px;">${item.description}</td><td style="padding:8px;text-align:center;">${item.quantity}</td><td style="padding:8px;text-align:right;">${symbol}${item.amount.toLocaleString()}</td></tr>`
+      )
+      .join("")}
+  </tbody>
+</table>
+
+<table style="width:100%; border:none; margin-top: 12px;">
+  <tr style="border:none;">
+    <td style="border:none; width: 55%;"></td>
+    <td style="border:none; width: 45%; padding: 0;">
+      <table style="width:100%; border-collapse: collapse; font-size: 13px;">
+        <tr>
+          <td style="padding: 6px 12px; color: #718096;">Subtotal</td>
+          <td style="padding: 6px 12px; text-align: right;">${symbol}${record.subtotal.toLocaleString()}</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(0,0,0,0.08);">
+          <td style="padding: 6px 12px; color: #718096;">Tax (0%)</td>
+          <td style="padding: 6px 12px; text-align: right;">${symbol}0</td>
+        </tr>
+        <tr style="background: #1a365d; color: white;">
+          <td style="padding: 10px 12px; font-weight: 600;">TOTAL DUE</td>
+          <td style="padding: 10px 12px; text-align: right; font-size: 16px; font-weight: 600;">${symbol}${record.total.toLocaleString()}</td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+
+<div style="margin-top: 24px; background: rgba(255,255,255,0.03); padding: 16px 20px; border-radius: 4px; font-size: 12px;">
+  <div style="font-size: 10px; color: #718096; letter-spacing: 1px; margin-bottom: 4px;">SETTLEMENT DETAILS</div>
+  <div style="font-size: 14px; color: #1a365d;"><strong>${settings.value.bankName || ""} ${settings.value.bankBranch || ""}</strong></div>
+  <div style="color: #4a5568; margin-top: 2px;">${bankAccountTypeEn} Account　No. ${settings.value.bankAccountNumber || ""}　/　Holder: ${settings.value.bankAccountHolder || ""}</div>
+</div>
+
+<div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid rgba(0,0,0,0.05); font-size: 10px; color: #a0aec0; text-align: center;">
+  Transfer fees shall be borne by the payer.<br>
+  For any inquiries regarding this statement, please contact the email address listed above.
+</div>
+
+</div>
+    `;
+  }
 
   return marked.parse(markdown);
 });
@@ -715,6 +819,25 @@ function formatDateJa(dateStr: string): string {
   const m = parseInt(parts[1], 10);
   const d = parseInt(parts[2], 10);
   return `${y}年${m}月${d}日`;
+}
+
+function formatDateEn(dateStr: string): string {
+  if (!dateStr) return "";
+  const parts = dateStr.split("-");
+  if (parts.length !== 3) return dateStr;
+  const year = parts[0];
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const monthIdx = parseInt(parts[1], 10) - 1;
+  const month = months[monthIdx] || parts[1];
+  const day = parseInt(parts[2], 10);
+  return `${month} ${day}, ${year}`;
+}
+
+function getCurrencySymbol(currency: string): string {
+  if (currency === "JPY") return "¥";
+  if (currency === "EUR") return "€";
+  if (currency === "GBP") return "£";
+  return "$";
 }
 
 function selectRecord(record: any, candMode: boolean) {
