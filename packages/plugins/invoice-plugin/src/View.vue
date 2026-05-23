@@ -3,21 +3,20 @@
     <!-- Header -->
     <header class="dashboard-header glass-panel">
       <div class="header-left">
-        <span class="material-icons header-icon">receipt_long</span>
         <div>
-          <h1 class="header-title">SOLOPRENEUR BILLING</h1>
+          <h1 class="header-title">Invoice</h1>
           <p class="header-subtitle">Invoice management & automated double-entry bookkeeping</p>
         </div>
       </div>
       <div class="header-right">
         <div class="tab-selectors">
           <button type="button" class="tab-btn" :class="{ active: activeTab === 'invoices' }" @click="activeTab = 'invoices'">
-            <span class="material-icons text-sm">list_alt</span>
-            Invoices & Candidates
+            <span class="material-icons text-sm leading-none">list_alt</span>
+            <span>Invoices & Candidates</span>
           </button>
           <button type="button" class="tab-btn" :class="{ active: activeTab === 'settings' }" @click="activeTab = 'settings'">
-            <span class="material-icons text-sm">settings_applications</span>
-            Issuer Profile
+            <span class="material-icons text-sm leading-none">settings_applications</span>
+            <span>Issuer Profile</span>
           </button>
         </div>
       </div>
@@ -891,22 +890,12 @@ onUnmounted(() => {
 
 .header-left {
   display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.header-icon {
-  font-size: 2.25rem;
-  color: #2563eb;
-  padding: 0.5rem;
-  border-radius: 12px;
-  background: rgba(37, 99, 235, 0.08);
+  flex-direction: column;
 }
 
 .header-title {
-  font-size: 1.35rem;
-  font-weight: 800;
-  letter-spacing: 2px;
+  font-size: 1.25rem;
+  font-weight: 700;
   margin: 0;
   color: #1e293b;
 }
@@ -924,48 +913,61 @@ onUnmounted(() => {
 /* Tabs */
 .tab-selectors {
   display: flex;
-  gap: 0.5rem;
-  background: rgba(0, 0, 0, 0.03);
-  padding: 0.25rem;
-  border-radius: 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #ffffff;
 }
 
 .dark .tab-selectors {
-  background: rgba(255, 255, 255, 0.04);
+  border-color: #334155;
+  background: #0f172a;
 }
 
 .tab-btn {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.5rem 1rem;
+  gap: 0.25rem;
+  height: 2rem;
+  padding: 0 0.625rem;
   border: none;
-  background: none;
-  font-size: 0.85rem;
+  border-right: 1px solid #cbd5e1;
+  background: #ffffff;
+  font-size: 0.75rem;
   font-weight: 600;
-  color: #64748b;
+  color: #475569;
   cursor: pointer;
-  border-radius: 9px;
-  transition: all 0.25s ease;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.tab-btn:last-child {
+  border-right: none;
 }
 
 .tab-btn:hover {
+  background: #f8fafc;
   color: #1e293b;
 }
 
+.dark .tab-btn {
+  background: #0f172a;
+  border-right-color: #334155;
+  color: #94a3b8;
+}
+
 .dark .tab-btn:hover {
+  background: #1e293b;
   color: #f8fafc;
 }
 
 .tab-btn.active {
-  background: #ffffff;
-  color: #2563eb;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+  background: #eef2ff;
+  color: #4f46e5;
 }
 
 .dark .tab-btn.active {
-  background: #1e293b;
-  color: #3b82f6;
+  background: rgba(79, 70, 229, 0.15);
+  color: #818cf8;
 }
 
 /* Warnings and Alerts */
