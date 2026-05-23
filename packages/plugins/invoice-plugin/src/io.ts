@@ -14,7 +14,7 @@ export async function loadAllInvoices(files: FileOps): Promise<Invoice[]> {
     for (const name of fileNames) {
       if (!name.endsWith(".json")) continue;
       try {
-        const content = await files.read(`committed/${name}`);
+        const content = await files.read(path.join("committed", name));
         const parsed = JSON.parse(content);
         const inv = InvoiceSchema.parse(parsed);
         invoices.push(inv);
@@ -36,7 +36,7 @@ export async function loadAllCandidates(files: FileOps): Promise<InvoiceCandidat
     for (const name of fileNames) {
       if (!name.endsWith(".json")) continue;
       try {
-        const content = await files.read(`candidates/${name}`);
+        const content = await files.read(path.join("candidates", name));
         const parsed = JSON.parse(content);
         const cand = InvoiceCandidateSchema.parse(parsed);
         candidates.push(cand);
@@ -51,17 +51,18 @@ export async function loadAllCandidates(files: FileOps): Promise<InvoiceCandidat
 }
 
 export async function saveCandidate(files: FileOps, candidate: InvoiceCandidate): Promise<void> {
-  await files.write(`candidates/${candidate.candidateId}.json`, JSON.stringify(candidate, null, 2));
+  await files.write(path.join("candidates", `${candidate.candidateId}.json`), JSON.stringify(candidate, null, 2));
 }
 
 export async function deleteCandidate(files: FileOps, candidateId: string): Promise<void> {
-  if (await files.exists(`candidates/${candidateId}.json`)) {
-    await files.unlink(`candidates/${candidateId}.json`);
+  const candidatePath = path.join("candidates", `${candidateId}.json`);
+  if (await files.exists(candidatePath)) {
+    await files.unlink(candidatePath);
   }
 }
 
 export async function commitInvoice(files: FileOps, invoice: Invoice): Promise<void> {
-  await files.write(`committed/${invoice.id}.json`, JSON.stringify(invoice, null, 2));
+  await files.write(path.join("committed", `${invoice.id}.json`), JSON.stringify(invoice, null, 2));
 }
 
 // ─────────────────────────────────────────────────────────────────────

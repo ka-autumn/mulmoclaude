@@ -19,7 +19,7 @@ export default defineConfig({
       fileName: (_format, entryName) => `${entryName}.js`,
     },
     rollupOptions: {
-      external: ["vue", "gui-chat-protocol/vue", "node:os", "node:path", "node:fs/promises"],
+      external: ["vue", "gui-chat-protocol/vue", "node:os", "node:path", "node:fs/promises", "node:crypto"],
       output: {
         assetFileNames: (assetInfo) => {
           if (assetInfo.name?.endsWith(".css")) return "style.css";
