@@ -69,6 +69,7 @@ export const TOOL_DEFINITION = {
           bankAccountType: { type: "string" },
           bankAccountNumber: { type: "string" },
           bankAccountHolder: { type: "string" },
+          bookId: { type: "string" },
         },
         description: "Issuer configuration settings to save.",
       },

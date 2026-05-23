@@ -215,6 +215,7 @@ export async function loadSettings(files: FileOps): Promise<InvoiceSettings> {
     bankAccountType: "",
     bankAccountNumber: "",
     bankAccountHolder: "",
+    bookId: "",
   };
 }
 

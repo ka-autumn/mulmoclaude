@@ -62,6 +62,7 @@ export const InvoiceSettingsSchema = z.object({
   bankAccountType: z.string().default(""),
   bankAccountNumber: z.string().default(""),
   bankAccountHolder: z.string().default(""),
+  bookId: z.string().default(""),
 });
 
 export type InvoiceSettings = z.infer<typeof InvoiceSettingsSchema>;

@@ -1,12 +1,24 @@
 import { importServerModule } from "./server-imports";
 import type { Invoice } from "./types";
+import type { FileOps } from "gui-chat-protocol";
+import { loadSettings } from "./io";
 
 /**
  * Resolves the appropriate bookId to post entries into.
- * Prefers a book named "Pervasive" (case-insensitive), or one with JP country code, or defaults to the first available book.
+ * Prefers bookId configured in settings, then falls back to a book named "Pervasive" (case-insensitive),
+ * then one with JP country code, and finally defaults to the first available book.
  */
-async function resolveActiveBook(log: any): Promise<string | null> {
+async function resolveActiveBook(log: any, files?: FileOps): Promise<string | null> {
   try {
+    // 1. Try to load bookId from issuer settings
+    if (files) {
+      const settings = await loadSettings(files);
+      if (settings.bookId) {
+        log.info("invoice-accounting", `Using target bookId from issuer settings: ${settings.bookId}`);
+        return settings.bookId;
+      }
+    }
+
     const service = await importServerModule("server/accounting/service");
     if (!service || typeof service.listBooks !== "function") {
       log.warn("invoice-accounting", "Accounting service listBooks is not available");
@@ -19,7 +31,7 @@ async function resolveActiveBook(log: any): Promise<string | null> {
       return null;
     }
 
-    // 1. Try to find a book named "Pervasive"
+    // 2. Try to find a book named "Pervasive"
     const pervasiveBook = books.find((b: any) => b.name && b.name.toLowerCase().includes("pervasive"));
     if (pervasiveBook) {
       log.info("invoice-accounting", `Using book 'Pervasive' with ID: ${pervasiveBook.id}`);
@@ -48,9 +60,9 @@ async function resolveActiveBook(log: any): Promise<string | null> {
  * Credit Sales/Revenue (4000) for the subtotal.
  * Credit Sales Tax Payable (2400) for the tax (if tax > 0 and 2400 exists).
  */
-export async function recordInvoiceApproval(invoice: Invoice, clientName: string, log: any): Promise<void> {
+export async function recordInvoiceApproval(invoice: Invoice, clientName: string, log: any, files?: FileOps): Promise<void> {
   try {
-    const bookId = await resolveActiveBook(log);
+    const bookId = await resolveActiveBook(log, files);
     if (!bookId) return;
 
     const service = await importServerModule("server/accounting/service");
@@ -117,9 +129,9 @@ export async function recordInvoiceApproval(invoice: Invoice, clientName: string
  * Debit Checking Bank (1010) or Cash (1000) for the total.
  * Credit Accounts Receivable (1100) for the total.
  */
-export async function recordInvoicePayment(invoice: Invoice, log: any): Promise<void> {
+export async function recordInvoicePayment(invoice: Invoice, log: any, files?: FileOps): Promise<void> {
   try {
-    const bookId = await resolveActiveBook(log);
+    const bookId = await resolveActiveBook(log, files);
     if (!bookId) return;
 
     const service = await importServerModule("server/accounting/service");
@@ -162,9 +174,9 @@ export async function recordInvoicePayment(invoice: Invoice, log: any): Promise<
  * Scan entries in the active book for any with memo or line memos containing invoice.id,
  * and call voidEntry to reverse them.
  */
-export async function recordInvoiceVoid(invoice: Invoice, log: any): Promise<void> {
+export async function recordInvoiceVoid(invoice: Invoice, log: any, files?: FileOps): Promise<void> {
   try {
-    const bookId = await resolveActiveBook(log);
+    const bookId = await resolveActiveBook(log, files);
     if (!bookId) return;
 
     const service = await importServerModule("server/accounting/service");
@@ -211,29 +223,19 @@ export async function recordInvoiceVoid(invoice: Invoice, log: any): Promise<voi
 /**
  * Resolves the country of the active book dynamically.
  */
-export async function getActiveBookCountry(log: any): Promise<string> {
+export async function getActiveBookCountry(log: any, files?: FileOps): Promise<string> {
   try {
+    const bookId = await resolveActiveBook(log, files);
+    if (!bookId) return "US";
+
     const service = await importServerModule("server/accounting/service");
     if (!service || typeof service.listBooks !== "function") {
       return "US";
     }
 
     const { books } = await service.listBooks();
-    if (!books || books.length === 0) {
-      return "US";
-    }
-
-    const pervasiveBook = books.find((b: any) => b.name && b.name.toLowerCase().includes("pervasive"));
-    if (pervasiveBook) {
-      return pervasiveBook.country || "US";
-    }
-
-    const jpBook = books.find((b: any) => b.country === "JP");
-    if (jpBook) {
-      return "JP";
-    }
-
-    return books[0].country || "US";
+    const book = books.find((b: any) => b.id === bookId);
+    return book?.country || "US";
   } catch (err: any) {
     log.warn("invoice-accounting", "Failed to resolve active book country", { error: err.message });
     return "US";

@@ -4,6 +4,7 @@ import { TOOL_DEFINITION } from "./definition";
 import { loadAllInvoices, loadAllCandidates, saveCandidate, deleteCandidate, commitInvoice, fetchActiveClients, loadSettings, saveSettings } from "./io";
 import { recordInvoiceApproval, recordInvoicePayment, recordInvoiceVoid, getActiveBookCountry } from "./accounting";
 import { type Invoice, type InvoiceCandidate, type InvoiceSettings } from "./types";
+import { importServerModule } from "./server-imports";
 
 const Args = z.object({
   action: z.enum([
@@ -190,7 +191,7 @@ export default definePlugin((runtime) => {
           // Check if issuer settings (profile) are configured before creating candidates
           const settings = await loadSettings(files.data);
           if (!settings.companyName) {
-            const country = await getActiveBookCountry(log);
+            const country = await getActiveBookCountry(log, files.data);
             const clients = await fetchActiveClients(log);
             const client = clients.find((c: any) => c.id === args.clientId);
             const currency = client?.rate?.currency || "JPY";
@@ -242,6 +243,18 @@ export default definePlugin((runtime) => {
             loadSettings(files.data),
             fetchActiveClients(log),
           ]);
+
+          let books: any[] = [];
+          try {
+            const service = await importServerModule("server/accounting/service");
+            if (service && typeof service.listBooks === "function") {
+              const res = await service.listBooks();
+              books = res.books || [];
+            }
+          } catch (err: any) {
+            log.warn("invoice-plugin: listBooks failed", { error: err.message });
+          }
+
           return {
             ok: true,
             jsonData: {
@@ -249,6 +262,7 @@ export default definePlugin((runtime) => {
               invoices,
               settings,
               clients,
+              books,
             },
           };
         }
@@ -288,7 +302,7 @@ export default definePlugin((runtime) => {
             const clients = await fetchActiveClients(log);
             const client = clients.find((c: any) => c.id === invoice.clientId);
             const clientName = client ? client.name : invoice.clientId;
-            await recordInvoiceApproval(invoice, clientName, log);
+            await recordInvoiceApproval(invoice, clientName, log, files.data);
           } catch (accErr: any) {
             log.warn("invoice-plugin: recordInvoiceApproval failed", { error: accErr.message });
           }
@@ -316,7 +330,7 @@ export default definePlugin((runtime) => {
 
           // Dynamic accounting integration
           try {
-            await recordInvoicePayment(invoice, log);
+            await recordInvoicePayment(invoice, log, files.data);
           } catch (accErr: any) {
             log.warn("invoice-plugin: recordInvoicePayment failed", { error: accErr.message });
           }
@@ -339,7 +353,7 @@ export default definePlugin((runtime) => {
 
           // Dynamic accounting integration
           try {
-            await recordInvoiceVoid(invoice, log);
+            await recordInvoiceVoid(invoice, log, files.data);
           } catch (accErr: any) {
             log.warn("invoice-plugin: recordInvoiceVoid failed", { error: accErr.message });
           }

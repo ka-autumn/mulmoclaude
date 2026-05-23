@@ -361,6 +361,26 @@
               <label for="bankAccountHolder">Account Holder Name (Katakana/English)</label>
               <input id="bankAccountHolder" v-model="editSettings.bankAccountHolder" type="text" placeholder="e.g. ユウゲンガイシャ パーベイシブ" />
             </div>
+
+            <!-- Ledger Book Integration Divider -->
+            <div class="col-span-3 border-t border-white/10 my-4 pt-4">
+              <h3 class="subsection-title">
+                <span class="material-icons text-indigo-400 font-sm">account_balance_wallet</span>
+                Ledger Book Integration
+              </h3>
+            </div>
+
+            <!-- Target Book Dropdown -->
+            <div class="form-group col-span-3">
+              <label for="accountingBookId">Target Book for Automated Bookkeeping</label>
+              <select id="accountingBookId" v-model="editSettings.bookId">
+                <option value="">(Auto-resolve: Fallback to Heuristics / Pervasive / JP Book)</option>
+                <option v-for="b in books" :key="b.id" :value="b.id">
+                  {{ b.name }} ({{ b.currency }}, {{ b.country || 'US' }}) — {{ b.id }}
+                </option>
+              </select>
+              <span class="help-text">Choose the target book in the Accounting plugin where double-entry journal entries will be automatically written upon candidate approval, client payment, or invoice voiding.</span>
+            </div>
           </div>
 
           <div class="settings-actions">
@@ -449,9 +469,11 @@ const settings = ref<InvoiceSettings>({
   bankAccountType: "ordinary",
   bankAccountNumber: "",
   bankAccountHolder: "",
+  bookId: "",
 });
 
 const clients = ref<any[]>([]);
+const books = ref<any[]>([]);
 
 // Selection State
 const selectedRecordId = ref<string | null>(null);
@@ -607,6 +629,7 @@ async function loadData() {
       invoices.value = res.jsonData.invoices || [];
       candidates.value = res.jsonData.candidates || [];
       clients.value = res.jsonData.clients || [];
+      books.value = res.jsonData.books || [];
       settings.value = res.jsonData.settings || {
         companyName: "",
         taxRegistrationId: "",
@@ -618,6 +641,7 @@ async function loadData() {
         bankAccountType: "ordinary",
         bankAccountNumber: "",
         bankAccountHolder: "",
+        bookId: "",
       };
       editSettings.value = { ...settings.value };
     }
