@@ -70,19 +70,102 @@ describe("discoverCollections — field-type support", () => {
     assert.equal(collections[0]?.schema.fields.active?.type, "boolean");
   });
 
-  it("rejects a schema with an unknown field type (still v0)", async () => {
-    writeSkill("test-ref-not-yet", {
-      title: "Ref",
+  it("accepts a schema using `ref` with a non-empty `to` (added in feat-collections-ref-field)", async () => {
+    writeSkill("test-ref-ok", {
+      title: "Worklog-like",
       icon: "link",
-      dataPath: "data/ref/items",
+      dataPath: "data/refok/items",
       primaryKey: "id",
       fields: {
         id: { type: "string", label: "ID", primary: true, required: true },
-        clientId: { type: "ref", label: "Client" }, // ref is deferred
+        clientId: { type: "ref", to: "mc-clients", label: "Client", required: true },
       },
     });
     const collections = await listCollections();
-    assert.equal(collections.length, 0, "schema with unsupported field type must be skipped");
+    assert.equal(collections.length, 1);
+    assert.equal(collections[0]?.schema.fields.clientId?.type, "ref");
+    assert.equal(collections[0]?.schema.fields.clientId?.to, "mc-clients");
+  });
+
+  it("rejects a schema with `ref` but no `to`", async () => {
+    writeSkill("test-ref-bad", {
+      title: "Broken Ref",
+      icon: "link",
+      dataPath: "data/refbad/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        clientId: { type: "ref", label: "Client" }, // missing `to`
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 0, "schema with type:ref but no `to` must be skipped");
+  });
+
+  // Codex P2 review on PR #1495: `to` must be a real slug, not
+  // any non-empty string. Without this guard, values like
+  // `"../escape"` or `"mc-clients/extra"` produced malformed
+  // `/collections/${field.to}` router targets and behavior
+  // mismatches versus the URI-encoded API fetch path.
+
+  it("rejects a schema whose `ref.to` contains path traversal", async () => {
+    writeSkill("test-ref-traversal", {
+      title: "Traversal Ref",
+      icon: "warning",
+      dataPath: "data/reftrav/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        clientId: { type: "ref", to: "../escape", label: "Client" },
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 0);
+  });
+
+  it("rejects a schema whose `ref.to` contains a path separator", async () => {
+    writeSkill("test-ref-slash", {
+      title: "Slash Ref",
+      icon: "warning",
+      dataPath: "data/refslash/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        clientId: { type: "ref", to: "mc-clients/extra", label: "Client" },
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 0);
+  });
+
+  it("rejects a schema whose `ref.to` is whitespace", async () => {
+    writeSkill("test-ref-ws", {
+      title: "Whitespace Ref",
+      icon: "warning",
+      dataPath: "data/refws/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        clientId: { type: "ref", to: "  ", label: "Client" },
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 0);
+  });
+
+  it("rejects a schema with an unknown field type", async () => {
+    writeSkill("test-unknown-type", {
+      title: "Unknown",
+      icon: "warning",
+      dataPath: "data/unknown/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        weird: { type: "geocoord", label: "Geo" }, // not in v0 enum
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 0);
   });
 });
 

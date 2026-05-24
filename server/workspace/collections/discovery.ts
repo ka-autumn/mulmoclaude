@@ -14,12 +14,37 @@ import { USER_SKILLS_DIR, projectSkillsDir } from "../skills/paths.js";
 import { SCHEMA_FILE, resolveDataDir, safeSlugName } from "./paths.js";
 import type { CollectionDetail, CollectionSchema, CollectionSource, CollectionSummary } from "./types.js";
 
-const FieldSpecSchema = z.object({
-  type: z.enum(["string", "text", "email", "number", "date", "boolean", "markdown"]),
-  label: z.string().min(1),
-  primary: z.boolean().optional(),
-  required: z.boolean().optional(),
-});
+const FieldSpecSchema = z
+  .object({
+    type: z.enum(["string", "text", "email", "number", "date", "boolean", "markdown", "ref"]),
+    label: z.string().min(1),
+    primary: z.boolean().optional(),
+    required: z.boolean().optional(),
+    /** Target collection slug, required iff type === "ref". The
+     *  refine below enforces the cross-field rule (Zod has no
+     *  first-class discriminated union for this shape; refine is
+     *  the standard escape hatch). */
+    to: z.string().min(1).optional(),
+  })
+  .refine(
+    (spec) => {
+      if (spec.type !== "ref") return true;
+      // Cross-field constraint: a `ref` field MUST declare a `to`,
+      // AND that `to` must be a valid slug. Non-slug values like
+      // `../foo` or `mc-clients/extra` would otherwise produce
+      // malformed `/collections/${field.to}` router targets and
+      // behavior-mismatched API fetches (the fetch URI-encodes
+      // each segment but the router-link interpolates raw —
+      // Codex P2 review on PR #1495). Same shape we enforce on
+      // collection slugs themselves via `safeSlugName`.
+      if (typeof spec.to !== "string") return false;
+      return safeSlugName(spec.to) !== null;
+    },
+    {
+      message: "fields with type 'ref' must declare a `to` that is a valid collection slug (alphanumeric / hyphen / underscore, no path separators)",
+      path: ["to"],
+    },
+  );
 
 const CollectionSchemaZ = z.object({
   title: z.string().min(1),

@@ -1331,6 +1331,7 @@ const frMessages = {
     notFound: "Collection introuvable",
     loadFailed: "Échec du chargement",
     requiredField: "Ce champ est obligatoire",
+    refPlaceholder: "Sélectionner…",
     source: {
       user: "Utilisateur",
       project: "Projet",

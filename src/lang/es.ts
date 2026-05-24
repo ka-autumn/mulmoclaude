@@ -1337,6 +1337,7 @@ const esMessages = {
     notFound: "Colección no encontrada",
     loadFailed: "Error al cargar",
     requiredField: "Este campo es obligatorio",
+    refPlaceholder: "Seleccionar…",
     source: {
       user: "Usuario",
       project: "Proyecto",

@@ -11,7 +11,7 @@
 // plans/done/feat-skill-driven-apps-worklog.md — historical names predate
 // the rename).
 
-export type CollectionFieldType = "string" | "text" | "email" | "number" | "date" | "boolean" | "markdown";
+export type CollectionFieldType = "string" | "text" | "email" | "number" | "date" | "boolean" | "markdown" | "ref";
 
 export type CollectionSource = "user" | "project";
 
@@ -22,6 +22,14 @@ export interface CollectionFieldSpec {
    *  separate auto-id). Exactly one field per schema may set this. */
   primary?: boolean;
   required?: boolean;
+  /** When `type === "ref"`: the slug of the target collection the
+   *  field's value references (e.g. `clientId` in mc-worklog has
+   *  `to: "mc-clients"`). The record stores the target item's
+   *  primary-key slug as a plain string; the host uses `to` to
+   *  render a clickable link, populate a dropdown picker, and
+   *  (future) validate referential integrity. Required when type
+   *  is `ref`; ignored on every other type. */
+  to?: string;
 }
 
 export interface CollectionSchema {

@@ -1314,6 +1314,7 @@ const zhMessages = {
     notFound: "未找到集合",
     loadFailed: "加载失败",
     requiredField: "此字段为必填项",
+    refPlaceholder: "请选择…",
     source: {
       user: "用户",
       project: "项目",

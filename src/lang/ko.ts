@@ -1324,6 +1324,7 @@ const koMessages = {
     notFound: "컬렉션을 찾을 수 없습니다",
     loadFailed: "불러오기에 실패했습니다",
     requiredField: "이 필드는 필수입니다",
+    refPlaceholder: "선택…",
     source: {
       user: "사용자",
       project: "프로젝트",

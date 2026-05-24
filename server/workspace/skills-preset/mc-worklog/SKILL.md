@@ -29,7 +29,7 @@ types):
 
 - `id` — string, **primary key** (the filename, no extension)
 - `date` — ISO date `YYYY-MM-DD`, **required**
-- `clientId` — string, **required** (slug from `data/clients/items/`)
+- `clientId` — ref → `mc-clients`, **required** (slug from `data/clients/items/`)
 - `hours` — decimal number, **required** (1.5 = 90 minutes; not seconds)
 - `billable` — boolean (defaults to `true` if the user doesn't say otherwise)
 - `notes` — markdown (what was worked on)
@@ -39,21 +39,20 @@ types):
 sessions in the same day for the same client. Generate the suffix randomly
 and check that the resulting file doesn't already exist.
 
-## clientId resolution (until `ref` exists)
+## clientId resolution
 
-The schema language doesn't yet have a `ref` field type, so `clientId` is a
-free string and the host doesn't validate that it points at a real client.
+`clientId` is a `ref` field pointing at the `mc-clients` collection.
+The host renders it as a dropdown picker in the UI and a clickable link
+in the table, but you write the raw slug into the JSON.
 
-That validation is your job:
+When the user says "log 2 hours for Acme":
 
-- When the user says "log 2 hours for Acme", list `data/clients/items/` first,
-  find the slug whose `name` matches "Acme" (case-insensitive substring is
-  fine for a first pass), and use that slug as `clientId`.
-- If no match: ask the user whether to (a) create the client first (via the
-  `mc-clients` skill) or (b) use a literal slug they provide.
-- Never silently invent a clientId that doesn't exist in `data/clients/items/`
-  — that breaks the table the user sees at `/collections/mc-worklog` and any
-  downstream reporting.
+- List `data/clients/items/` and find the slug whose `name` matches
+  "Acme" (case-insensitive substring is fine for a first pass).
+- If no match: ask the user whether to (a) create the client first
+  (via the `mc-clients` skill) or (b) use a literal slug they provide.
+- Never invent a clientId that doesn't exist in `data/clients/items/` —
+  it'll show up as a broken link in the worklog table.
 
 ## What to do
 

@@ -1326,6 +1326,7 @@ const ptBRMessages = {
     notFound: "Coleção não encontrada",
     loadFailed: "Falha ao carregar",
     requiredField: "Este campo é obrigatório",
+    refPlaceholder: "Selecionar…",
     source: {
       user: "Usuário",
       project: "Projeto",

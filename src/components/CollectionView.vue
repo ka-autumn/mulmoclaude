@@ -55,6 +55,14 @@
                 <!-- eslint-disable-next-line @intlify/vue-i18n/no-raw-text -- bare "—" is a universal "empty value" glyph already used in `formatCell` and reused here for the boolean=false case; translating it would diverge the two visual states across locales. -->
                 <span v-else class="text-gray-400">—</span>
               </span>
+              <span v-else-if="field.type === 'ref' && field.to && typeof item[key] === 'string' && item[key]" class="block truncate">
+                <router-link
+                  :to="{ path: `/collections/${field.to}`, query: { highlight: String(item[key]) } }"
+                  class="text-blue-600 hover:underline"
+                  :data-testid="`collections-ref-link-${key}-${item[key]}`"
+                  >{{ refDisplay(field.to, String(item[key])) }}</router-link
+                >
+              </span>
               <span v-else class="block truncate">{{ formatCell(item[key], field.type) }}</span>
             </td>
             <td class="px-4 py-2 text-right whitespace-nowrap">
@@ -117,8 +125,19 @@
               />
               <span>{{ editing.bool[key] ? t("common.yes") : t("common.no") }}</span>
             </label>
+            <select
+              v-else-if="field.type === 'ref' && field.to && refOptions(field.to).length > 0"
+              :id="`collections-field-${key}`"
+              v-model="editing.text[key]"
+              :required="isFieldRequiredInUi(field)"
+              class="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:border-blue-400 focus:outline-none"
+              :data-testid="`collections-input-${key}`"
+            >
+              <option value="">{{ t("collectionsView.refPlaceholder") }}</option>
+              <option v-for="opt in refOptions(field.to)" :key="opt.slug" :value="opt.slug">{{ opt.display }}</option>
+            </select>
             <input
-              v-else-if="['string', 'email', 'number', 'date'].includes(field.type)"
+              v-else-if="['string', 'email', 'number', 'date', 'ref'].includes(field.type)"
               :id="`collections-field-${key}`"
               v-model="editing.text[key]"
               :type="inputTypeFor(field.type)"
@@ -171,14 +190,25 @@ import { PAGE_ROUTES } from "../router/pageRoutes";
 import ConfirmModal from "./ConfirmModal.vue";
 import { useConfirm } from "../composables/useConfirm";
 
-type FieldType = "string" | "text" | "email" | "number" | "date" | "boolean" | "markdown";
+type FieldType = "string" | "text" | "email" | "number" | "date" | "boolean" | "markdown" | "ref";
 
 interface FieldSpec {
   type: FieldType;
   label: string;
   primary?: boolean;
   required?: boolean;
+  /** When type === "ref": slug of the target collection (see
+   *  plans/feat-collections-ref-field.md). */
+  to?: string;
 }
+
+/** Per-target-collection cache: maps an item's primary-key slug to
+ *  the value we'll show in the table and dropdown. Filled in by
+ *  `loadRefTargets` after the main collection's items arrive — one
+ *  fetch per unique target collection, regardless of how many ref
+ *  fields point at it. */
+type RefDisplayMap = Record<string, string>;
+type RefCache = Record<string, RefDisplayMap>;
 
 interface CollectionSchema {
   title: string;
@@ -251,6 +281,7 @@ const loadError = ref<string | null>(null);
 const editing = ref<EditState | null>(null);
 const saving = ref(false);
 const saveError = ref<string | null>(null);
+const refCache = ref<RefCache>({});
 
 function detailUrl(slug: string): string {
   return API_ROUTES.collections.detail.replace(":slug", encodeURIComponent(slug));
@@ -269,6 +300,7 @@ async function loadCollection(slug: string): Promise<void> {
   loadError.value = null;
   collection.value = null;
   items.value = [];
+  refCache.value = {};
   const result = await apiGet<CollectionDetailResponse>(detailUrl(slug));
   loading.value = false;
   if (!result.ok) {
@@ -277,6 +309,75 @@ async function loadCollection(slug: string): Promise<void> {
   }
   collection.value = result.data.collection;
   items.value = result.data.items;
+  // Fan out to fetch each unique target collection so the table can
+  // render ref values as display names (not slugs) and the form
+  // dropdown has options. Failures fall back gracefully — the table
+  // cell shows the raw slug and the form falls back to text input.
+  // Pass the slug that triggered THIS load so the helper can drop
+  // its result if a faster subsequent load has already switched us
+  // to a different collection (Codex P1 review on PR #1495).
+  await loadRefTargets(result.data.collection.schema, slug);
+}
+
+function uniqueRefTargets(schema: CollectionSchema): string[] {
+  const targets = new Set<string>();
+  for (const field of Object.values(schema.fields)) {
+    if (field.type === "ref" && typeof field.to === "string" && field.to.length > 0) {
+      targets.add(field.to);
+    }
+  }
+  return [...targets];
+}
+
+async function loadRefTargets(schema: CollectionSchema, expectedSlug: string): Promise<void> {
+  const targets = uniqueRefTargets(schema);
+  if (targets.length === 0) return;
+  const results = await Promise.all(targets.map((target) => apiGet<CollectionDetailResponse>(detailUrl(target)).then((result) => ({ target, result }))));
+  // Stale-write guard: a quicker subsequent `loadCollection()`
+  // (user navigated to a different collection mid-fetch) may have
+  // already replaced `collection.value`. Overwriting `refCache`
+  // here would surface the previous collection's ref data on the
+  // current one's UI — broken labels until another reload. Drop
+  // the write if we're no longer on the slug that triggered us.
+  if (collection.value?.slug !== expectedSlug) return;
+  const next: RefCache = {};
+  for (const { target, result } of results) {
+    if (!result.ok) continue;
+    next[target] = buildRefDisplayMap(result.data);
+  }
+  refCache.value = next;
+}
+
+function buildRefDisplayMap(detail: CollectionDetailResponse): RefDisplayMap {
+  // Heuristic for what to display in the table cell + dropdown:
+  // prefer a field called `name`, fall back to `title`, then to the
+  // primary key value (= the slug itself, which we'd show anyway).
+  // Future-proof escape hatch (`displayField` in the schema) is
+  // explicitly deferred — see plans/feat-collections-ref-field.md.
+  const { fields, primaryKey } = detail.collection.schema;
+  const displayField = "name" in fields ? "name" : "title" in fields ? "title" : primaryKey;
+  const map: RefDisplayMap = {};
+  for (const item of detail.items) {
+    const slugRaw = item[primaryKey];
+    if (typeof slugRaw !== "string" || slugRaw.length === 0) continue;
+    const displayRaw = item[displayField];
+    const display = typeof displayRaw === "string" && displayRaw.length > 0 ? displayRaw : slugRaw;
+    map[slugRaw] = display;
+  }
+  return map;
+}
+
+function refDisplay(targetSlug: string, itemSlug: string): string {
+  const map = refCache.value[targetSlug];
+  return (map && map[itemSlug]) || itemSlug;
+}
+
+function refOptions(targetSlug: string): { slug: string; display: string }[] {
+  const map = refCache.value[targetSlug];
+  if (!map) return [];
+  return Object.entries(map)
+    .map(([slug, display]) => ({ slug, display }))
+    .sort((left, right) => left.display.localeCompare(right.display));
 }
 
 function inputTypeFor(type: FieldType): string {
