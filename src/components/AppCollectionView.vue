@@ -113,6 +113,7 @@
                 type="checkbox"
                 class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-400"
                 :data-testid="`apps-input-${key}`"
+                @change="markBoolTouched(key)"
               />
               <span>{{ editing.bool[key] ? t("common.yes") : t("common.no") }}</span>
             </label>
@@ -220,13 +221,20 @@ interface EditState {
   bool: Record<string, boolean>;
   /** Boolean keys whose value was present in the source record at
    *  the time the editor was opened. Used by `draftToRecord` to
-   *  preserve omission semantics: an originally-absent boolean is
-   *  only emitted if the user explicitly checked it (false stays
-   *  omitted = "default-applies"). Without this, opening + saving
-   *  a legacy record that omits `billable` would silently materialize
-   *  `billable: false`, which the `mc-worklog` skill treats as a
-   *  meaningful state distinct from "absent = default true". */
+   *  preserve omission semantics: an originally-absent boolean
+   *  that the user never touched stays omitted (so the consumer's
+   *  default applies — `mc-worklog` treats absent `billable` as
+   *  "default true"). */
   boolOriginallyPresent: Record<string, boolean>;
+  /** Boolean keys whose checkbox the user has actively interacted
+   *  with in this editor session. Combined with
+   *  `boolOriginallyPresent`, this lets `draftToRecord` distinguish
+   *  "untouched and originally absent → omit" from "explicitly
+   *  set to false → emit false". Without the dirty bit a user
+   *  cannot persist an explicit `false` from create mode (every
+   *  unchecked box looks the same as untouched), which blocks
+   *  things like a non-billable mc-worklog entry from the UI. */
+  boolTouched: Record<string, boolean>;
   /** For edit mode: the original item id pinned to the URL. */
   originalId: string | null;
 }
@@ -303,16 +311,18 @@ function openCreate(): void {
   const text: Record<string, string> = {};
   const bool: Record<string, boolean> = {};
   const boolOriginallyPresent: Record<string, boolean> = {};
+  const boolTouched: Record<string, boolean> = {};
   for (const [key, field] of Object.entries(app.value.schema.fields)) {
     if (field.type === "boolean") {
       bool[key] = false;
       // New record — no boolean was originally present.
       boolOriginallyPresent[key] = false;
+      boolTouched[key] = false;
     } else {
       text[key] = "";
     }
   }
-  editing.value = { mode: "create", text, bool, boolOriginallyPresent, originalId: null };
+  editing.value = { mode: "create", text, bool, boolOriginallyPresent, boolTouched, originalId: null };
   saveError.value = null;
 }
 
@@ -321,6 +331,7 @@ function openEdit(item: AppItem): void {
   const text: Record<string, string> = {};
   const bool: Record<string, boolean> = {};
   const boolOriginallyPresent: Record<string, boolean> = {};
+  const boolTouched: Record<string, boolean> = {};
   for (const [key, field] of Object.entries(app.value.schema.fields)) {
     const raw = item[key];
     if (field.type === "boolean") {
@@ -332,14 +343,19 @@ function openEdit(item: AppItem): void {
       // (e.g. `billable: "yes"`) shouldn't be treated as a real
       // existing boolean state.
       boolOriginallyPresent[key] = typeof raw === "boolean";
+      boolTouched[key] = false;
     } else {
       text[key] = raw === undefined || raw === null ? "" : String(raw);
     }
   }
   const primaryRaw = item[app.value.schema.primaryKey];
   const originalId = typeof primaryRaw === "string" ? primaryRaw : String(primaryRaw ?? "");
-  editing.value = { mode: "edit", text, bool, boolOriginallyPresent, originalId };
+  editing.value = { mode: "edit", text, bool, boolOriginallyPresent, boolTouched, originalId };
   saveError.value = null;
+}
+
+function markBoolTouched(key: string): void {
+  if (editing.value) editing.value.boolTouched[key] = true;
 }
 
 function closeEditor(): void {
@@ -352,17 +368,21 @@ function draftToRecord(state: EditState, schema: AppSchema): AppItem {
   const record: AppItem = {};
   for (const [key, field] of Object.entries(schema.fields)) {
     if (field.type === "boolean") {
-      // Preserve omission semantics: only emit the key if it was
-      // originally present in the source record (preserve the
-      // user's prior explicit choice and any subsequent toggle) OR
-      // the user has actively checked it (a brand-new "yes"). An
-      // originally-absent + still-unchecked boolean stays absent,
-      // so a save that doesn't touch the checkbox never materializes
-      // `false` on a legacy record. The mc-worklog SKILL.md
-      // explicitly treats absent as "default true", so collapsing
-      // unset → false would be data-corrupting.
+      // Emit the boolean if any of:
+      //   - it was originally present (preserve prior choice + any
+      //     in-session toggle, including explicit false)
+      //   - the user has actively interacted with the checkbox in
+      //     this session (boolTouched — required to make explicit
+      //     `false` round-trippable from create mode, where every
+      //     untouched checkbox would otherwise look like "omit")
+      //   - the schema marks the field required (downstream
+      //     consumers may depend on the key always being present)
+      // Otherwise omit so a brand-new record that didn't touch
+      // an optional boolean doesn't materialize `false` for it,
+      // letting the consumer's default (e.g. mc-worklog's
+      // "absent billable means true") apply.
       const value = state.bool[key] === true;
-      if (state.boolOriginallyPresent[key] || value) {
+      if (state.boolOriginallyPresent[key] || state.boolTouched[key] || field.required) {
         record[key] = value;
       }
       continue;
