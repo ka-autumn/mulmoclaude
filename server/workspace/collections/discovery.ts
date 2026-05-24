@@ -26,10 +26,25 @@ const FieldSpecSchema = z
      *  the standard escape hatch). */
     to: z.string().min(1).optional(),
   })
-  .refine((spec) => spec.type !== "ref" || (typeof spec.to === "string" && spec.to.length > 0), {
-    message: "fields with type 'ref' must declare a non-empty `to` (target collection slug)",
-    path: ["to"],
-  });
+  .refine(
+    (spec) => {
+      if (spec.type !== "ref") return true;
+      // Cross-field constraint: a `ref` field MUST declare a `to`,
+      // AND that `to` must be a valid slug. Non-slug values like
+      // `../foo` or `mc-clients/extra` would otherwise produce
+      // malformed `/collections/${field.to}` router targets and
+      // behavior-mismatched API fetches (the fetch URI-encodes
+      // each segment but the router-link interpolates raw —
+      // Codex P2 review on PR #1495). Same shape we enforce on
+      // collection slugs themselves via `safeSlugName`.
+      if (typeof spec.to !== "string") return false;
+      return safeSlugName(spec.to) !== null;
+    },
+    {
+      message: "fields with type 'ref' must declare a `to` that is a valid collection slug (alphanumeric / hyphen / underscore, no path separators)",
+      path: ["to"],
+    },
+  );
 
 const CollectionSchemaZ = z.object({
   title: z.string().min(1),

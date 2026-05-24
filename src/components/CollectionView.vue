@@ -313,7 +313,10 @@ async function loadCollection(slug: string): Promise<void> {
   // render ref values as display names (not slugs) and the form
   // dropdown has options. Failures fall back gracefully — the table
   // cell shows the raw slug and the form falls back to text input.
-  await loadRefTargets(result.data.collection.schema);
+  // Pass the slug that triggered THIS load so the helper can drop
+  // its result if a faster subsequent load has already switched us
+  // to a different collection (Codex P1 review on PR #1495).
+  await loadRefTargets(result.data.collection.schema, slug);
 }
 
 function uniqueRefTargets(schema: CollectionSchema): string[] {
@@ -326,10 +329,17 @@ function uniqueRefTargets(schema: CollectionSchema): string[] {
   return [...targets];
 }
 
-async function loadRefTargets(schema: CollectionSchema): Promise<void> {
+async function loadRefTargets(schema: CollectionSchema, expectedSlug: string): Promise<void> {
   const targets = uniqueRefTargets(schema);
   if (targets.length === 0) return;
   const results = await Promise.all(targets.map((target) => apiGet<CollectionDetailResponse>(detailUrl(target)).then((result) => ({ target, result }))));
+  // Stale-write guard: a quicker subsequent `loadCollection()`
+  // (user navigated to a different collection mid-fetch) may have
+  // already replaced `collection.value`. Overwriting `refCache`
+  // here would surface the previous collection's ref data on the
+  // current one's UI — broken labels until another reload. Drop
+  // the write if we're no longer on the slug that triggered us.
+  if (collection.value?.slug !== expectedSlug) return;
   const next: RefCache = {};
   for (const { target, result } of results) {
     if (!result.ok) continue;

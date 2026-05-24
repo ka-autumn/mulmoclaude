@@ -102,6 +102,57 @@ describe("discoverCollections — field-type support", () => {
     assert.equal(collections.length, 0, "schema with type:ref but no `to` must be skipped");
   });
 
+  // Codex P2 review on PR #1495: `to` must be a real slug, not
+  // any non-empty string. Without this guard, values like
+  // `"../escape"` or `"mc-clients/extra"` produced malformed
+  // `/collections/${field.to}` router targets and behavior
+  // mismatches versus the URI-encoded API fetch path.
+
+  it("rejects a schema whose `ref.to` contains path traversal", async () => {
+    writeSkill("test-ref-traversal", {
+      title: "Traversal Ref",
+      icon: "warning",
+      dataPath: "data/reftrav/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        clientId: { type: "ref", to: "../escape", label: "Client" },
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 0);
+  });
+
+  it("rejects a schema whose `ref.to` contains a path separator", async () => {
+    writeSkill("test-ref-slash", {
+      title: "Slash Ref",
+      icon: "warning",
+      dataPath: "data/refslash/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        clientId: { type: "ref", to: "mc-clients/extra", label: "Client" },
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 0);
+  });
+
+  it("rejects a schema whose `ref.to` is whitespace", async () => {
+    writeSkill("test-ref-ws", {
+      title: "Whitespace Ref",
+      icon: "warning",
+      dataPath: "data/refws/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        clientId: { type: "ref", to: "  ", label: "Client" },
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 0);
+  });
+
   it("rejects a schema with an unknown field type", async () => {
     writeSkill("test-unknown-type", {
       title: "Unknown",
