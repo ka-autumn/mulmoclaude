@@ -14,37 +14,82 @@ import { USER_SKILLS_DIR, projectSkillsDir } from "../skills/paths.js";
 import { SCHEMA_FILE, resolveDataDir, safeSlugName } from "./paths.js";
 import type { CollectionDetail, CollectionSchema, CollectionSource, CollectionSummary } from "./types.js";
 
+// Cross-field refines, factored out so they can apply at both the
+// top-level FieldSpec and the table-row SubFieldSpec without prose
+// duplication.
+//
+// Why two schemas: a `table` field's `of` sub-fields must NOT
+// themselves be `table` or `derived` (would explode the form editor
+// + formula evaluator into territory v0 doesn't need). The cleanest
+// way to encode that in Zod is a separate `SubFieldSpecSchema`
+// whose `type` enum simply omits those two values.
+const refRefine = (spec: { type: string; to?: string }): boolean => {
+  if (spec.type !== "ref") return true;
+  // `ref` must declare `to` AND `to` must be a real slug (not
+  // `../foo`, not `mc-clients/extra` — see Codex P2 on PR #1495).
+  if (typeof spec.to !== "string") return false;
+  return safeSlugName(spec.to) !== null;
+};
+const refMessage = {
+  message: "fields with type 'ref' must declare a `to` that is a valid collection slug (alphanumeric / hyphen / underscore, no path separators)",
+  path: ["to"],
+};
+
+const enumRefine = (spec: { type: string; values?: readonly string[] }): boolean =>
+  spec.type !== "enum" || (Array.isArray(spec.values) && spec.values.length > 0 && spec.values.every((value) => typeof value === "string" && value.length > 0));
+const enumMessage = {
+  message: "fields with type 'enum' must declare a non-empty `values` array of non-empty strings",
+  path: ["values"],
+};
+
+// Sub-fields inside a `table.of` map: the regular field types
+// minus `table` (no nested tables) and `derived` (no computed
+// columns inside a table — would need the evaluator to walk the
+// row context, defer until a real need surfaces).
+const SubFieldSpecSchema = z
+  .object({
+    type: z.enum(["string", "text", "email", "number", "date", "boolean", "markdown", "ref", "money", "enum"]),
+    label: z.string().min(1),
+    required: z.boolean().optional(),
+    to: z.string().min(1).optional(),
+    // `trim().min(1)` rather than bare `min(1)` so a whitespace-
+    // only string ("   ") fails validation — otherwise the cell
+    // formatter / dropdown would render visual blanks that look
+    // like missing data. Applied consistently to every "non-empty
+    // string" slot in the schema (CodeRabbit PR #1497).
+    currency: z.string().trim().min(1).optional(),
+    values: z.array(z.string().trim().min(1)).min(1).optional(),
+  })
+  .refine(refRefine, refMessage)
+  .refine(enumRefine, enumMessage);
+
 const FieldSpecSchema = z
   .object({
-    type: z.enum(["string", "text", "email", "number", "date", "boolean", "markdown", "ref"]),
+    type: z.enum(["string", "text", "email", "number", "date", "boolean", "markdown", "ref", "money", "enum", "table", "derived"]),
     label: z.string().min(1),
     primary: z.boolean().optional(),
     required: z.boolean().optional(),
-    /** Target collection slug, required iff type === "ref". The
-     *  refine below enforces the cross-field rule (Zod has no
-     *  first-class discriminated union for this shape; refine is
-     *  the standard escape hatch). */
     to: z.string().min(1).optional(),
+    currency: z.string().trim().min(1).optional(),
+    values: z.array(z.string().trim().min(1)).min(1).optional(),
+    of: z.record(z.string(), SubFieldSpecSchema).optional(),
+    formula: z.string().trim().min(1).optional(),
+    /** Inner type to render a derived value as (e.g. `"money"`).
+     *  Restricted to the non-composite display targets — derived
+     *  values are scalars, so rendering them via `table` or another
+     *  `derived` would be meaningless. */
+    display: z.enum(["string", "number", "money", "date"]).optional(),
   })
-  .refine(
-    (spec) => {
-      if (spec.type !== "ref") return true;
-      // Cross-field constraint: a `ref` field MUST declare a `to`,
-      // AND that `to` must be a valid slug. Non-slug values like
-      // `../foo` or `mc-clients/extra` would otherwise produce
-      // malformed `/collections/${field.to}` router targets and
-      // behavior-mismatched API fetches (the fetch URI-encodes
-      // each segment but the router-link interpolates raw —
-      // Codex P2 review on PR #1495). Same shape we enforce on
-      // collection slugs themselves via `safeSlugName`.
-      if (typeof spec.to !== "string") return false;
-      return safeSlugName(spec.to) !== null;
-    },
-    {
-      message: "fields with type 'ref' must declare a `to` that is a valid collection slug (alphanumeric / hyphen / underscore, no path separators)",
-      path: ["to"],
-    },
-  );
+  .refine(refRefine, refMessage)
+  .refine(enumRefine, enumMessage)
+  .refine((spec) => spec.type !== "table" || (spec.of !== undefined && Object.keys(spec.of).length > 0), {
+    message: "fields with type 'table' must declare a non-empty `of` (sub-schema for each row)",
+    path: ["of"],
+  })
+  .refine((spec) => spec.type !== "derived" || (typeof spec.formula === "string" && spec.formula.length > 0), {
+    message: "fields with type 'derived' must declare a non-empty `formula` (see src/utils/collections/derivedFormula.ts)",
+    path: ["formula"],
+  });
 
 const CollectionSchemaZ = z.object({
   title: z.string().min(1),

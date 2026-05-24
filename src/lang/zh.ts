@@ -1314,7 +1314,11 @@ const zhMessages = {
     notFound: "未找到集合",
     loadFailed: "加载失败",
     requiredField: "此字段为必填项",
-    refPlaceholder: "请选择…",
+    selectPlaceholder: "请选择…",
+    addRow: "添加行",
+    removeRow: "删除行",
+    noRows: "暂无行",
+    tableSummary: "{count} 项",
     source: {
       user: "用户",
       project: "项目",

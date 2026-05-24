@@ -1,0 +1,73 @@
+{
+  "title": "Invoices",
+  "icon": "receipt_long",
+  "dataPath": "data/invoice/items",
+  "primaryKey": "id",
+  "fields": {
+    "id": {
+      "type": "string",
+      "label": "ID",
+      "primary": true,
+      "required": true
+    },
+    "clientId": {
+      "type": "ref",
+      "to": "mc-clients",
+      "label": "Client",
+      "required": true
+    },
+    "issueDate": {
+      "type": "date",
+      "label": "Issued",
+      "required": true
+    },
+    "dueDate": {
+      "type": "date",
+      "label": "Due"
+    },
+    "status": {
+      "type": "enum",
+      "values": ["draft", "sent", "paid", "void"],
+      "label": "Status",
+      "required": true
+    },
+    "lineItems": {
+      "type": "table",
+      "label": "Line items",
+      "of": {
+        "description": { "type": "string", "label": "Description", "required": true },
+        "quantity": { "type": "number", "label": "Qty", "required": true },
+        "rate": { "type": "money", "label": "Rate", "currency": "USD", "required": true }
+      }
+    },
+    "subtotal": {
+      "type": "derived",
+      "label": "Subtotal",
+      "formula": "sum(lineItems[].quantity * lineItems[].rate)",
+      "display": "money",
+      "currency": "USD"
+    },
+    "taxRate": {
+      "type": "number",
+      "label": "Tax rate (e.g. 0.10 for 10%)"
+    },
+    "tax": {
+      "type": "derived",
+      "label": "Tax",
+      "formula": "subtotal * taxRate",
+      "display": "money",
+      "currency": "USD"
+    },
+    "total": {
+      "type": "derived",
+      "label": "Total",
+      "formula": "subtotal + tax",
+      "display": "money",
+      "currency": "USD"
+    },
+    "notes": {
+      "type": "markdown",
+      "label": "Notes"
+    }
+  }
+}

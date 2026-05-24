@@ -1324,7 +1324,11 @@ const koMessages = {
     notFound: "컬렉션을 찾을 수 없습니다",
     loadFailed: "불러오기에 실패했습니다",
     requiredField: "이 필드는 필수입니다",
-    refPlaceholder: "선택…",
+    selectPlaceholder: "선택…",
+    addRow: "행 추가",
+    removeRow: "행 삭제",
+    noRows: "행이 없습니다",
+    tableSummary: "{count}개",
     source: {
       user: "사용자",
       project: "프로젝트",

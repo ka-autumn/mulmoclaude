@@ -1321,7 +1321,11 @@ const jaMessages = {
     notFound: "コレクションが見つかりません",
     loadFailed: "読み込みに失敗しました",
     requiredField: "この項目は必須です",
-    refPlaceholder: "選択…",
+    selectPlaceholder: "選択…",
+    addRow: "行を追加",
+    removeRow: "行を削除",
+    noRows: "行がありません",
+    tableSummary: "{count}件",
     source: {
       user: "ユーザー",
       project: "プロジェクト",

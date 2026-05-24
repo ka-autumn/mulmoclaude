@@ -69,6 +69,19 @@ month?") group by clientId + date range and answer in one line.
 **Edit / delete**: same conventions as `mc-clients` — read, merge, write,
 or unlink. Preserve fields you weren't asked to change.
 
+## Linking to an entry in chat
+
+When you reference a specific worklog entry in your reply, link to the
+collection view — NOT the raw JSON file path:
+
+- Do: `[2026-05-24 Acme](/collections/mc-worklog?highlight=2026-05-24-acme-corp-a1b2)`
+- Don't: `[…](data/worklog/items/2026-05-24-acme-corp-a1b2.json)` — that opens
+  the raw file in the Files view instead of the rendered table.
+
+Always include the `?highlight=<id>` query. Today it just opens the table; a
+later host update will use it to scroll to and highlight the matching row, and
+existing links will start working automatically.
+
 ## When to ask vs. when to act
 
 If the user gives you a clear "log N hours for X today" sentence with all

@@ -167,6 +167,201 @@ describe("discoverCollections — field-type support", () => {
     const collections = await listCollections();
     assert.equal(collections.length, 0);
   });
+
+  // ─── money / enum / table / derived (feat-mc-invoice PR) ───
+
+  it("accepts a schema using `money` with and without an explicit currency", async () => {
+    writeSkill("test-money", {
+      title: "Money",
+      icon: "payments",
+      dataPath: "data/money/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        rateUsd: { type: "money", currency: "USD", label: "Rate USD" },
+        rateDefault: { type: "money", label: "Rate default" },
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 1);
+    assert.equal(collections[0]?.schema.fields.rateUsd?.currency, "USD");
+    assert.equal(collections[0]?.schema.fields.rateDefault?.currency, undefined);
+  });
+
+  it("rejects `money` with an empty `currency` string", async () => {
+    writeSkill("test-money-bad", {
+      title: "Money",
+      icon: "payments",
+      dataPath: "data/moneybad/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        rate: { type: "money", currency: "", label: "Rate" },
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 0);
+  });
+
+  it("accepts `enum` with a non-empty values array", async () => {
+    writeSkill("test-enum", {
+      title: "Enum",
+      icon: "list",
+      dataPath: "data/enum/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        status: { type: "enum", values: ["draft", "sent", "paid", "void"], label: "Status", required: true },
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 1);
+    assert.deepEqual(collections[0]?.schema.fields.status?.values, ["draft", "sent", "paid", "void"]);
+  });
+
+  it("rejects `enum` with no values", async () => {
+    writeSkill("test-enum-empty", {
+      title: "Enum",
+      icon: "warning",
+      dataPath: "data/enumempty/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        status: { type: "enum", label: "Status" },
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 0);
+  });
+
+  it("rejects `enum` with an empty values array", async () => {
+    writeSkill("test-enum-empty-arr", {
+      title: "Enum",
+      icon: "warning",
+      dataPath: "data/enumarr/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        status: { type: "enum", values: [], label: "Status" },
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 0);
+  });
+
+  it("accepts `table` with a non-empty `of` sub-schema", async () => {
+    writeSkill("test-table", {
+      title: "Invoice-like",
+      icon: "receipt",
+      dataPath: "data/table/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        lineItems: {
+          type: "table",
+          label: "Line items",
+          of: {
+            description: { type: "string", label: "Description", required: true },
+            quantity: { type: "number", label: "Qty", required: true },
+            rate: { type: "money", currency: "USD", label: "Rate", required: true },
+          },
+        },
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 1);
+    assert.equal(collections[0]?.schema.fields.lineItems?.type, "table");
+    assert.equal(collections[0]?.schema.fields.lineItems?.of?.quantity?.type, "number");
+  });
+
+  it("rejects `table` with no `of`", async () => {
+    writeSkill("test-table-no-of", {
+      title: "Bad Table",
+      icon: "warning",
+      dataPath: "data/tabnoof/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        rows: { type: "table", label: "Rows" },
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 0);
+  });
+
+  it("rejects nested tables (v0 disallows table inside a table)", async () => {
+    writeSkill("test-table-nested", {
+      title: "Nested Table",
+      icon: "warning",
+      dataPath: "data/tabnested/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        outer: {
+          type: "table",
+          label: "Outer",
+          of: {
+            inner: { type: "table", label: "Inner", of: { x: { type: "string", label: "X" } } },
+          },
+        },
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 0, "nested table must be rejected at the sub-schema level");
+  });
+
+  it("rejects `derived` columns inside a table (v0 disallows)", async () => {
+    writeSkill("test-table-derived-col", {
+      title: "Derived in Table",
+      icon: "warning",
+      dataPath: "data/tabderivedcol/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        rows: {
+          type: "table",
+          label: "Rows",
+          of: {
+            amount: { type: "derived", label: "Amount", formula: "1" },
+          },
+        },
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 0);
+  });
+
+  it("accepts `derived` with a non-empty formula", async () => {
+    writeSkill("test-derived", {
+      title: "Derived",
+      icon: "calculate",
+      dataPath: "data/derived/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        subtotal: { type: "derived", label: "Subtotal", formula: "sum(lineItems[].quantity * lineItems[].rate)", display: "money", currency: "USD" },
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 1);
+    assert.equal(collections[0]?.schema.fields.subtotal?.formula, "sum(lineItems[].quantity * lineItems[].rate)");
+    assert.equal(collections[0]?.schema.fields.subtotal?.display, "money");
+  });
+
+  it("rejects `derived` with no formula", async () => {
+    writeSkill("test-derived-no-formula", {
+      title: "Bad Derived",
+      icon: "warning",
+      dataPath: "data/derivednoform/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        total: { type: "derived", label: "Total" },
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 0);
+  });
 });
 
 describe("discoverCollections — structural validation", () => {

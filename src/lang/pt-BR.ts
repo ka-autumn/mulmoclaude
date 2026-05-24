@@ -1326,7 +1326,11 @@ const ptBRMessages = {
     notFound: "Coleção não encontrada",
     loadFailed: "Falha ao carregar",
     requiredField: "Este campo é obrigatório",
-    refPlaceholder: "Selecionar…",
+    selectPlaceholder: "Selecionar…",
+    addRow: "Adicionar linha",
+    removeRow: "Remover linha",
+    noRows: "Ainda não há linhas",
+    tableSummary: "{count} itens",
     source: {
       user: "Usuário",
       project: "Projeto",

@@ -53,6 +53,19 @@ you weren't asked to change.
 **Delete**: confirm with the user once if the request is ambiguous, then
 remove the file.
 
+## Linking to a client in chat
+
+When you reference a specific client in your reply, link to the collection
+view — NOT the raw JSON file path:
+
+- Do: `[Acme Corp](/collections/mc-clients?highlight=acme-corp)`
+- Don't: `[Acme Corp](data/clients/items/acme-corp.json)` — that opens the raw
+  file in the Files view instead of the rendered table.
+
+Always include the `?highlight=<id>` query. Today it just opens the table; a
+later host update will use it to scroll to and highlight the matching row, and
+existing links will start working automatically.
+
 ## When to ask vs. when to act
 
 If the user gives you a name and an email in one sentence, just add the

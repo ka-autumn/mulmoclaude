@@ -1337,7 +1337,11 @@ const esMessages = {
     notFound: "Colección no encontrada",
     loadFailed: "Error al cargar",
     requiredField: "Este campo es obligatorio",
-    refPlaceholder: "Seleccionar…",
+    selectPlaceholder: "Seleccionar…",
+    addRow: "Añadir fila",
+    removeRow: "Quitar fila",
+    noRows: "Aún no hay filas",
+    tableSummary: "{count} elementos",
     source: {
       user: "Usuario",
       project: "Proyecto",

@@ -1331,7 +1331,11 @@ const frMessages = {
     notFound: "Collection introuvable",
     loadFailed: "Échec du chargement",
     requiredField: "Ce champ est obligatoire",
-    refPlaceholder: "Sélectionner…",
+    selectPlaceholder: "Sélectionner…",
+    addRow: "Ajouter une ligne",
+    removeRow: "Supprimer la ligne",
+    noRows: "Aucune ligne pour l'instant",
+    tableSummary: "{count} éléments",
     source: {
       user: "Utilisateur",
       project: "Projet",

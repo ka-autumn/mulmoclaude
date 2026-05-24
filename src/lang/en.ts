@@ -1324,7 +1324,11 @@ const enMessages = {
     notFound: "Collection not found",
     loadFailed: "Failed to load",
     requiredField: "This field is required",
-    refPlaceholder: "Select…",
+    selectPlaceholder: "Select…",
+    addRow: "Add row",
+    removeRow: "Remove row",
+    noRows: "No rows yet",
+    tableSummary: "{count} items",
     source: {
       user: "User",
       project: "Project",

@@ -63,6 +63,11 @@
                   >{{ refDisplay(field.to, String(item[key])) }}</router-link
                 >
               </span>
+              <span v-else-if="field.type === 'money'" class="block truncate tabular-nums">{{ formatMoney(item[key], field.currency, locale) }}</span>
+              <span v-else-if="field.type === 'table'" class="block text-gray-500">{{ tableSummary(item[key]) }}</span>
+              <span v-else-if="field.type === 'derived'" class="block truncate tabular-nums">{{
+                derivedDisplay(field, evaluateDerivedAgainstItem(field, String(key), item))
+              }}</span>
               <span v-else class="block truncate">{{ formatCell(item[key], field.type) }}</span>
             </td>
             <td class="px-4 py-2 text-right whitespace-nowrap">
@@ -133,9 +138,133 @@
               class="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:border-blue-400 focus:outline-none"
               :data-testid="`collections-input-${key}`"
             >
-              <option value="">{{ t("collectionsView.refPlaceholder") }}</option>
+              <option value="">{{ t("collectionsView.selectPlaceholder") }}</option>
               <option v-for="opt in refOptions(field.to)" :key="opt.slug" :value="opt.slug">{{ opt.display }}</option>
             </select>
+            <select
+              v-else-if="field.type === 'enum' && Array.isArray(field.values) && field.values.length > 0"
+              :id="`collections-field-${key}`"
+              v-model="editing.text[key]"
+              :required="isFieldRequiredInUi(field)"
+              class="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:border-blue-400 focus:outline-none"
+              :data-testid="`collections-input-${key}`"
+            >
+              <option value="">{{ t("collectionsView.selectPlaceholder") }}</option>
+              <option v-for="value in field.values" :key="value" :value="value">{{ value }}</option>
+            </select>
+            <!-- table editor: inline mini-table with add/remove row.
+                 Sub-fields use the same input branches as top-level
+                 fields (minus nested table / derived — rejected by
+                 the SubFieldSpecSchema in discovery). -->
+            <div v-else-if="field.type === 'table' && field.of" class="border border-gray-200 rounded p-2 space-y-2" :data-testid="`collections-table-${key}`">
+              <table v-if="editing.table[key] && editing.table[key].length > 0" class="w-full text-sm">
+                <thead>
+                  <tr class="text-xs text-gray-500">
+                    <th v-for="(subField, subKey) in field.of" :key="subKey" class="text-left px-1 py-1 font-medium">{{ subField.label }}</th>
+                    <th class="w-px"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(row, rowIdx) in editing.table[key]" :key="rowIdx">
+                    <td v-for="(subField, subKey) in field.of" :key="subKey" class="px-1 py-1 align-top">
+                      <input
+                        v-if="subField.type === 'boolean'"
+                        v-model="row.bool[subKey]"
+                        type="checkbox"
+                        class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-400"
+                        @change="markRowBoolTouched(row, String(subKey))"
+                      />
+                      <select
+                        v-else-if="subField.type === 'enum' && Array.isArray(subField.values) && subField.values.length > 0"
+                        v-model="row.text[subKey]"
+                        :required="subField.required"
+                        class="w-full rounded border border-gray-300 px-1 py-0.5 text-sm focus:border-blue-400 focus:outline-none"
+                      >
+                        <option value="">{{ t("collectionsView.selectPlaceholder") }}</option>
+                        <option v-for="value in subField.values" :key="value" :value="value">{{ value }}</option>
+                      </select>
+                      <select
+                        v-else-if="subField.type === 'ref' && subField.to && refOptions(subField.to).length > 0"
+                        v-model="row.text[subKey]"
+                        :required="subField.required"
+                        class="w-full rounded border border-gray-300 px-1 py-0.5 text-sm focus:border-blue-400 focus:outline-none"
+                      >
+                        <option value="">{{ t("collectionsView.selectPlaceholder") }}</option>
+                        <option v-for="opt in refOptions(subField.to)" :key="opt.slug" :value="opt.slug">{{ opt.display }}</option>
+                      </select>
+                      <!-- money sub-field: same currency-prefix
+                           treatment as the top-level money input. -->
+                      <div v-else-if="subField.type === 'money'" class="relative">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-1 text-xs text-gray-500 pointer-events-none">{{
+                          currencySymbol(subField.currency)
+                        }}</span>
+                        <input
+                          v-model="row.text[subKey]"
+                          type="number"
+                          step="0.01"
+                          :required="subField.required"
+                          class="w-full rounded border border-gray-300 pl-6 pr-1 py-0.5 text-sm focus:border-blue-400 focus:outline-none"
+                        />
+                      </div>
+                      <input
+                        v-else
+                        v-model="row.text[subKey]"
+                        :type="inputTypeFor(subField.type)"
+                        :required="subField.required"
+                        class="w-full rounded border border-gray-300 px-1 py-0.5 text-sm focus:border-blue-400 focus:outline-none"
+                      />
+                    </td>
+                    <td class="text-right px-1">
+                      <button
+                        type="button"
+                        class="h-6 w-6 flex items-center justify-center rounded text-red-500 hover:bg-red-50"
+                        :aria-label="t('collectionsView.removeRow')"
+                        :data-testid="`collections-table-${key}-remove-${rowIdx}`"
+                        @click="removeTableRow(key, rowIdx)"
+                      >
+                        <span class="material-icons text-base">close</span>
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <p v-else class="text-xs text-gray-500 italic">{{ t("collectionsView.noRows") }}</p>
+              <button
+                type="button"
+                class="text-xs text-blue-600 hover:underline"
+                :data-testid="`collections-table-${key}-add`"
+                @click="addTableRow(key, field.of)"
+              >
+                + {{ t("collectionsView.addRow") }}
+              </button>
+            </div>
+            <!-- derived: read-only display, computed live from the draft. -->
+            <input
+              v-else-if="field.type === 'derived'"
+              :id="`collections-field-${key}`"
+              :value="derivedDisplay(field, liveDerived?.[key] ?? null)"
+              type="text"
+              disabled
+              class="w-full rounded border border-gray-200 bg-gray-50 px-2 py-1 text-sm text-gray-700"
+              :data-testid="`collections-input-${key}`"
+            />
+            <!-- money input: currency symbol as a left-pinned prefix
+                 so the user can see which currency they're typing
+                 into (the bare number input gave no visual hint). -->
+            <div v-else-if="field.type === 'money'" class="relative">
+              <span class="absolute inset-y-0 left-0 flex items-center pl-2 text-xs text-gray-500 pointer-events-none">{{
+                currencySymbol(field.currency)
+              }}</span>
+              <input
+                :id="`collections-field-${key}`"
+                v-model="editing.text[key]"
+                type="number"
+                step="0.01"
+                :required="isFieldRequiredInUi(field)"
+                class="w-full rounded border border-gray-300 pl-7 pr-2 py-1 text-sm focus:border-blue-400 focus:outline-none"
+                :data-testid="`collections-input-${key}`"
+              />
+            </div>
             <input
               v-else-if="['string', 'email', 'number', 'date', 'ref'].includes(field.type)"
               :id="`collections-field-${key}`"
@@ -181,7 +310,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 import { apiDelete, apiGet, apiPost, apiPut } from "../utils/api";
@@ -189,8 +318,9 @@ import { API_ROUTES } from "../config/apiRoutes";
 import { PAGE_ROUTES } from "../router/pageRoutes";
 import ConfirmModal from "./ConfirmModal.vue";
 import { useConfirm } from "../composables/useConfirm";
+import { evaluateDerived } from "../utils/collections/derivedFormula";
 
-type FieldType = "string" | "text" | "email" | "number" | "date" | "boolean" | "markdown" | "ref";
+type FieldType = "string" | "text" | "email" | "number" | "date" | "boolean" | "markdown" | "ref" | "money" | "enum" | "table" | "derived";
 
 interface FieldSpec {
   type: FieldType;
@@ -198,8 +328,23 @@ interface FieldSpec {
   primary?: boolean;
   required?: boolean;
   /** When type === "ref": slug of the target collection (see
-   *  plans/feat-collections-ref-field.md). */
+   *  plans/done/feat-collections-ref-field.md). */
   to?: string;
+  /** When type === "money": ISO 4217 currency for Intl display.
+   *  Defaults to "USD" when omitted. */
+  currency?: string;
+  /** When type === "enum": closed list of allowed string values
+   *  for the form `<select>`. */
+  values?: readonly string[];
+  /** When type === "table": sub-schema for each row (a flat map
+   *  of non-table / non-derived sub-fields). */
+  of?: Record<string, FieldSpec>;
+  /** When type === "derived": formula evaluated against the
+   *  record. See src/utils/collections/derivedFormula.ts. */
+  formula?: string;
+  /** When type === "derived": render the computed value as this
+   *  field type (e.g. "money"). Defaults to "number". */
+  display?: FieldType;
 }
 
 /** Per-target-collection cache: maps an item's primary-key slug to
@@ -238,6 +383,20 @@ interface ItemMutationResponse {
   item: CollectionItem;
 }
 
+/** One row of a `table`-typed field, in draft form. Same shape as
+ *  a top-level EditState's `text`/`bool` slots but flat — v0
+ *  disallows nested tables and derived columns, so a row never
+ *  needs its own table/derived sub-buckets. The boolean
+ *  presence/touched maps mirror the top-level boolean omission
+ *  semantics per row, so a row's explicit `false` round-trips
+ *  through a no-op edit instead of being dropped. */
+interface TableRowDraft {
+  text: Record<string, string>;
+  bool: Record<string, boolean>;
+  boolOriginallyPresent: Record<string, boolean>;
+  boolTouched: Record<string, boolean>;
+}
+
 interface EditState {
   mode: "create" | "edit";
   /** Form drafts for text-like inputs. v-model on `<input type="text">`
@@ -265,11 +424,15 @@ interface EditState {
    *  unchecked box looks the same as untouched), which blocks
    *  things like a non-billable mc-worklog entry from the UI. */
   boolTouched: Record<string, boolean>;
+  /** Per-table-field row drafts. Vue tracks deep mutations on
+   *  these arrays so derived formulas re-evaluate live as the
+   *  user edits cells. */
+  table: Record<string, TableRowDraft[]>;
   /** For edit mode: the original item id pinned to the URL. */
   originalId: string | null;
 }
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const { openConfirm } = useConfirm();
@@ -321,11 +484,21 @@ async function loadCollection(slug: string): Promise<void> {
 
 function uniqueRefTargets(schema: CollectionSchema): string[] {
   const targets = new Set<string>();
-  for (const field of Object.values(schema.fields)) {
-    if (field.type === "ref" && typeof field.to === "string" && field.to.length > 0) {
-      targets.add(field.to);
+  const walk = (fields: Record<string, FieldSpec>): void => {
+    for (const field of Object.values(fields)) {
+      if (field.type === "ref" && typeof field.to === "string" && field.to.length > 0) {
+        targets.add(field.to);
+      }
+      if (field.type === "table" && field.of) {
+        // Sub-fields of a table can also be refs (e.g. lineItem
+        // referencing a product catalog). Walk one level deep —
+        // nested tables are rejected by the schema, so a single
+        // recursion is enough.
+        walk(field.of);
+      }
     }
-  }
+  };
+  walk(schema.fields);
   return [...targets];
 }
 
@@ -383,8 +556,112 @@ function refOptions(targetSlug: string): { slug: string; display: string }[] {
 function inputTypeFor(type: FieldType): string {
   if (type === "email") return "email";
   if (type === "number") return "number";
+  if (type === "money") return "number";
   if (type === "date") return "date";
   return "text";
+}
+
+/** Extract the localized currency symbol for a given ISO code
+ *  (`USD` → `$`, `JPY` → `¥`, `EUR` → `€`). Used in the form's
+ *  money input so the user can see which currency they're typing
+ *  into — the schema declares the code per-field, but a bare
+ *  number input gave no visual hint of currency. Falls back to
+ *  the raw code on any Intl failure. */
+function currencySymbol(currency: string | undefined): string {
+  const code = currency && currency.length > 0 ? currency : "USD";
+  try {
+    const parts = new Intl.NumberFormat(locale.value, { style: "currency", currency: code }).formatToParts(0);
+    const part = parts.find((entry) => entry.type === "currency");
+    return part?.value ?? code;
+  } catch {
+    return code;
+  }
+}
+
+/** Format a money value via `Intl.NumberFormat`. Falls back to the
+ *  raw number on any failure (unknown currency code, non-finite
+ *  amount, etc.) so a malformed record still renders something
+ *  rather than blowing up the row. Locale comes from the active
+ *  i18n locale so digit grouping / decimal separator follow the
+ *  user's settings even though the currency is declared by the
+ *  schema. */
+function formatMoney(value: unknown, currency: string | undefined, displayLocale: string): string {
+  // `null` is intentionally NOT in this guard — `derivedDisplay`
+  // short-circuits on null before calling here, and the table
+  // cell branch passes `item[key]` from JSON where missing keys
+  // arrive as `undefined`, not `null` (we never persist explicit
+  // null). CodeQL flagged the original `value === null` as
+  // unreachable; removed per github-code-quality on PR #1497.
+  if (value === undefined || value === "") return "—";
+  const amount = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(amount)) return String(value);
+  const currencyCode = currency && currency.length > 0 ? currency : "USD";
+  try {
+    return new Intl.NumberFormat(displayLocale, { style: "currency", currency: currencyCode }).format(amount);
+  } catch {
+    return String(amount);
+  }
+}
+
+/** Live computed record from the current draft, used by `derived`
+ *  fields in the form so subtotal/tax/total update as the user
+ *  edits line items. For derived cells in the main table, we
+ *  evaluate against the loaded item instead — see the table cell
+ *  branch. */
+function emptyRow(subFields: Record<string, FieldSpec>): TableRowDraft {
+  const text: Record<string, string> = {};
+  const bool: Record<string, boolean> = {};
+  const boolOriginallyPresent: Record<string, boolean> = {};
+  const boolTouched: Record<string, boolean> = {};
+  for (const [subKey, subField] of Object.entries(subFields)) {
+    if (subField.type === "boolean") {
+      bool[subKey] = false;
+      boolOriginallyPresent[subKey] = false; // brand-new row
+      boolTouched[subKey] = false;
+    } else {
+      text[subKey] = "";
+    }
+  }
+  return { text, bool, boolOriginallyPresent, boolTouched };
+}
+
+function rowFromItem(item: Record<string, unknown>, subFields: Record<string, FieldSpec>): TableRowDraft {
+  const text: Record<string, string> = {};
+  const bool: Record<string, boolean> = {};
+  const boolOriginallyPresent: Record<string, boolean> = {};
+  const boolTouched: Record<string, boolean> = {};
+  for (const [subKey, subField] of Object.entries(subFields)) {
+    const raw = item[subKey];
+    if (subField.type === "boolean") {
+      bool[subKey] = raw === true;
+      // `typeof raw === "boolean"` (not `raw === true`) so an
+      // existing explicit `false` is recorded as present and
+      // round-trips on a no-op save.
+      boolOriginallyPresent[subKey] = typeof raw === "boolean";
+      boolTouched[subKey] = false;
+    } else {
+      text[subKey] = raw === undefined || raw === null ? "" : String(raw);
+    }
+  }
+  return { text, bool, boolOriginallyPresent, boolTouched };
+}
+
+function markRowBoolTouched(row: TableRowDraft, subKey: string): void {
+  row.boolTouched[subKey] = true;
+}
+
+function addTableRow(key: string, subFields: Record<string, FieldSpec>): void {
+  if (!editing.value) return;
+  const rows = editing.value.table[key] ?? [];
+  rows.push(emptyRow(subFields));
+  editing.value.table[key] = rows;
+}
+
+function removeTableRow(key: string, index: number): void {
+  if (!editing.value) return;
+  const rows = editing.value.table[key];
+  if (!rows) return;
+  rows.splice(index, 1);
 }
 
 /** Mirror of the create-mode primary-key carve-out in `saveEditor`:
@@ -413,17 +690,21 @@ function openCreate(): void {
   const bool: Record<string, boolean> = {};
   const boolOriginallyPresent: Record<string, boolean> = {};
   const boolTouched: Record<string, boolean> = {};
+  const table: Record<string, TableRowDraft[]> = {};
   for (const [key, field] of Object.entries(collection.value.schema.fields)) {
     if (field.type === "boolean") {
       bool[key] = false;
       // New record — no boolean was originally present.
       boolOriginallyPresent[key] = false;
       boolTouched[key] = false;
-    } else {
+    } else if (field.type === "table") {
+      table[key] = [];
+    } else if (field.type !== "derived") {
       text[key] = "";
     }
+    // derived fields are computed on the fly; nothing to seed.
   }
-  editing.value = { mode: "create", text, bool, boolOriginallyPresent, boolTouched, originalId: null };
+  editing.value = { mode: "create", text, bool, boolOriginallyPresent, boolTouched, table, originalId: null };
   saveError.value = null;
 }
 
@@ -433,6 +714,7 @@ function openEdit(item: CollectionItem): void {
   const bool: Record<string, boolean> = {};
   const boolOriginallyPresent: Record<string, boolean> = {};
   const boolTouched: Record<string, boolean> = {};
+  const table: Record<string, TableRowDraft[]> = {};
   for (const [key, field] of Object.entries(collection.value.schema.fields)) {
     const raw = item[key];
     if (field.type === "boolean") {
@@ -445,13 +727,19 @@ function openEdit(item: CollectionItem): void {
       // existing boolean state.
       boolOriginallyPresent[key] = typeof raw === "boolean";
       boolTouched[key] = false;
-    } else {
+    } else if (field.type === "table" && field.of) {
+      const sub = field.of;
+      const rows = Array.isArray(raw) ? raw : [];
+      table[key] = rows
+        .filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === "object" && !Array.isArray(row))
+        .map((row) => rowFromItem(row, sub));
+    } else if (field.type !== "derived") {
       text[key] = raw === undefined || raw === null ? "" : String(raw);
     }
   }
   const primaryRaw = item[collection.value.schema.primaryKey];
   const originalId = typeof primaryRaw === "string" ? primaryRaw : String(primaryRaw ?? "");
-  editing.value = { mode: "edit", text, bool, boolOriginallyPresent, boolTouched, originalId };
+  editing.value = { mode: "edit", text, bool, boolOriginallyPresent, boolTouched, table, originalId };
   saveError.value = null;
 }
 
@@ -465,39 +753,224 @@ function closeEditor(): void {
   saveError.value = null;
 }
 
-function draftToRecord(state: EditState, schema: CollectionSchema): CollectionItem {
-  const record: CollectionItem = {};
-  for (const [key, field] of Object.entries(schema.fields)) {
-    if (field.type === "boolean") {
-      // Emit the boolean if any of:
-      //   - it was originally present (preserve prior choice + any
-      //     in-session toggle, including explicit false)
-      //   - the user has actively interacted with the checkbox in
-      //     this session (boolTouched — required to make explicit
-      //     `false` round-trippable from create mode, where every
-      //     untouched checkbox would otherwise look like "omit")
-      //   - the schema marks the field required (downstream
-      //     consumers may depend on the key always being present)
-      // Otherwise omit so a brand-new record that didn't touch
-      // an optional boolean doesn't materialize `false` for it,
-      // letting the consumer's default (e.g. mc-worklog's
-      // "absent billable means true") apply.
-      const value = state.bool[key] === true;
-      if (state.boolOriginallyPresent[key] || state.boolTouched[key] || field.required) {
-        record[key] = value;
+/** Decide whether and how to emit a boolean field's draft value.
+ *  Extracted from `draftToRecord` to keep that function's
+ *  cognitive complexity under the lint cap. */
+function shouldEmitBoolean(state: EditState, key: string, field: FieldSpec): boolean {
+  // Emit when any of:
+  //  - originally present (preserve prior choice + any in-session
+  //    toggle, including explicit false)
+  //  - user has actively interacted with the checkbox (required so
+  //    explicit `false` is round-trippable from create mode, where
+  //    every untouched checkbox would otherwise look like "omit")
+  //  - the schema marks the field required (downstream consumers
+  //    may depend on the key always being present)
+  // Otherwise omit so a brand-new record that didn't touch an
+  // optional boolean doesn't materialize `false`, letting the
+  // consumer's default apply (e.g. mc-worklog's "absent billable
+  // means true").
+  return Boolean(state.boolOriginallyPresent[key] || state.boolTouched[key] || field.required);
+}
+
+/** Convert a scalar draft slot (text bucket) to its persisted form
+ *  per the field's type. Returns `undefined` to signal "omit". */
+function scalarDraftToValue(raw: string | undefined, fieldType: FieldType): unknown {
+  if (raw === undefined || raw === "") return undefined;
+  if (fieldType === "number" || fieldType === "money") {
+    const num = Number(raw);
+    return Number.isFinite(num) ? num : raw;
+  }
+  return raw;
+}
+
+/** True when a draft slot should count as "empty" for required-
+ *  field validation. NOT a truthiness check: Vue coerces
+ *  `<input type="number">` to a numeric `0`, and a required field
+ *  whose value is `0` (a quantity of 0, a rate of 0) is a filled
+ *  value, not a missing one. Only `undefined` / `null` / empty
+ *  string count as missing. (CodeRabbit PR #1497.) */
+function isMissingDraftValue(value: unknown): boolean {
+  return value === undefined || value === null || value === "";
+}
+
+/** Convert one row of a `table` field's draft to its persisted
+ *  row record. Sub-fields are restricted to non-table / non-derived
+ *  types by the SubFieldSpecSchema, so we only need to handle the
+ *  scalar + boolean branches. */
+function rowDraftToRecord(rowDraft: TableRowDraft, subFields: Record<string, FieldSpec>): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
+  for (const [subKey, subField] of Object.entries(subFields)) {
+    if (subField.type === "boolean") {
+      // Full mirror of the top-level boolean omission rule: emit if
+      // it was originally present (preserve an existing explicit
+      // `false`), OR the user actively toggled it this session, OR
+      // it's required, OR it's now `true`. Otherwise omit so a
+      // brand-new untouched optional boolean stays absent (default
+      // applies) — round-tripping both "absent" and explicit
+      // "false" losslessly. (Codex PR #1497, two rounds.)
+      const value = rowDraft.bool[subKey] === true;
+      if (rowDraft.boolOriginallyPresent[subKey] || rowDraft.boolTouched[subKey] || value || subField.required) {
+        row[subKey] = value;
       }
       continue;
     }
-    const raw = state.text[key];
-    if (raw === undefined || raw === "") continue;
-    if (field.type === "number") {
-      const num = Number(raw);
-      record[key] = Number.isFinite(num) ? num : raw;
-    } else {
-      record[key] = raw;
+    const value = scalarDraftToValue(rowDraft.text[subKey], subField.type);
+    if (value !== undefined) row[subKey] = value;
+  }
+  return row;
+}
+
+/** Walk every row of a `table` field's draft, returning the label
+ *  of the first required sub-field that's empty in any row.
+ *  Returns null when every required cell is filled (or when no
+ *  rows / no required sub-fields exist).
+ *
+ *  Why this needs to exist: save is triggered via a `type="button"`
+ *  click that calls `saveEditor` directly, which skips native HTML5
+ *  form submission. The `:required` attributes on row inputs are
+ *  therefore never enforced by the browser — we have to enforce
+ *  them here. (Codex P1 review on PR #1497.) */
+function firstMissingTableSubField(field: FieldSpec, rows: TableRowDraft[] | undefined): string | null {
+  if (!field.of || !rows) return null;
+  for (let rowIdx = 0; rowIdx < rows.length; rowIdx++) {
+    const row = rows[rowIdx];
+    for (const [subKey, subField] of Object.entries(field.of)) {
+      if (!subField.required) continue;
+      // Boolean required is a no-op (same reasoning as the
+      // top-level skip below).
+      if (subField.type === "boolean") continue;
+      if (isMissingDraftValue(row.text[subKey])) return `${field.label} #${rowIdx + 1}: ${subField.label}`;
     }
   }
+  return null;
+}
+
+/** Client-side required-field check. Returns the human-readable
+ *  label of the first missing required field, or null if everything
+ *  required is filled. Extracted from `saveEditor` to keep that
+ *  function's cognitive complexity under the lint cap.
+ *
+ *  Skip rules:
+ *  - primary key in create mode (server auto-generates an id when
+ *    blank, so blocking here would deny the documented
+ *    "blank → server-generated id" flow even for schemas that mark
+ *    the primary field required)
+ *  - booleans (`false` is a valid answer; required is a no-op)
+ *  - derived (computed, not user-entered)
+ *
+ *  Table fields are special: their `required` flag means "at least
+ *  one row", AND each row's sub-fields validate per their own
+ *  `required` flags — even if the table itself is optional. The
+ *  table block therefore runs OUTSIDE the `if (!field.required)`
+ *  short-circuit. */
+function validateOneField(key: string, field: FieldSpec, draft: EditState): string | null {
+  if (field.type === "table" && field.of) {
+    const rows = draft.table[key];
+    if (field.required && (!rows || rows.length === 0)) return field.label;
+    return firstMissingTableSubField(field, rows);
+  }
+  if (!field.required) return null;
+  if (draft.mode === "create" && field.primary === true) return null;
+  if (field.type === "boolean" || field.type === "derived") return null;
+  return isMissingDraftValue(draft.text[key]) ? field.label : null;
+}
+
+function firstMissingRequiredField(draft: EditState, schema: CollectionSchema): string | null {
+  for (const [key, field] of Object.entries(schema.fields)) {
+    const missing = validateOneField(key, field, draft);
+    if (missing) return missing;
+  }
+  return null;
+}
+
+function draftToRecord(state: EditState, schema: CollectionSchema): CollectionItem {
+  const record: CollectionItem = {};
+  for (const [key, field] of Object.entries(schema.fields)) {
+    if (field.type === "derived") continue; // never persisted; computed on demand
+    if (field.type === "boolean") {
+      if (shouldEmitBoolean(state, key, field)) record[key] = state.bool[key] === true;
+      continue;
+    }
+    if (field.type === "table" && field.of) {
+      const subFields = field.of;
+      record[key] = (state.table[key] ?? []).map((rowDraft) => rowDraftToRecord(rowDraft, subFields));
+      continue;
+    }
+    const value = scalarDraftToValue(state.text[key], field.type);
+    if (value !== undefined) record[key] = value;
+  }
   return record;
+}
+
+/** Live computed record from the current draft. Drives derived
+ *  field displays in the form so subtotal/tax/total update as
+ *  the user edits line items. */
+const liveRecord = computed<CollectionItem | null>(() => {
+  if (!collection.value || !editing.value) return null;
+  return draftToRecord(editing.value, collection.value.schema);
+});
+
+/** Evaluate every derived field against `base`, iterating until
+ *  the values stop changing (or until we've used at most one pass
+ *  per derived field — the natural upper bound on chain length,
+ *  reached when the fields appear in worst-case dependency order
+ *  and each pass settles only one slot).
+ *
+ *  Per CodeRabbit on PR #1497: the previous hard-coded 3-pass
+ *  ceiling silently capped longer chains. The new bound is exact
+ *  for any DAG over derived fields and an early `break` on
+ *  fixed-point keeps the common-case cost the same. */
+function deriveAll(schema: CollectionSchema, base: CollectionItem): CollectionItem {
+  const enriched: CollectionItem = { ...base };
+  const maxPasses = Object.values(schema.fields).filter((field) => field.type === "derived").length;
+  for (let pass = 0; pass < maxPasses; pass++) {
+    let mutated = false;
+    for (const [key, field] of Object.entries(schema.fields)) {
+      if (field.type !== "derived" || !field.formula) continue;
+      const next = evaluateDerived(field.formula, { record: enriched });
+      if (next !== null && enriched[key] !== next) {
+        enriched[key] = next;
+        mutated = true;
+      }
+    }
+    if (!mutated) break;
+  }
+  return enriched;
+}
+
+const liveDerived = computed<CollectionItem | null>(() => {
+  if (!collection.value || !liveRecord.value) return null;
+  return deriveAll(collection.value.schema, liveRecord.value);
+});
+
+function derivedDisplay(field: FieldSpec, computedValue: unknown): string {
+  if (computedValue === null || computedValue === undefined) return "—";
+  if (field.display === "money") {
+    return formatMoney(computedValue, field.currency, locale.value);
+  }
+  return formatCell(computedValue, field.display ?? "number");
+}
+
+/** Evaluate a derived field against a persisted item (for the
+ *  main collection table). The form uses `liveDerived` instead so
+ *  it can reflect uncommitted draft edits. */
+function evaluateDerivedAgainstItem(field: FieldSpec, fieldKey: string, item: CollectionItem): number | null {
+  if (!field.formula || !collection.value) return null;
+  // Walk derived chain: subtotal → tax → total. Same 3-pass cap as
+  // `deriveAll`; if a field's value is already on disk (Claude
+  // wrote it), prefer the disk value over re-computing.
+  const enriched = deriveAll(collection.value.schema, item);
+  const result = enriched[fieldKey];
+  return typeof result === "number" && Number.isFinite(result) ? result : null;
+}
+
+/** Short summary for a `table`-typed cell in the main collection
+ *  table. Counts rows; nothing fancier yet (per-row preview is
+ *  hard to fit in a single cell). */
+function tableSummary(value: unknown): string {
+  if (!Array.isArray(value)) return "—";
+  if (value.length === 0) return "—";
+  return t("collectionsView.tableSummary", { count: value.length });
 }
 
 async function saveEditor(): Promise<void> {
@@ -509,23 +982,10 @@ async function saveEditor(): Promise<void> {
   const draft = editing.value;
   saveError.value = null;
 
-  // Client-side required-field check — server doesn't enforce. Skip
-  // the primary key in create mode: the server auto-generates an id
-  // when the field is blank, so blocking here would deny the
-  // documented "blank → server-generated id" flow even for schemas
-  // (like mc-clients) that mark the primary field `required: true`
-  // for the edit-form-displays-it-as-a-real-field reason.
-  for (const [key, field] of Object.entries(schema.fields)) {
-    if (!field.required) continue;
-    if (draft.mode === "create" && field.primary === true) continue;
-    // Booleans always have a value (`false` is a valid answer), so
-    // `required: true` on a boolean field is a no-op rather than a
-    // gate. Skip the empty check for them.
-    if (field.type === "boolean") continue;
-    if (!draft.text[key]) {
-      saveError.value = `${field.label}: ${t("collectionsView.requiredField")}`;
-      return;
-    }
+  const missing = firstMissingRequiredField(draft, schema);
+  if (missing) {
+    saveError.value = `${missing}: ${t("collectionsView.requiredField")}`;
+    return;
   }
 
   saving.value = true;
