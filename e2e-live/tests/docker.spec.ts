@@ -55,13 +55,14 @@ import {
 // Filesystem error codes that mean "this host's filesystem refuses
 // to create a user-space symlink" rather than "the symlink would
 // have been broken" — surfaces on Windows without Developer Mode /
-// admin, on some bind-mounted Docker volumes, and on filesystems
-// that lack symlink support (EPERM / EACCES) or reject the syscall
-// entirely (ENOTSUP). L-30 is meaningless on these hosts because
-// the regression shape it protects (broken symlinks crashing the
-// discovery loop) cannot be set up — surface as `test.skip` with
-// the error code so a CI run on such a host doesn't false-red.
-const SYMLINK_UNSUPPORTED_CODES = new Set(["EPERM", "EACCES", "ENOTSUP"]);
+// admin, on some bind-mounted Docker volumes, on read-only mounts
+// (EROFS), and on filesystems that lack symlink support (EPERM /
+// EACCES) or reject the syscall entirely (ENOTSUP). L-30 is
+// meaningless on these hosts because the regression shape it
+// protects (broken symlinks crashing the discovery loop) cannot be
+// set up — surface as `test.skip` with the error code so a CI run
+// on such a host doesn't false-red. EROFS added in Codex iter-2.
+const SYMLINK_UNSUPPORTED_CODES = new Set(["EPERM", "EACCES", "ENOTSUP", "EROFS"]);
 
 // Mirror the host server's dotenv load so the spec process can read
 // the same `X_BEARER_TOKEN` (and any future docker-relevant env) the
