@@ -94,8 +94,17 @@ export function classifyWorkspacePath(href: string): WorkspaceLinkTarget | null 
   // view (with `files/` prepended) and 404 — the trigger for this
   // generalization was `[X](/collections/mc-clients)` from the
   // mc-clients SKILL.md ending up at `/files/collections/mc-clients`.
-  const [firstSegment] = normalized.split("/");
-  if (SPA_ROUTE_NAMES.has(firstSegment)) {
+  //
+  // Caveat: a workspace file path that happens to share a leading
+  // segment with a SPA route (`skills/guide.md`, `news/archive.json`,
+  // etc.) must NOT get reclassified as SPA — the router defines
+  // `/skills` as an exact match and `skills/guide.md` would resolve
+  // away from the file view, hiding the file. Heuristic: if any
+  // non-leading segment looks like it has a file extension, the
+  // path is treated as a file, not a route. Slugs don't normally
+  // carry dots; file extensions almost always do.
+  const [firstSegment, ...restSegments] = normalized.split("/");
+  if (SPA_ROUTE_NAMES.has(firstSegment) && !restSegments.some(looksLikeFileSegment)) {
     return { kind: "spa-route", path: `/${normalized}` };
   }
 
@@ -148,6 +157,21 @@ function decodeSegment(seg: string): string {
   } catch {
     return seg;
   }
+}
+
+// Matches a trailing `.ext` (1-8 alphanumeric chars) on a path
+// segment. Slugs are kebab-case alphanumeric without dots, so a
+// segment ending in a `.ext`-shape is almost certainly a file
+// (`.md`, `.json`, `.png`, `.jsonl`, …). Bounded length avoids
+// false positives on slugs with a single trailing dot.
+//
+// Used by the SPA-route classifier to decline reclassifying file
+// paths that share a leading segment with a SPA route (e.g.
+// `skills/guide.md`). Standalone helper so the test file can
+// exercise edge cases (`mc-clients` vs `mc-clients.v2` vs
+// `notes.txt`) directly.
+function looksLikeFileSegment(segment: string): boolean {
+  return /\.[a-zA-Z0-9]{1,8}$/.test(segment);
 }
 
 function stripFragmentAndQuery(str: string): string {

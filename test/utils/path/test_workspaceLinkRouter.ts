@@ -167,6 +167,48 @@ describe("classifyWorkspacePath", () => {
       assert.equal(result.kind, "file");
       assert.equal((result as { kind: "file"; path: string }).path, "data/clients/items/microsoft.json");
     });
+
+    // Codex P2 review on PR #1490: a file path whose leading
+    // segment matches a SPA route name (e.g. `skills/guide.md`,
+    // `news/archive.json`) must NOT get reclassified — the SPA
+    // route only matches the exact route shape, so pushing such a
+    // URL resolves away from the file view and hides the file.
+
+    it("does NOT reclassify `skills/guide.md` as spa-route (looks like a file)", () => {
+      const result = classifyWorkspacePath("skills/guide.md");
+      assert.ok(result);
+      assert.equal(result.kind, "file");
+      assert.equal((result as { kind: "file"; path: string }).path, "skills/guide.md");
+    });
+
+    it("does NOT reclassify `news/archive.json` as spa-route", () => {
+      const result = classifyWorkspacePath("news/archive.json");
+      assert.ok(result);
+      assert.equal(result.kind, "file");
+    });
+
+    it("does NOT reclassify `collections/clients.csv` as spa-route", () => {
+      const result = classifyWorkspacePath("collections/clients.csv");
+      assert.ok(result);
+      assert.equal(result.kind, "file");
+    });
+
+    it("still classifies dotless slugs (collections/mc-clients) as spa-route", () => {
+      // Sanity: the file-extension heuristic shouldn't false-positive
+      // on the common case the original change is meant to handle.
+      const result = classifyWorkspacePath("collections/mc-clients");
+      assert.deepEqual(result, { kind: "spa-route", path: "/collections/mc-clients" });
+    });
+
+    it("treats a slug with a trailing dotted suffix as a file (acceptable false positive)", () => {
+      // A slug like `mc-clients.v2` is unusual and would be
+      // misclassified as a file. We accept this — slugs with dots
+      // are not a real-world pattern and the alternative (slug-shape
+      // probe) would be much more complex.
+      const result = classifyWorkspacePath("collections/mc-clients.v2");
+      assert.ok(result);
+      assert.equal(result.kind, "file");
+    });
   });
 
   describe("percent-encoded hrefs (from marked.parse output)", () => {

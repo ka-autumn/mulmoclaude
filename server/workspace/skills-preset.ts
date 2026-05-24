@@ -21,7 +21,7 @@
 // paths + a logger sink, returns a summary) so tests can drive it
 // against tmpdirs without touching a real workspace.
 
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, type Dirent } from "node:fs";
+import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, type Dirent } from "node:fs";
 import path from "node:path";
 import { errorMessage } from "../utils/errors.js";
 
@@ -373,6 +373,64 @@ function abortActiveSync(opts: SyncActivePresetSkillsOptions, result: SyncActive
   return result;
 }
 
+/** True iff `absPath`'s realpath resolves inside `rootPath`'s
+ *  realpath. Defends `processActiveSlug` against a starred `mc-*`
+ *  slug that's actually a symlink to somewhere outside
+ *  `activeDir`: without this check, the recursive copy below would
+ *  follow the symlink and write through to the link's target
+ *  (potentially anywhere on disk). Returns false on any error so
+ *  the caller treats unreadable paths as "refused" rather than
+ *  "OK to write". */
+function isRealpathInside(absPath: string, rootPath: string): boolean {
+  try {
+    const real = realpathSync(absPath);
+    const rootReal = realpathSync(rootPath);
+    return real === rootReal || real.startsWith(rootReal + path.sep);
+  } catch {
+    return false;
+  }
+}
+
+type DestVerdict = { ok: true } | { ok: false; reason: string } | { kind: "not-active" };
+
+/** Validate the active dest slug dir before writing through it.
+ *  Returns:
+ *   - `{ ok: true }`           — proceed with the sync
+ *   - `{ kind: "not-active" }` — slug hasn't been starred yet
+ *   - `{ ok: false; reason }`  — refuse to write (symlink escape,
+ *                                non-directory, ancestor escape)
+ *
+ *  Symlink defenses (Codex P1 review on PR #1490): `statSync`
+ *  follows symlinks, so a starred `mc-*` slug that's actually a
+ *  symlink to /etc would let the recursive copy below write
+ *  outside the workspace. Two-layer defense:
+ *   1. `lstatSync` to see the link itself; if it's a symlink,
+ *      only accept when its target stays inside `activeDir`.
+ *   2. Always realpath-verify the full path (catches the case
+ *      where an ancestor like `.claude/` is symlinked even when
+ *      the slug dir itself is a regular directory). */
+function classifyActiveDest(slug: string, destSlugDir: string, activeDir: string): DestVerdict {
+  let destInfo;
+  try {
+    destInfo = lstatSync(destSlugDir);
+  } catch {
+    return { kind: "not-active" };
+  }
+  if (destInfo.isSymbolicLink()) {
+    if (!isRealpathInside(destSlugDir, activeDir)) {
+      return { ok: false, reason: "active slot is a symlink whose target escapes activeDir; refusing to write through it" };
+    }
+    return { ok: true };
+  }
+  if (!destInfo.isDirectory()) {
+    return { ok: false, reason: "active slot is occupied by a non-directory; skipping" };
+  }
+  if (!isRealpathInside(destSlugDir, activeDir)) {
+    return { ok: false, reason: "active slug dir escapes activeDir via an ancestor symlink" };
+  }
+  return { ok: true };
+}
+
 /** Per-slug worker for `syncActivePresetSkills`. Extracted to keep
  *  the outer function under the `sonarjs/cognitive-complexity`
  *  threshold; no behavior difference vs the inline loop. */
@@ -384,18 +442,14 @@ function processActiveSlug(slug: string, opts: SyncActivePresetSkillsOptions, re
     return;
   }
   const destSlugDir = path.join(opts.activeDir, slug);
-  let destInfo;
-  try {
-    destInfo = statSync(destSlugDir);
-  } catch {
-    // Not starred yet — skip, never auto-star.
+  const verdict = classifyActiveDest(slug, destSlugDir, opts.activeDir);
+  if ("kind" in verdict) {
     result.notActive.push(slug);
     return;
   }
-  if (!destInfo.isDirectory()) {
-    const reason = "active slot is occupied by a non-directory; skipping";
-    result.skipped.push(`${slug}: ${reason}`);
-    opts.onWarn?.("active preset sync skipped", { slug, reason, destSlugDir });
+  if (!verdict.ok) {
+    result.skipped.push(`${slug}: ${verdict.reason}`);
+    opts.onWarn?.("active preset sync skipped", { slug, reason: verdict.reason, destSlugDir });
     return;
   }
   const stats = syncDirTreeDiff(srcSlugDir, destSlugDir, backupExt);

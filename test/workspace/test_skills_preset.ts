@@ -10,7 +10,7 @@
 
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -428,6 +428,62 @@ describe("syncActivePresetSkills", () => {
   it("returns empty result when sourceDir is missing", () => {
     const result = syncActivePresetSkills({ sourceDir: path.join(workdir, "nonexistent"), activeDir });
     assert.deepEqual(result, { updated: [], unchanged: [], notActive: [], skipped: [], backupSuffix: null });
+  });
+
+  // Codex P1 review on PR #1490: the original `syncActivePresetSkills`
+  // used `statSync` (follows symlinks) on the dest slug dir, so a
+  // starred `mc-*` slug that was actually a symlink to outside the
+  // workspace would let the recursive copy write to the link's
+  // target. Pin the realpath-containment rejection here so a
+  // regression resurfaces the file-disclosure / arbitrary-write
+  // primitive immediately.
+
+  it("refuses to sync when the active slug dir is a symlink pointing outside activeDir", () => {
+    writePresetSource("mc-clients", "NEW BODY");
+    // Outside-the-workspace target the symlink points at.
+    const outsideDir = mkdtempSync(path.join(tmpdir(), "outside-active-"));
+    writeFileSync(path.join(outsideDir, "SKILL.md"), "ATTACKER WOULD LOVE TO READ/WRITE THIS");
+    try {
+      // Active slot is a symlink, not a real dir.
+      symlinkSync(outsideDir, path.join(activeDir, "mc-clients"));
+      const warnings: string[] = [];
+      const result = syncActivePresetSkills({
+        sourceDir,
+        activeDir,
+        onWarn: (message, data) => warnings.push(`${message} ${JSON.stringify(data)}`),
+      });
+      assert.equal(result.updated.length, 0, "must not report success");
+      assert.equal(result.skipped.length, 1);
+      assert.match(result.skipped[0], /mc-clients/);
+      assert.match(result.skipped[0], /symlink|escapes/);
+      // The outside file must remain untouched (no overwrite, no .bak rename).
+      assert.equal(readFileSync(path.join(outsideDir, "SKILL.md"), "utf-8"), "ATTACKER WOULD LOVE TO READ/WRITE THIS");
+      assert.deepEqual(
+        readdirSync(outsideDir).filter((entry) => entry.includes(".bak.")),
+        [],
+      );
+      assert.ok(
+        warnings.some((line) => /symlink|escapes/.test(line)),
+        "must log a warning",
+      );
+    } finally {
+      rmSync(outsideDir, { recursive: true, force: true });
+    }
+  });
+
+  it("accepts a symlink whose target stays inside activeDir (intra-workspace symlink)", () => {
+    // Symlinks within the workspace are legitimate (e.g. a user
+    // who likes git-managing their skills via a checkout under
+    // .claude/_repo/ and symlinks the active dir to it). Make
+    // sure we don't false-positive on those.
+    writePresetSource("mc-clients", "FRESH FROM SOURCE");
+    const realSlugDir = path.join(activeDir, "mc-clients-real");
+    mkdirSync(realSlugDir, { recursive: true });
+    writeFileSync(path.join(realSlugDir, "SKILL.md"), "STALE");
+    symlinkSync(realSlugDir, path.join(activeDir, "mc-clients"));
+    const result = syncActivePresetSkills({ sourceDir, activeDir });
+    assert.deepEqual(result.updated, ["mc-clients"]);
+    assert.match(readFileSync(path.join(realSlugDir, "SKILL.md"), "utf-8"), /FRESH FROM SOURCE/);
   });
 
   it("syncs newly-added files from source to an existing active dir", () => {
