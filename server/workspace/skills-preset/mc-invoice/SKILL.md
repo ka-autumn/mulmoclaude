@@ -73,6 +73,27 @@ to `data/invoice/items/<id>.json` via the `Write` tool. Defaults:
 `status: "draft"`, `issueDate: <today>`. Don't write `subtotal` / `tax` /
 `total` (computed).
 
+**Create from worklog hours** — common case. When the user says
+"invoice Acme for the work I did this month" (or "for May", or "since the
+last invoice"):
+
+1. Resolve "Acme" → a real client slug by reading `data/clients/items/`.
+2. List `data/worklog/items/` and filter to entries where `clientId`
+   matches AND `date` falls in the requested period.
+3. Group the matching worklog entries into invoice line items. The simplest
+   grouping: one line item per worklog entry (`description = entry.notes`,
+   `quantity = entry.hours`, `rate = <user's standing rate or asked>`).
+   You can also group by description if many entries share the same notes.
+4. If the user hasn't specified a rate and you don't have one on file,
+   ASK via `presentForm` — don't invent one.
+5. Write the invoice. The host will display Subtotal / Tax / Total
+   automatically once the file is saved.
+
+Do NOT skip step 2 and just ask the user "what should the invoice say?" —
+the whole reason mc-worklog exists is so you can pull that data without
+re-asking. If the worklog has no matching entries, tell the user and ask
+whether to create one-off line items instead.
+
 **List / summarize**: read `data/invoice/items/` and answer from those files.
 Don't recite the whole table in chat — the user can see it at
 `/collections/mc-invoice`. For aggregates ("how much have I billed Acme this
