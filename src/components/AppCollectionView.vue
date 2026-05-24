@@ -218,6 +218,15 @@ interface EditState {
    *  generic stays unambiguous (string vs boolean) — vue-tsc complains
    *  about `string | boolean` slots used as modelValue. */
   bool: Record<string, boolean>;
+  /** Boolean keys whose value was present in the source record at
+   *  the time the editor was opened. Used by `draftToRecord` to
+   *  preserve omission semantics: an originally-absent boolean is
+   *  only emitted if the user explicitly checked it (false stays
+   *  omitted = "default-applies"). Without this, opening + saving
+   *  a legacy record that omits `billable` would silently materialize
+   *  `billable: false`, which the `mc-worklog` skill treats as a
+   *  meaningful state distinct from "absent = default true". */
+  boolOriginallyPresent: Record<string, boolean>;
   /** For edit mode: the original item id pinned to the URL. */
   originalId: string | null;
 }
@@ -293,11 +302,17 @@ function openCreate(): void {
   if (!app.value) return;
   const text: Record<string, string> = {};
   const bool: Record<string, boolean> = {};
+  const boolOriginallyPresent: Record<string, boolean> = {};
   for (const [key, field] of Object.entries(app.value.schema.fields)) {
-    if (field.type === "boolean") bool[key] = false;
-    else text[key] = "";
+    if (field.type === "boolean") {
+      bool[key] = false;
+      // New record — no boolean was originally present.
+      boolOriginallyPresent[key] = false;
+    } else {
+      text[key] = "";
+    }
   }
-  editing.value = { mode: "create", text, bool, originalId: null };
+  editing.value = { mode: "create", text, bool, boolOriginallyPresent, originalId: null };
   saveError.value = null;
 }
 
@@ -305,17 +320,25 @@ function openEdit(item: AppItem): void {
   if (!app.value) return;
   const text: Record<string, string> = {};
   const bool: Record<string, boolean> = {};
+  const boolOriginallyPresent: Record<string, boolean> = {};
   for (const [key, field] of Object.entries(app.value.schema.fields)) {
     const raw = item[key];
     if (field.type === "boolean") {
       bool[key] = raw === true;
+      // Track whether the key was present in the source record so
+      // we can preserve "omitted" through a save that doesn't
+      // touch this field. `typeof raw === "boolean"` is more
+      // defensive than `key in item` because a wrong-typed value
+      // (e.g. `billable: "yes"`) shouldn't be treated as a real
+      // existing boolean state.
+      boolOriginallyPresent[key] = typeof raw === "boolean";
     } else {
       text[key] = raw === undefined || raw === null ? "" : String(raw);
     }
   }
   const primaryRaw = item[app.value.schema.primaryKey];
   const originalId = typeof primaryRaw === "string" ? primaryRaw : String(primaryRaw ?? "");
-  editing.value = { mode: "edit", text, bool, originalId };
+  editing.value = { mode: "edit", text, bool, boolOriginallyPresent, originalId };
   saveError.value = null;
 }
 
@@ -329,10 +352,19 @@ function draftToRecord(state: EditState, schema: AppSchema): AppItem {
   const record: AppItem = {};
   for (const [key, field] of Object.entries(schema.fields)) {
     if (field.type === "boolean") {
-      // Always include boolean fields so unchecking persists as
-      // `false` rather than disappearing (= "field unset"). Booleans
-      // have an explicit two-state meaning the schema declared.
-      record[key] = state.bool[key] === true;
+      // Preserve omission semantics: only emit the key if it was
+      // originally present in the source record (preserve the
+      // user's prior explicit choice and any subsequent toggle) OR
+      // the user has actively checked it (a brand-new "yes"). An
+      // originally-absent + still-unchecked boolean stays absent,
+      // so a save that doesn't touch the checkbox never materializes
+      // `false` on a legacy record. The mc-worklog SKILL.md
+      // explicitly treats absent as "default true", so collapsing
+      // unset → false would be data-corrupting.
+      const value = state.bool[key] === true;
+      if (state.boolOriginallyPresent[key] || value) {
+        record[key] = value;
+      }
       continue;
     }
     const raw = state.text[key];

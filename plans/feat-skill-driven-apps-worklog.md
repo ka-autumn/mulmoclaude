@@ -33,7 +33,7 @@ existing app-discovery flow picks up any starred skill that ships a
 
 ### What the skill adds
 
-```
+```text
 server/workspace/skills-preset/mc-worklog/
 ├── SKILL.md          # Claude's instructions
 └── schema.json       # 5 fields

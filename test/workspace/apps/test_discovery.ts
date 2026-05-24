@@ -144,6 +144,27 @@ describe("discoverApps — structural validation", () => {
   });
 });
 
+describe("discoverApps — workspaceRoot propagation", () => {
+  it("roots each app's dataDir at the supplied workspaceRoot, not the live workspace", async () => {
+    // Regression for PR #1489 Codex P1: discovery used to pass
+    // `workspaceRoot` through to `.claude/skills/` scanning but
+    // call `resolveDataDir` with no arg, so dataDir resolved
+    // against the real `~/mulmoclaude/` and broke test isolation.
+    writeSkill("test-rooting", {
+      title: "Rooting",
+      icon: "anchor",
+      dataPath: "data/rooting/items",
+      primaryKey: "id",
+      fields: { id: { type: "string", label: "ID", primary: true } },
+    });
+    const apps = await listApps();
+    assert.equal(apps.length, 1);
+    const dataDir = apps[0]?.dataDir;
+    assert.ok(dataDir, "dataDir should be set");
+    assert.ok(dataDir.startsWith(`${workdir}${path.sep}`), `dataDir ${dataDir} should live under workdir ${workdir}`);
+  });
+});
+
 describe("loadApp", () => {
   it("returns the named project-scope app", async () => {
     writeSkill("test-load", {

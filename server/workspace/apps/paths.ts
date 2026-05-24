@@ -77,22 +77,28 @@ export function isContainedInWorkspace(absPath: string): boolean {
   return isContainedInRoot(absPath, workspacePath);
 }
 
-/** Resolve a schema-declared dataPath against the workspace root,
- *  refusing anything that escapes — absolute paths, `..`-segments,
- *  empty string, or symlinks pointing outside the workspace.
- *  Returns the absolute path on success, null on refusal. Does NOT
- *  require the directory to exist; the caller may create it on first
- *  write. The realpath containment check covers the symlink case at
- *  discovery time; io operations re-check before each write via
- *  `isContainedInWorkspace` to defend against symlinks introduced
- *  between discovery and use. */
-export function resolveDataDir(dataPath: string): string | null {
+/** Resolve a schema-declared dataPath against `rootPath` (default:
+ *  the live workspace), refusing anything that escapes — absolute
+ *  paths, `..`-segments, empty string, or symlinks pointing outside
+ *  the root. Returns the absolute path on success, null on refusal.
+ *  Does NOT require the directory to exist; the caller may create it
+ *  on first write. The realpath containment check covers the symlink
+ *  case at discovery time; io operations re-check before each write
+ *  to defend against symlinks introduced between discovery and use.
+ *
+ *  `rootPath` exists as an optional override so a test (or a tool
+ *  driving discovery against a `mkdtempSync` tree) gets a dataDir
+ *  rooted at the same place it asked to scan, not the real workspace.
+ *  Without this, `discoverApps({ workspaceRoot: tmpdir })` would
+ *  discover skills in tmpdir but resolve every app's dataDir against
+ *  `~/mulmoclaude/`, breaking isolation. */
+export function resolveDataDir(dataPath: string, rootPath: string = workspacePath): string | null {
   if (typeof dataPath !== "string" || dataPath.length === 0) return null;
   if (path.isAbsolute(dataPath)) return null;
   const normalized = path.normalize(dataPath);
   if (normalized.startsWith("..") || normalized.includes(`${path.sep}..${path.sep}`)) return null;
-  const resolved = path.resolve(workspacePath, normalized);
-  if (!isContainedInWorkspace(resolved)) return null;
+  const resolved = path.resolve(rootPath, normalized);
+  if (!isContainedInRoot(resolved, rootPath)) return null;
   return resolved;
 }
 
