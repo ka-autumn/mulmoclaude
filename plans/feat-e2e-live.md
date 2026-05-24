@@ -867,7 +867,7 @@ active な未着手 / 関心事項:
 
 | PR | 内容 | 推奨対応 |
 |---|---|---|
-| **#1437 / #1440 / #1441 / #1443** encore plugin (deferred-tool dispatch + dashboard) | mock e2e (`encore-seeded.spec.ts`) で seeded fixture 経由の View mount は cover 済。 実 LLM dispatch 経路の canary は無し | ✅ **L-21B として実装済** (skills.spec.ts、 L-21 chart shape を copy、 Personal role + defineEncore で `encore-dashboard` + `encore-obligation-<slug>` をassert) |
+| **#1437 / #1440 / #1441 / #1443** encore plugin (deferred-tool dispatch + dashboard) | mock e2e (`encore-seeded.spec.ts`) で seeded fixture 経由の View mount は cover 済。 実 LLM dispatch 経路の canary は無し | ✅ **L-21B として実装済** (skills.spec.ts、 Personal role + defineEncore で session jsonl trace に `mcp__mulmoclaude__defineEncore` の tool_call が pinned displayName で 1 件以上記録 + obligation index.md が disk に landing することを assert)。 当初 L-21 の View testid 形を copy する設計だったが、 encore handler は `data` を返さない narrate-only 設計のため MCP bridge が visual ToolResult を push しない (server/agent/mcp-server.ts:451) ことが local 実走で判明し、 tool_call jsonl + on-disk artefact に signal を切り替え |
 | **#1287** mc-cooking-coach preset skill | preset skill が discovery → /<slug> dispatch → body 実行 まで通るか | L-32 形式の end-to-end canary を 1 本追加。 重要度 B |
 | **#1471 / #1464 / #1465 / #1475** solopreneur runtime plugin 群 (client / worklog / plans) | mock e2e で View mount は部分 cover、 LLM dispatch + plugin 切替 + 認証付きで動くかの canary なし | 各 plugin で 1 本ずつ runtime-plugin canary を立てる (3 PR、 各 1 シナリオ)。 plugin 数が今後増える前提で 「parameterized 化 / plugin ごと 1 spec」 のどちらに寄せるか別途整理 |
 | **#1451** notifier-update-op | notifier 拡張、 update operation 追加 | L-17 (二重通知 inject) のついでに、 update op の dispatch も同 spec でカバーする選択肢 |
