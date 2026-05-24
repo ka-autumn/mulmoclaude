@@ -5,12 +5,14 @@ import { type Page, expect, test } from "@playwright/test";
 import { ONE_MINUTE_MS } from "../../server/utils/time.ts";
 import {
   SESSION_URL_PATTERN,
+  type ToolCallTraceRecord,
   deleteProjectSkillViaUi,
   deleteSession,
   getCurrentSessionId,
   placeProjectSkill,
   readProjectSkillBody,
   readSessionToolCalls,
+  readWorkspaceFile,
   removeEncoreObligation,
   removeProjectSkill,
   selectRole,
@@ -22,6 +24,7 @@ import {
   waitForAssistantResponseComplete,
   waitForAssistantTurn,
 } from "../fixtures/live-chat.ts";
+import { isRecord } from "../../server/utils/types.ts";
 
 const L21_TIMEOUT_MS = 3 * ONE_MINUTE_MS;
 const L21B_TIMEOUT_MS = 3 * ONE_MINUTE_MS;
@@ -35,6 +38,32 @@ const L32_TIMEOUT_MS = 3 * ONE_MINUTE_MS;
 // skill landing canary). They share no state — run in parallel to
 // cut wall time, mirroring the other category specs.
 test.describe.configure({ mode: "parallel" });
+
+// Fully-qualified MCP tool name for the encore plugin's defineEncore
+// tool, as recorded in the session tool_call jsonl trace. The
+// `mcp__<server>__` prefix is added by the host bridge (see
+// `server/agent/prompt.ts` MCP_PREFIX_HINT and the agent's tool
+// discovery path). Asserting on the prefixed name is what makes this
+// a B-41 canary: in deferred-tools mode the LLM has to (a) see the
+// MCP-prefixed identifier in its tool schema, (b) call it by that
+// exact name. A regression that drops the tool from the deferred
+// schema, or that re-prefixes it under a different server name,
+// breaks the equality check on the next run.
+const MCP_DEFINE_ENCORE_TOOL_NAME = "mcp__mulmoclaude__defineEncore";
+
+// Predicate for L-21B: this `tool_call` record is a `defineEncore`
+// invocation whose `args.dsl.displayName` matches the pinned
+// `displayName`. Extracted as a helper so the assertion and any
+// future debug logging look at the same shape — the `args` field is
+// typed `unknown` on `ToolCallTraceRecord`, so the type-guards do
+// real work here. Returns false on shape mismatch (rather than
+// throwing) so a malformed trace line cannot crash the filter.
+function defineEncoreCallTargetsDisplayName(call: ToolCallTraceRecord, displayName: string): boolean {
+  if (!isRecord(call.args)) return false;
+  const { dsl } = call.args;
+  if (!isRecord(dsl)) return false;
+  return dsl.displayName === displayName;
+}
 
 test.describe("skills (real LLM / static)", () => {
   test("L-21: Office role + presentChart で deferred-tool dispatch が成功し chart-canvas が描画される", async ({ page }) => {
@@ -110,15 +139,18 @@ test.describe("skills (real LLM / static)", () => {
     }
   });
 
-  test("L-21B: Personal role + defineEncore で deferred-tool dispatch が成功し EncoreDashboard が描画される", async ({ page }) => {
+  test("L-21B: Personal role + defineEncore で deferred-tool dispatch が agent に届き、 obligation が disk に書かれる", async ({ page }) => {
+    // fake-echo backend can't simulate the MCP bridge path that
+    // actually writes the obligation file; this canary needs the
+    // real Claude SDK to dispatch the tool.
+    test.skip(process.env.E2E_LIVE_NO_LLM === "1", "E2E_LIVE_NO_LLM=1 — needs deferred-tool dispatch + MCP bridge");
     test.setTimeout(L21B_TIMEOUT_MS);
     // Second B-41 canary, pinned on the encore plugin (PRs #1437 /
-    // #1440 / #1441 / #1443 added the deferred-tool dispatch + the
-    // dashboard view in late April 2026). L-21 already proves the
-    // dispatch chain on `presentChart`; this spec exercises a
-    // STRUCTURALLY DIFFERENT plugin in deferred-tools mode so a
-    // regression that shears just the encore (or the next runtime
-    // plugin landing on the same pattern) does not slip through.
+    // #1440 / #1441 / #1443 added defineEncore + the dashboard in
+    // late April 2026). L-21 already proves deferred-tool dispatch
+    // on `presentChart`; this spec exercises a STRUCTURALLY DIFFERENT
+    // plugin so a regression that shears just one runtime plugin's
+    // dispatch path does not slip through.
     //
     // What "structurally different" means here:
     //   - Two MCP tools share one apiNamespace (defineEncore +
@@ -127,11 +159,15 @@ test.describe("skills (real LLM / static)", () => {
     //     (`z.toJSONSchema(EncoreDslInput)`). The chart plugin has
     //     no equivalent — a regression in how deferred mode publishes
     //     auto-derived schemas (vs. inline literals) shows up here.
-    //   - The viewComponent renders a self-loading dashboard
-    //     (queries `/api/encore` for obligations on mount). The chart
-    //     renders straight from the tool result data. A regression in
-    //     the post-dispatch lifecycle that lets the View mount but
-    //     never re-fetches its own data would fail here, not in L-21.
+    //   - `defineEncore`'s server handler intentionally omits `data`
+    //     from its return envelope, so the MCP bridge in
+    //     `server/agent/mcp-server.ts:451` deliberately does NOT
+    //     push a visual ToolResult — defineEncore is narrate-only by
+    //     design (the user-facing dashboard is reached via the launcher
+    //     / bell click, not as an inline tool result). That means the
+    //     L-21 assertion shape (View testid mounts after the tool
+    //     call) cannot work here; the dispatch signal is the
+    //     tool_call jsonl record and the on-disk obligation file.
     //
     // Why Personal: `availablePlugins` in `src/config/roles.ts:88`
     // is the only built-in role that has both `defineEncore` and
@@ -142,8 +178,7 @@ test.describe("skills (real LLM / static)", () => {
     // Pinning the DSL: the encore DSL is too rich for the LLM to
     // compose reliably from a one-liner prompt (and reading the help
     // doc beforehand adds two Read calls of LLM jitter). The prompt
-    // gives the agent the literal DSL it should pass — same trick
-    // L-FRESH-PRESET-SKILL uses for skill payloads. The displayName
+    // gives the agent the literal DSL it should pass. The displayName
     // carries the nonce so the slug
     // (`slugify(displayName)` → `l-21b-encore-canary-<nonce>`) is
     // unique per run and cleanup targets only this run's dir.
@@ -153,7 +188,7 @@ test.describe("skills (real LLM / static)", () => {
     // `-`, and trims. For ASCII inputs that are already kebab-shaped
     // ("L-21B Encore canary <nonce>"), the round-trip is deterministic
     // and reproducible test-side without an import — but if that
-    // function ever changes shape the spec will miss its own row and
+    // function ever changes shape the spec will miss its own dir and
     // fail loudly, which is the right failure mode for a canary.
     const nonce = `${Date.now()}-${randomUUID().slice(0, 6)}`;
     const displayName = `L-21B Encore canary ${nonce}`;
@@ -213,29 +248,52 @@ test.describe("skills (real LLM / static)", () => {
       await selectRole(page, "personal");
       await page.waitForURL((url) => SESSION_URL_PATTERN.test(url.pathname) && !url.pathname.endsWith(generalSessionId));
       const personalSessionId = getCurrentSessionId(page);
-      if (personalSessionId !== null && personalSessionId !== generalSessionId) {
-        sessionsToCleanup.push(personalSessionId);
+      if (personalSessionId === null) {
+        throw new Error("getCurrentSessionId returned null after selectRole(personal) — URL pattern likely drifted");
       }
+      sessionsToCleanup.push(personalSessionId);
       await expect(page.getByTestId("role-selector-btn"), "role chip must reflect personal after switch").toHaveAttribute("data-role", "personal");
       await sendChatMessage(page, userPrompt);
-      // The tool result mounts EncoreDashboard (the encore plugin's
-      // viewComponent in `src/plugins/encore/index.ts`). The dashboard
-      // self-fetches `/api/encore` for obligations on mount, so the
-      // outer testid going visible proves the deferred-tool dispatch
-      // reached the View pipeline; the per-obligation testid proves
-      // the freshly-written obligation is queryable. A regression in
-      // deferred mode that lands the tool result in a text-only
-      // bubble (the L-21 failure mode) shows the same here — no
-      // encore-* testid would appear.
-      await expect(page.getByTestId("encore-dashboard"), "EncoreDashboard must mount after the tool call (B-41 canary)").toBeVisible({
-        timeout: 2 * ONE_MINUTE_MS,
-      });
-      await expect(
-        page.getByTestId(`encore-obligation-${expectedSlug}`),
-        "the newly-created obligation row must hydrate (proves dashboard query saw the just-written index.md)",
-      ).toBeVisible({ timeout: ONE_MINUTE_MS });
+      // waitForAssistantTurn (not waitForAssistantResponseComplete) is
+      // mandatory here. The assertions read disk and a jsonl trace;
+      // the fast-path race the strict-gate helper guards (returning
+      // immediately when the thinking indicator's detached element
+      // resolves before the agent actually fired) would let the
+      // assertion pass against an empty trace on a no-op turn. Same
+      // reasoning the L-31 / L-32 specs document for their post-#1298
+      // bridge canaries.
+      await waitForAssistantTurn(page, 2 * ONE_MINUTE_MS);
 
-      await waitForAssistantResponseComplete(page);
+      // Signal 1: the agent reached for `mcp__mulmoclaude__defineEncore`.
+      // The host bridge prefixes plugin tools with `mcp__<server>__`,
+      // so the trace records the fully-qualified MCP name (not the
+      // bare `defineEncore`). A B-41 regression that drops the tool
+      // from the deferred dispatcher's schema would leave this list
+      // empty (the agent never sees / never picks the tool); a
+      // textResponse fallback that paraphrases success without
+      // actually calling the tool would also miss this assertion.
+      const calls = await readSessionToolCalls(personalSessionId);
+      const matchingDefineCalls = calls.filter(
+        (call) => call.toolName === MCP_DEFINE_ENCORE_TOOL_NAME && defineEncoreCallTargetsDisplayName(call, displayName),
+      );
+      expect(
+        matchingDefineCalls.length,
+        `agent must dispatch \`${MCP_DEFINE_ENCORE_TOOL_NAME}\` with the pinned displayName ${JSON.stringify(displayName)} — proves deferred-tool dispatch reached the encore plugin (B-41 canary)`,
+      ).toBeGreaterThan(0);
+
+      // Signal 2: the tool handler actually wrote the obligation
+      // file. The MCP bridge path can complete with an error envelope
+      // (`ok: false`) and the agent will still see a tool_call_result;
+      // checking the on-disk artefact closes that gap by proving the
+      // call landed at handleSetup and made it past schema validation.
+      // `readWorkspaceFile` returns null on ENOENT, so the assertion
+      // shape is "got a string body back" rather than a separate
+      // existence check + read.
+      const indexBody = await readWorkspaceFile(`data/plugins/encore/obligations/${expectedSlug}/index.md`);
+      expect(
+        indexBody,
+        `obligation index data/plugins/encore/obligations/${expectedSlug}/index.md must exist on disk — proves the dispatched tool call reached handleSetup and wrote the DSL (no schema validation rejection)`,
+      ).not.toBeNull();
     } finally {
       for (const sid of sessionsToCleanup) {
         await deleteSession(page, sid);
