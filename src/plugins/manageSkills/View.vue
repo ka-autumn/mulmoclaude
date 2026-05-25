@@ -345,7 +345,7 @@
                   :class="isSelectedPreset ? '' : 'border-red-300 text-red-600 hover:bg-red-50'"
                   :disabled="detailLoading || deleting"
                   :data-testid="isSelectedPreset ? 'skill-unstar-btn' : 'skill-delete-btn'"
-                  :title="t('pluginManageSkills.deleteProjectSkill')"
+                  :title="isSelectedPreset ? t('pluginManageSkills.unstarPresetSkill') : t('pluginManageSkills.deleteProjectSkill')"
                   @click="deleteSkill"
                 >
                   <span class="material-icons text-sm">{{ isSelectedPreset ? "star_border" : "delete" }}</span>
@@ -513,6 +513,7 @@ import {
   pickInitialSelection,
   type SkillSectionKey,
 } from "./categories";
+import { isPresetActivation } from "./presetDetection";
 
 const { t } = useI18n();
 
@@ -586,15 +587,6 @@ const renderedBody = computed(() => {
 // "system" classification survives only as the provenance badge.
 const isSelectedEditable = computed(() => detail.value?.source === "project");
 
-// `mc-*` is the launcher's preset namespace (see PRESET_SLUG_PREFIX
-// in server/workspace/skills-preset.ts). When a preset is active in
-// `.claude/skills/`, "delete" really just removes the activation —
-// the launcher re-syncs the catalog copy under
-// `data/skills/catalog/preset/<slug>/` on every boot, so the skill
-// is recoverable. We expose this as "Unstar" with a non-destructive
-// confirm message; the underlying DELETE endpoint is identical.
-const isSelectedPreset = computed(() => detail.value?.name.startsWith("mc-") === true);
-
 const listError = ref<string | null>(null);
 
 const endpoints = pluginEndpoints<SkillsEndpoints>("skills");
@@ -641,6 +633,21 @@ const catalogPresets = ref<CatalogEntry[]>([]);
 const catalogExternal = ref<CatalogEntry[]>([]);
 const catalogRepos = ref<ExternalRepo[]>([]);
 const catalogError = ref<string | null>(null);
+
+// True when the selected active skill has a matching entry in the
+// preset catalog — meaning a "delete" from `.claude/skills/<slug>/`
+// is recoverable, because the launcher re-syncs the catalog copy
+// under `data/skills/catalog/preset/<slug>/` on every boot
+// (see server/workspace/skills-preset.ts). We expose this case as
+// "Unstar" with a non-destructive confirm message; the underlying
+// DELETE endpoint is identical.
+//
+// Catalog membership (not the `mc-` slug prefix) is the
+// authoritative signal: the writer pipeline does not reserve the
+// `mc-` namespace, so a hand-rolled project skill named `mc-foo`
+// without a catalog entry must still surface the destructive Delete
+// copy. See isPresetActivation tests in test/plugins/manageSkills/.
+const isSelectedPreset = computed(() => isPresetActivation(detail.value?.name, catalogPresets.value));
 // Per-repo collapse set (repoId ∈ set ⇒ collapsed). shallowRef: the
 // Set is replaced wholesale on toggle.
 const repoCollapsed = shallowRef<Set<string>>(loadRepoCollapsed());

@@ -1138,6 +1138,7 @@ const deMessages = {
   },
   pluginManageSkills: {
     deleteProjectSkill: "Diese Projekt-Skill löschen",
+    unstarPresetSkill: "Markierung dieser Preset-Skill entfernen — sie kehrt in den Katalog zurück",
     heading: "Skills",
     previewCount: "{count} Skill | {count} Skills",
     previewMore: "+{count} weitere",

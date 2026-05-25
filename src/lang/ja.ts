@@ -1118,6 +1118,7 @@ const jaMessages = {
   },
   pluginManageSkills: {
     deleteProjectSkill: "このプロジェクト限定スキルを削除",
+    unstarPresetSkill: "このプリセットのスターを外す — カタログに戻る",
     heading: "スキル",
     previewCount: "{count} スキル",
     previewMore: "他 {count} 件",

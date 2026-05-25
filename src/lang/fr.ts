@@ -1128,6 +1128,7 @@ const frMessages = {
   },
   pluginManageSkills: {
     deleteProjectSkill: "Supprimer cette skill de projet",
+    unstarPresetSkill: "Retirer ce préréglage des favoris — il retourne au catalogue",
     heading: "Skills",
     previewCount: "{count} skill | {count} skills",
     previewMore: "+{count} de plus",

@@ -1109,6 +1109,7 @@ const zhMessages = {
   },
   pluginManageSkills: {
     deleteProjectSkill: "删除此项目级技能",
+    unstarPresetSkill: "取消收藏此预设 — 将移回目录",
     heading: "技能",
     previewCount: "{count} 个技能",
     previewMore: "+还有 {count} 个",

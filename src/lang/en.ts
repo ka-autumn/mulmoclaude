@@ -1118,6 +1118,7 @@ const enMessages = {
   },
   pluginManageSkills: {
     deleteProjectSkill: "Delete this project-scope skill",
+    unstarPresetSkill: "Unstar this preset — moves it back to the catalog",
     heading: "Skills",
     previewCount: "{count} skill | {count} skills",
     previewMore: "+{count} more",

@@ -1119,6 +1119,7 @@ const koMessages = {
   },
   pluginManageSkills: {
     deleteProjectSkill: "이 프로젝트 스킬 삭제",
+    unstarPresetSkill: "이 프리셋 별표 해제 — 카탈로그로 돌아갑니다",
     heading: "스킬",
     previewCount: "{count}개 스킬",
     previewMore: "+{count}개 더",

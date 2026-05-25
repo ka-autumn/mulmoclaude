@@ -1123,6 +1123,7 @@ const ptBRMessages = {
   },
   pluginManageSkills: {
     deleteProjectSkill: "Excluir esta skill de projeto",
+    unstarPresetSkill: "Remover favorito deste preset — volta ao catálogo",
     heading: "Skills",
     previewCount: "{count} skill | {count} skills",
     previewMore: "+{count} mais",

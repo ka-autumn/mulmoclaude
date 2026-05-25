@@ -1131,6 +1131,7 @@ const esMessages = {
   },
   pluginManageSkills: {
     deleteProjectSkill: "Eliminar esta skill de proyecto",
+    unstarPresetSkill: "Quitar la estrella de este preset — vuelve al catálogo",
     heading: "Skills",
     previewCount: "{count} skill | {count} skills",
     previewMore: "+{count} más",
