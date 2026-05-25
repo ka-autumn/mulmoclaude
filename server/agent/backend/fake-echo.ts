@@ -160,27 +160,6 @@ function detectPresentForm(message: string): FakeToolCall | null {
   };
 }
 
-// `notify` differs from the present-* family: it has no HTTP plugin
-// route (it's an in-process MCP tool that calls publishNotification
-// → engine.publish → pubsub → bell). The detector matches the
-// canonical L-17 prompt shape `Use the notify tool with title "X"`
-// and forwards both the literal title and an optional body when the
-// prompt spells one out. `dispatchToPlugin` then routes notify
-// through `dispatchNotifyInProcess` instead of the HTTP table.
-function detectNotify(message: string): FakeToolCall | null {
-  if (!/\bnotify\b/i.test(message)) return null;
-  const titleMatch = message.match(/title\s+['"]([^'"]+)['"]/i);
-  if (!titleMatch) return null;
-  const [, title] = titleMatch;
-  const bodyMatch = message.match(/body\s+['"]([^'"]+)['"]/i);
-  const args: Record<string, unknown> = { title };
-  if (bodyMatch) {
-    const [, body] = bodyMatch;
-    args.body = body;
-  }
-  return { toolName: "notify", args };
-}
-
 function detectPresentChart(message: string): FakeToolCall | null {
   if (!/presentChart/i.test(message)) return null;
   const titleMatch = message.match(/titled\s+['"]([^'"]+)['"]/i);
@@ -211,7 +190,7 @@ function detectPresentChart(message: string): FakeToolCall | null {
 
 function detectToolCalls(message: string): FakeToolCall[] | undefined {
   const calls: FakeToolCall[] = [];
-  for (const detector of [detectPresentMulmoScript, detectPresentHtml, detectPresentForm, detectPresentChart, detectNotify]) {
+  for (const detector of [detectPresentMulmoScript, detectPresentHtml, detectPresentForm, detectPresentChart]) {
     const call = detector(message);
     if (call) calls.push(call);
   }
@@ -232,21 +211,6 @@ const PLUGIN_ENDPOINTS: Readonly<Record<string, string>> = {
   presentMulmoScript: "/api/mulmoScript/save",
 };
 
-// In-process dispatch for MCP tools that don't have an HTTP plugin
-// route. The L-17 (B-50) canary needs to exercise the
-// `notify` → `publishNotification` → `engine.publish` → pubsub fan-out
-// → bell badge chain through production code paths (no env-gated
-// inject endpoint, no notifier route surface change). Calling
-// `notify.handler` directly hits the same code the real MCP bridge
-// invokes, so the engine, the pubsub channel, and the bell composable
-// all run unmodified. Import is dynamic so production agent loops
-// (`MULMOCLAUDE_FAKE_AGENT` unset) never pay the notify import cost.
-async function dispatchNotifyInProcess(rawArgs: unknown, chatSessionId: string): Promise<string> {
-  const args = rawArgs !== null && typeof rawArgs === "object" ? (rawArgs as Record<string, unknown>) : {};
-  const { notify } = await import("../mcp-tools/notify.js");
-  return await notify.handler(args, { sessionId: chatSessionId });
-}
-
 // Mirrors what server/agent/mcp-server.ts#handleToolCall does for
 // the real MCP bridge:
 //   1. POST to the plugin endpoint to get the envelope back
@@ -259,11 +223,6 @@ async function dispatchNotifyInProcess(rawArgs: unknown, chatSessionId: string):
 //      meaningful for the tool-call history pane.
 async function dispatchToPlugin(call: FakeToolCall, port: number, chatSessionId: string): Promise<string> {
   if (call.result !== undefined) return call.result;
-  // MCP tools that have no HTTP plugin route run in-process below.
-  // notify is the L-17 example: calling its handler triggers
-  // publishNotification → engine.publish → pubsub fan-out → bell
-  // tick, end-to-end through production code paths.
-  if (call.toolName === "notify") return await dispatchNotifyInProcess(call.args, chatSessionId);
   const endpoint = PLUGIN_ENDPOINTS[call.toolName];
   if (!endpoint) return '{"ok":true}';
   const token = getCurrentToken();

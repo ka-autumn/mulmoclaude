@@ -93,16 +93,6 @@ In **Stack layout** this sidebar isn't rendered; the same data flows through `<S
 - **Active** rows: fyi (body click clears + navigates) vs action (× cancels; body click navigates only).
 - **History** rows: read-only; navigate on click when `navigateTarget` is present. Capped at `HISTORY_CAP` (50) FIFO server-side; bell collapses to the first 5 with a toggle so repetitive entries (e.g. recurring "docker not running") don't bury the rest. Toggle state resets each time the popup closes.
 
-## `<SessionHistoryToggleButton>` — the toolbar / dock-to-right button next to the role selector
-
-```
-🗂️[session-history-toggle-{on|off}]──┐
-   🟡[session-history-active-badge: "N"] (top-left, shown when activeSessionCount > 0)
-   🔴[session-history-unread-badge: "N"] (top-right, shown when unreadCount > 0)
-```
-
-Lives inside `<SessionHeaderControls>` (top chrome of every page). The **unread badge** is the "history badge" referenced in the B-50 ("通知二重表示") regression spec — it flips on when any session has `hasUnread = true` (typically a non-human-origin turn completed), independent of the notification bell. The L-17 e2e-live canary drives a publish through the `notify` MCP tool (production path) and asserts the bell ticks while `[session-history-unread-badge]` stays unchanged — locking in that notifier publish and `session.hasUnread` are wired through independent channels.
-
 ## /chat — the chat page
 
 ```

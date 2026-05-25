@@ -3,6 +3,7 @@
 // install any API mocks — the real Claude API runs end-to-end. Use
 // these helpers from specs in `e2e-live/tests/`.
 
+import { randomUUID } from "node:crypto";
 import { copyFile, lstat, mkdir, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
@@ -946,7 +947,7 @@ function assertSessionProbeIdle(probe: SessionIdleProbe, sessionId: string): voi
   }
 }
 
-async function waitForSessionIdle(page: Page, sessionId: string, timeoutMs: number = SESSION_IDLE_TIMEOUT_MS): Promise<void> {
+export async function waitForSessionIdle(page: Page, sessionId: string, timeoutMs: number = SESSION_IDLE_TIMEOUT_MS): Promise<void> {
   // Resolve the sessions-list URL once on the test process side via
   // the canonical `API_ROUTES.sessions.list` constant
   // (src/config/apiRoutes.ts) so this helper stays coupled to the
@@ -1594,17 +1595,17 @@ export function bashCommandFromCall(call: ToolCallTraceRecord): string | null {
   return typeof command === "string" ? command : null;
 }
 
-// ── Notifier helpers (used by the L-17 bell-vs-history-badge canary) ─
+// ── Notifier list probe (used by the L-17 bell-count canary) ────────
 
 type NotifierListProbe = { ok: true; entries: NotifierEntry[] } | { ok: false; reason: string };
 
 /**
- * GET-equivalent for the active notifier entries: POST
- * `{ action: "list" }` to `/api/notifier` via the in-page bearer
- * token. Reused by L-17 to (a) capture the pre-prompt baseline so
- * background notifications (Encore obligations, ghost-bell recovery,
- * etc.) don't false-pass the post-prompt comparison, and (b) clean
- * up the nonce-bearing entry the agent published during the run.
+ * Snapshot the active notifier entries via the always-on
+ * `{ action: "list" }` dispatch. L-17 calls this twice — once before
+ * triggering a bridge-origin agent run, once after — to assert the
+ * bell entry count is unchanged. Filtering by entry id avoids being
+ * fooled by background publishers (Encore obligations, ghost-bell
+ * recovery) that the dev server may emit during the test window.
  */
 export async function listNotifierEntries(page: Page): Promise<NotifierEntry[]> {
   const probe: NotifierListProbe = await page.evaluate(async (url): Promise<NotifierListProbe> => {
@@ -1630,9 +1631,10 @@ export async function listNotifierEntries(page: Page): Promise<NotifierEntry[]> 
 
 /**
  * Clear a notifier entry by id via the always-on `{ action: "clear" }`
- * dispatch. L-17 uses this in `finally` to wipe the agent-published
- * entry so the dev server's persisted `active.json` doesn't bleed
- * into the next run's bell.
+ * dispatch. Used by the L-17 cleanup path: if the B-50 regression
+ * ever fires (bell ticks unexpectedly during a bridge-origin run),
+ * the spurious entry would otherwise survive across runs in
+ * `~/mulmoclaude/data/notifier/active.json` and pollute the bell.
  */
 export async function clearNotifierEntry(page: Page, entryId: string): Promise<void> {
   const result = await page.evaluate(
@@ -1654,4 +1656,54 @@ export async function clearNotifierEntry(page: Page, entryId: string): Promise<v
     { url: API_ROUTES.notifier.dispatch, targetId: entryId },
   );
   if (!result.ok) throw new Error(`clearNotifierEntry: ${result.reason}`);
+}
+
+// ── Bridge-origin agent run (used by the L-17 B-50 canary) ─────────
+
+type StartAgentProbe = { ok: true; chatSessionId: string } | { ok: false; reason: string };
+
+/**
+ * Kick off an agent run with `origin: "bridge"` by POSTing directly
+ * to `/api/agent` via the in-page bearer token. Returns the
+ * `chatSessionId` the server assigned. Unlike `startNewSession +
+ * sendChatMessage` (which mirror the UI button flow and always
+ * produce `origin: "human"`), this helper is the *only* way to drive
+ * a non-human-origin agent run from a Playwright browser without a
+ * real bridge WebSocket connection. /api/agent already accepts
+ * `origin` in its body (server/api/routes/agent.ts line 121, 219) —
+ * the typed `AgentBody` omits it for the UI's sake, but Express
+ * passes the full JSON body through, and `startChat` validates and
+ * propagates `origin` via `isSessionOrigin`.
+ *
+ * L-17 uses this to reach the agent.ts finally block that gates
+ * `publishNotification(...)` on `origin !== SESSION_ORIGINS.human` —
+ * the exact code path PR #818 commented out for B-50. A future
+ * regression that re-enables that block would tick the bell on this
+ * bridge-origin run; the L-17 assertion catches it.
+ */
+export async function startBridgeOriginAgentRun(page: Page, message: string, roleId: string): Promise<string> {
+  const chatSessionId = randomUUID();
+  const probe: StartAgentProbe = await page.evaluate(
+    async ({ url, body }): Promise<StartAgentProbe> => {
+      const meta = document.querySelector('meta[name="mulmoclaude-auth"]');
+      const token = meta?.getAttribute("content") ?? "";
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const text = await res.text();
+        if (!res.ok) return { ok: false, reason: `POST ${url} returned HTTP ${res.status}: ${text.slice(0, 200)}` };
+        const parsed = JSON.parse(text) as { chatSessionId?: unknown };
+        if (typeof parsed.chatSessionId !== "string") return { ok: false, reason: `unexpected /api/agent response: ${text}` };
+        return { ok: true, chatSessionId: parsed.chatSessionId };
+      } catch (err) {
+        return { ok: false, reason: `POST ${url} threw: ${err instanceof Error ? err.message : String(err)}` };
+      }
+    },
+    { url: API_ROUTES.agent.run, body: { chatSessionId, message, roleId, origin: "bridge" } },
+  );
+  if (!probe.ok) throw new Error(`startBridgeOriginAgentRun: ${probe.reason}`);
+  return probe.chatSessionId;
 }

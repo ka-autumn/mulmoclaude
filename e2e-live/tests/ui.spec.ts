@@ -1,24 +1,19 @@
-import { randomUUID } from "node:crypto";
+import { expect, test } from "@playwright/test";
 
-import { expect, test, type Page } from "@playwright/test";
-
-import { ONE_MINUTE_MS, ONE_SECOND_MS } from "../../server/utils/time.ts";
+import { ONE_MINUTE_MS } from "../../server/utils/time.ts";
 import {
   clearNotifierEntry,
   deleteSession,
   getCurrentSessionId,
   listNotifierEntries,
   sendChatMessage,
+  startBridgeOriginAgentRun,
   startNewSession,
   waitForAssistantResponseComplete,
+  waitForSessionIdle,
 } from "../fixtures/live-chat.ts";
 
 const L17_TIMEOUT_MS = 2 * ONE_MINUTE_MS;
-// One agent turn (real LLM or fake-echo) + notifier-engine write +
-// pubsub fan-out + composable refresh on the SPA side. fake-echo
-// runs in milliseconds; real LLM is the bound. Generous enough for a
-// loaded laptop without masking real flake.
-const L17_BADGE_SETTLE_MS = 30 * ONE_SECOND_MS;
 const L18_TIMEOUT_MS = 3 * ONE_MINUTE_MS;
 const L19_TIMEOUT_MS = 2 * ONE_MINUTE_MS;
 const L20_TIMEOUT_MS = ONE_MINUTE_MS;
@@ -34,127 +29,80 @@ const PRESENT_FORM_RAW_KEY_PREFIX = "pluginPresentForm.";
 // time. Same justification as media.spec.ts / wiki-nav.spec.ts.
 test.describe.configure({ mode: "parallel" });
 
-// Compact representation of the session-history-toggle unread badge
-// for the L-17 before/after comparison. Visibility alone isn't enough
-// — a badge that goes from "2" to "3" would still be visible at both
-// snapshots, so the spec also captures the displayed count. `text` is
-// `null` when the badge is hidden (which is `unreadCount === 0` by
-// the component's `v-if`).
-interface UnreadBadgeSnapshot {
-  visible: boolean;
-  text: string | null;
-}
-
-async function snapshotUnreadBadge(badge: ReturnType<Page["getByTestId"]>): Promise<UnreadBadgeSnapshot> {
-  const visible = await badge.isVisible();
-  if (!visible) return { visible: false, text: null };
-  const text = await badge.textContent();
-  return { visible: true, text: text === null ? null : text.trim() };
-}
-
 test.describe("ui (real LLM / static)", () => {
-  test("L-17: notify tool 経由の publish はベルだけを更新し session-history unread badge は変えない (B-50)", async ({ page }) => {
+  test("L-17: bridge-origin agent run はベルバッジを点灯させない (B-50)", async ({ page }) => {
     test.setTimeout(L17_TIMEOUT_MS);
-    // Covers B-50 ("二重通知"): PR #818
-    // (`fix/skip-bell-on-bridge-completion`) commented out
-    // `publishNotification()` in `runAgentInBackground`'s finally
-    // block because bridge-origin agent completions already tick
-    // the Session History side panel's unread badge via `endRun()`
-    // flipping `session.hasUnread = true`. Two badges for one event
-    // was the duplicate-notification user report.
+    // Covers B-50 ("二重通知"): a non-human-origin agent run (the
+    // typical real-world trigger is a bridge message landing) used to
+    // light up BOTH the notification bell (via `publishNotification()`
+    // in `runAgentInBackground`'s finally block) AND the Session
+    // History side panel's unread badge (via `endRun()` flipping
+    // `session.hasUnread = true`). Two badges for one event was the
+    // duplicate-notification user report — fixed by PR #818
+    // (`fix/skip-bell-on-bridge-completion`) commenting out the
+    // `publishNotification(...)` block. See `server/api/routes/agent.ts`
+    // around line 985.
     //
-    // Canary strategy: drive a publish through the production code
-    // path that real users hit (`notify` MCP tool → `publishNotification`
-    // → `engine.publish` → pubsub fan-out → `useNotifications`
-    // composable). Then assert (a) the bell row materialises (proves
-    // the publish event made it end-to-end), and (b) the
-    // `[session-history-unread-badge]` snapshot is unchanged (the
-    // B-50 invariant: notifier publishes do NOT touch session
-    // `hasUnread`).
+    // The regression we want to catch: someone uncomments that block
+    // (or re-introduces equivalent logic) and the bell starts ticking
+    // again on every bridge / scheduler / skill turn.
     //
-    // The prompt is shaped so both backends route to notify:
-    //   - real LLM: Claude's tool dispatch will call the notify MCP
-    //     tool when asked explicitly. We pin the title verbatim so
-    //     it can't be paraphrased.
-    //   - fake-echo: `detectNotify` matches the literal `title "..."`
-    //     in the prompt and dispatches via `dispatchNotifyInProcess`
-    //     (calls notify.handler directly, same engine path).
-    // The nonce keeps parallel workers and previous runs isolated.
-    const nonce = randomUUID().slice(0, 8);
-    const title = `e2e-live-l17-${nonce}`;
-    const userPrompt = `Use the notify tool with title "${title}". Do not include a body.`;
-
+    // Strategy: POST `/api/agent` directly from the browser with
+    // `origin: "bridge"` — this is the *only* origin Playwright can
+    // produce without a real bridge WebSocket connection, and
+    // /api/agent already accepts the field (server/api/routes/agent.ts
+    // line 121, 219). The UI button flow (`startNewSession` +
+    // `sendChatMessage`) always produces `origin: "human"`, which
+    // never enters the buggy code path — so the test must bypass the
+    // UI for the publish trigger. Then wait for the agent run to
+    // finish (`waitForSessionIdle`), and assert the active notifier
+    // entry count is unchanged. Works under both backends — fake-echo
+    // (`MULMOCLAUDE_FAKE_AGENT=1`) and real Claude — because the
+    // origin gate in agent.ts is upstream of any LLM call.
     await page.goto("/");
     const bell = page.getByTestId("notification-bell");
     await expect(bell, "notification-bell must mount on the top chrome").toBeVisible();
 
-    // Capture the session-history unread-badge baseline BEFORE the
-    // agent turn. The badge has `v-if="unreadCount > 0"`, so the
-    // testid is absent at zero and present at ≥1. Compare both
-    // visibility AND textContent so a stray count change (2 → 3 with
-    // the badge already visible on both sides) still fails the
-    // assertion.
-    const unreadBadge = page.getByTestId("session-history-unread-badge");
-    const unreadBefore = await snapshotUnreadBadge(unreadBadge);
+    // Snapshot the active notifier entry set before the bridge run.
+    // We compare by id-set rather than count so a background
+    // publisher (Encore obligation, ghost-bell recovery) firing
+    // during the test window doesn't false-fail the assertion — only
+    // *additions whose id is missing from the baseline* count.
+    const baselineEntries = await listNotifierEntries(page);
+    const baselineIds = new Set(baselineEntries.map((entry) => entry.id));
 
-    let chatSessionId: string | null = null;
-    let publishedNotifierId: string | null = null;
+    let bridgeSessionId: string | null = null;
+    let spuriousNotifierIds: string[] = [];
     try {
-      await startNewSession(page);
-      await sendChatMessage(page, userPrompt);
-      // Drain the assistant turn first so the notify tool call has
-      // landed before we go looking for the bell row.
-      await waitForAssistantResponseComplete(page);
-      chatSessionId = getCurrentSessionId(page);
+      // The prompt is intentionally innocuous: we don't care what the
+      // agent says, only that `runAgentInBackground`'s finally block
+      // runs with `params.origin === "bridge"`. "General" is the
+      // canonical role that exists in every workspace fixture.
+      bridgeSessionId = await startBridgeOriginAgentRun(page, "Say hi.", "general");
+      await waitForSessionIdle(page, bridgeSessionId);
 
-      // Find the entry the agent just published. We can't predict
-      // its id (engine assigns a UUID), so list active entries and
-      // match by the nonce-bearing title. Filtering by title
-      // discounts background publishers (Encore obligations,
-      // ghost-bell recovery) that the dev server might fire on its
-      // own during the run.
-      await expect
-        .poll(
-          async () => {
-            const entries = await listNotifierEntries(page);
-            return entries.find((entry) => entry.title === title) ?? null;
-          },
-          {
-            timeout: L17_BADGE_SETTLE_MS,
-            message: "the notify tool call must produce a notifier entry with the spec-pinned title",
-          },
-        )
-        .not.toBeNull();
-      const entries = await listNotifierEntries(page);
-      const ours = entries.find((entry) => entry.title === title);
-      if (!ours) throw new Error(`L-17: published entry vanished between poll and re-list (title=${title})`);
-      publishedNotifierId = ours.id;
-
-      // Open the bell panel and confirm the row is visible — proves
-      // the pubsub fan-out reached `useNotifications` and the bell
-      // mounted the row, not just that the disk record exists.
-      await bell.click();
-      await expect(page.getByTestId(`notification-item-${publishedNotifierId}`), "the published notifier row must mount in the bell panel").toBeVisible({
-        timeout: L17_BADGE_SETTLE_MS,
-      });
-      await page.keyboard.press("Escape");
-
-      // B-50 regression assertion. The notifier publish must not
-      // have flipped any session's `hasUnread`. If a future refactor
-      // accidentally couples the notifier publish path to
-      // `session.hasUnread` (e.g. via a shared event channel), the
-      // session-history badge would tick on every publish — exactly
-      // the two-badges-for-one-event shape PR #818 fixed.
-      const unreadAfter = await snapshotUnreadBadge(unreadBadge);
-      expect(unreadAfter, "notify publish must not affect [session-history-unread-badge] — B-50 regression").toEqual(unreadBefore);
+      // B-50 regression assertion. After the bridge run completes,
+      // the notifier active set must not contain any new entries
+      // beyond the baseline. If the commented-out `publishNotification`
+      // block in agent.ts gets uncommented, a bridge-origin run would
+      // add a "✅ <role> reply ready" entry here, and this assertion
+      // would catch it.
+      const postEntries = await listNotifierEntries(page);
+      spuriousNotifierIds = postEntries.filter((entry) => !baselineIds.has(entry.id)).map((entry) => entry.id);
+      expect(
+        spuriousNotifierIds,
+        "bridge-origin agent completion must NOT add notifier entries — B-50 regression (agent.ts publishNotification re-enabled?)",
+      ).toEqual([]);
     } finally {
-      // Cleanup order matters: clear the notifier entry FIRST so a
-      // failed session delete doesn't leave a row on the bell, then
-      // delete the chat session so it doesn't pollute the sidebar.
-      if (publishedNotifierId !== null) {
-        await clearNotifierEntry(page, publishedNotifierId).catch(() => {});
+      // Defensive cleanup: if the regression IS real, the spurious
+      // entries would otherwise survive in
+      // `~/mulmoclaude/data/notifier/active.json` and pollute every
+      // subsequent run's bell. Clear in failure-tolerant fashion so
+      // a single clear failure doesn't mask the assertion error.
+      for (const entryId of spuriousNotifierIds) {
+        await clearNotifierEntry(page, entryId).catch(() => {});
       }
-      if (chatSessionId !== null) await deleteSession(page, chatSessionId);
+      if (bridgeSessionId !== null) await deleteSession(page, bridgeSessionId);
     }
   });
 
