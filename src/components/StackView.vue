@@ -463,7 +463,24 @@ watch(latestResultScrollKey, () => {
   nextTick(() => {
     if (containerRef.value) {
       beginSuppressScrollSync();
-      containerRef.value.scrollTop = containerRef.value.scrollHeight;
+      // The newest result usually creates/extends the BOTTOM card →
+      // scroll to the bottom. But with session-wide map grouping it
+      // can merge into an EARLIER group card; jumping to the bottom
+      // would scroll away from where the update actually rendered.
+      // So: bottom-scroll only when the newest result is in the last
+      // card; otherwise bring its (earlier) card into view (Codex
+      // review on #1504).
+      const items = displayItems.value;
+      const newest = props.toolResults[props.toolResults.length - 1];
+      const lastCard = items[items.length - 1];
+      const newestInLastCard = newest !== undefined && lastCard !== undefined && lastCard.members.some((member) => member.uuid === newest.uuid);
+      if (newestInLastCard) {
+        containerRef.value.scrollTop = containerRef.value.scrollHeight;
+      } else if (newest) {
+        const card = items.find((item) => item.members.some((member) => member.uuid === newest.uuid));
+        const element = card ? itemRefs.get(card.head.uuid) : null;
+        if (element) element.scrollIntoView({ block: "nearest", behavior: "auto" });
+      }
     }
     // New items may have brought in more iframes to size.
     for (const wrapper of naturalWrapperRefs.values()) {
