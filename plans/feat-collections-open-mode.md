@@ -1,23 +1,28 @@
-# feat: collections "open" (read-only detail) mode + `?highlight=` handler
+# feat: collections "open" (read-only detail) mode + `?selected=` handler
 
 ## Motivation
 
 Record links emitted by skills (e.g. mc-invoice's "Linking to an invoice in
-chat" section) point at `/collections/<slug>?highlight=<id>`. The query param
+chat" section) point at `/collections/<slug>?selected=<id>`. The query param
 was being produced but not consumed — landing on the collection just showed the
-list. This adds the back half: `?highlight=<id>` **opens** the referenced
+list. This adds the back half: `?selected=<id>` **opens** the referenced
 record in a read-only detail view, distinct from the existing edit form.
+
+## Naming
+
+The query param is `?selected=<id>` (not `?highlight=`). "Highlight" implied
+flagging a row in the list; the behavior is "open this record in detail mode",
+so "selected" reads truer. Renamed across the classifier, CollectionView, the
+link tests, and the three `mc-*` skill files.
 
 ## What shipped
 
-Two files — no schema, server, or i18n changes.
-
 ### Link classifier: preserve the query string (`workspaceLinkRouter.ts`)
 
-The first cut of open mode looked correct but the `?highlight=` never
+The first cut of open mode looked correct but the `?selected=` never
 arrived: `classifyWorkspacePath` (which routes agent-markdown links into SPA
 navigation) called `stripFragmentAndQuery` for **all** targets, so
-`/collections/mc-invoice?highlight=INV-2026-0001` became a bare
+`/collections/mc-invoice?selected=INV-2026-0001` became a bare
 `/collections/mc-invoice`. Fix: a new `extractQuery` helper re-attaches the
 query to `spa-route` targets only (`router.push(string)` parses it into
 `route.query`). Wiki / file / session targets still strip — they route by
@@ -30,7 +35,7 @@ their own identifiers and take no query. Fragments stay dropped.
 - New `viewing = ref<CollectionItem | null>`, mutually exclusive with `editing`.
 - A detail modal renders every field formatted for display (no inputs):
   - `boolean` → check icon / em-dash
-  - `ref` → `<router-link>` to the target collection (`?highlight=` chained, so
+  - `ref` → `<router-link>` to the target collection (`?selected=` chained, so
     you can hop record→record)
   - `money` → `formatMoney`
   - `derived` → `derivedDisplay` (evaluated against the item)
@@ -42,13 +47,26 @@ their own identifiers and take no query. Fragments stay dropped.
 
 ### Entry points
 
-- **Deep link**: `loadCollection` calls `maybeOpenHighlighted` once items are
-  loaded; a `watch` on `route.query.highlight` covers same-collection link
-  hops. Unknown id → no-op (stale/deleted links just show the list).
-- **Row click**: table rows are clickable → open mode. Ref-links and the
-  Edit/Remove action buttons use `@click.stop` so they keep their own behavior.
-- `closeView` drops the `?highlight=` query param so refresh / back doesn't
+- **Deep link**: `loadCollection` calls `syncViewToSelected` once items are
+  loaded; a `watch` on `route.query.selected` covers same-collection link
+  hops. `?selected=` is the single source of truth — `syncViewToSelected`
+  opens the matching record, or **closes** the modal when the param is absent /
+  empty / points at a missing id (so browser-back and stale/deleted links both
+  land on the list, never leaving stale UI on screen).
+- **Row click**: table rows are clickable → open mode. Rows are keyboard
+  operable too (`role="button"`, `tabindex="0"`, Enter / Space, an
+  `openItem` aria-label). Ref-links and the Edit/Remove action buttons use
+  `@click.stop` so they keep their own behavior.
+- `closeView` drops the `?selected=` query param so refresh / back doesn't
   reopen and the URL reflects the closed state.
+
+## Review round (PR #1502)
+
+- Modal now closes when `?selected=` is removed (browser back) or points at a
+  missing id — `syncViewToSelected` replaced the open-only helper (Codex P2 +
+  CodeRabbit).
+- Row is keyboard/AT-accessible (`role`/`tabindex`/Enter+Space + aria-label).
+- `viewTitle` stringifies a non-string primary key instead of dropping it.
 
 ## Testing
 

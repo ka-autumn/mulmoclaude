@@ -105,8 +105,8 @@ export function classifyWorkspacePath(href: string): WorkspaceLinkTarget | null 
   // carry dots; file extensions almost always do.
   const [firstSegment, ...restSegments] = normalized.split("/");
   if (SPA_ROUTE_NAMES.has(firstSegment) && !restSegments.some(looksLikeFileSegment)) {
-    // Preserve the query string (e.g. `?highlight=<id>`) so deep
-    // links like `/collections/mc-invoice?highlight=INV-2026-0001`
+    // Preserve the query string (e.g. `?selected=<id>`) so deep
+    // links like `/collections/mc-invoice?selected=INV-2026-0001`
     // reach the target view's query handler — `router.push(string)`
     // parses it into `route.query`. Kept for spa-route ONLY; wiki /
     // file / session targets route by their own identifiers and

@@ -51,9 +51,14 @@
           <tr
             v-for="item in items"
             :key="String(item[collection.schema.primaryKey] ?? '')"
-            class="hover:bg-gray-50 cursor-pointer"
+            class="hover:bg-gray-50 cursor-pointer focus:outline-none focus:bg-blue-50"
+            role="button"
+            tabindex="0"
+            :aria-label="t('collectionsView.openItem', { id: String(item[collection.schema.primaryKey] ?? '') })"
             :data-testid="`collections-row-${item[collection.schema.primaryKey]}`"
             @click="openView(item)"
+            @keydown.enter.self="openView(item)"
+            @keydown.space.self.prevent="openView(item)"
           >
             <td v-for="(field, key) in collection.schema.fields" :key="key" class="px-4 py-2 text-gray-800 align-top max-w-xs">
               <span v-if="field.type === 'boolean'" class="block">
@@ -63,7 +68,7 @@
               </span>
               <span v-else-if="field.type === 'ref' && field.to && typeof item[key] === 'string' && item[key]" class="block truncate">
                 <router-link
-                  :to="{ path: `/collections/${field.to}`, query: { highlight: String(item[key]) } }"
+                  :to="{ path: `/collections/${field.to}`, query: { selected: String(item[key]) } }"
                   class="text-blue-600 hover:underline"
                   :data-testid="`collections-ref-link-${key}-${item[key]}`"
                   @click.stop
@@ -354,7 +359,7 @@
               </template>
               <router-link
                 v-else-if="field.type === 'ref' && field.to && typeof viewing[key] === 'string' && viewing[key]"
-                :to="{ path: `/collections/${field.to}`, query: { highlight: String(viewing[key]) } }"
+                :to="{ path: `/collections/${field.to}`, query: { selected: String(viewing[key]) } }"
                 class="text-blue-600 hover:underline"
                 :data-testid="`collections-detail-ref-${key}`"
                 >{{ refDisplay(field.to, String(viewing[key])) }}</router-link
@@ -530,7 +535,7 @@ const loadError = ref<string | null>(null);
 const editing = ref<EditState | null>(null);
 /** The record currently shown in read-only "open" mode. Distinct
  *  from `editing`: open mode renders formatted values (no inputs)
- *  and is what a `/collections/<slug>?highlight=<id>` deep link
+ *  and is what a `/collections/<slug>?selected=<id>` deep link
  *  lands on. Mutually exclusive with `editing` in practice —
  *  `editFromView` hands off from one to the other. */
 const viewing = ref<CollectionItem | null>(null);
@@ -573,10 +578,10 @@ async function loadCollection(slug: string): Promise<void> {
   // its result if a faster subsequent load has already switched us
   // to a different collection (Codex P1 review on PR #1495).
   await loadRefTargets(result.data.collection.schema, slug);
-  // A `?highlight=<id>` deep link opens that record in read-only
+  // A `?selected=<id>` deep link opens that record in read-only
   // mode once its items are available. Guard against a stale load:
   // only act if we're still on the slug that triggered this fetch.
-  if (collection.value?.slug === slug) maybeOpenHighlighted();
+  if (collection.value?.slug === slug) syncViewToSelected();
 }
 
 function uniqueRefTargets(schema: CollectionSchema): string[] {
@@ -889,14 +894,14 @@ function openView(item: CollectionItem): void {
   viewing.value = item;
 }
 
-/** Close open mode and drop the `?highlight=` query param so a
+/** Close open mode and drop the `?selected=` query param so a
  *  refresh / back-button doesn't immediately reopen the record and
  *  the URL reflects the closed state. */
 function closeView(): void {
   viewing.value = null;
-  if (route.query.highlight !== undefined) {
+  if (route.query.selected !== undefined) {
     const query = { ...route.query };
-    delete query.highlight;
+    delete query.selected;
     router.replace({ query }).catch(() => {});
   }
 }
@@ -915,23 +920,31 @@ function findItemById(itemId: string): CollectionItem | undefined {
   return items.value.find((item) => String(item[primaryKey] ?? "") === itemId);
 }
 
-/** If the route carries `?highlight=<id>` and that id is present in
- *  the loaded items, open it in read-only mode. No-op when the id
- *  is absent (deleted record, stale link) so a bad link just shows
- *  the list rather than erroring. */
-function maybeOpenHighlighted(): void {
-  const { highlight } = route.query;
-  if (typeof highlight !== "string" || highlight.length === 0) return;
-  const match = findItemById(highlight);
-  if (match) viewing.value = match;
+/** Reconcile the open-mode view with the `?selected=<id>` query —
+ *  the single source of truth for which record is open. Opens the
+ *  matching record, or closes the modal when the param is absent /
+ *  empty / points at an id that isn't loaded (deleted record, stale
+ *  link). Keeping `viewing` in lockstep with the URL means browser
+ *  back / forward and a removed param both close the modal instead
+ *  of leaving stale UI on screen (Codex P2 + CodeRabbit on #1502). */
+function syncViewToSelected(): void {
+  const { selected } = route.query;
+  if (typeof selected !== "string" || selected.length === 0) {
+    viewing.value = null;
+    return;
+  }
+  viewing.value = findItemById(selected) ?? null;
 }
 
 /** Title for the open-mode header: the record's primary-key value
- *  (e.g. `INV-2026-0001`), falling back to the collection title. */
+ *  (e.g. `INV-2026-0001`), falling back to the collection title.
+ *  Non-string primary keys (numeric ids) are stringified rather
+ *  than discarded (CodeRabbit on #1502). */
 const viewTitle = computed<string>(() => {
   if (!viewing.value || !collection.value) return "";
   const pkValue = viewing.value[collection.value.schema.primaryKey];
-  return typeof pkValue === "string" && pkValue.length > 0 ? pkValue : (collection.value.title ?? "");
+  if (pkValue === undefined || pkValue === null || pkValue === "") return collection.value.title ?? "";
+  return String(pkValue);
 });
 
 /** Decide whether and how to emit a boolean field's draft value.
@@ -1225,14 +1238,15 @@ watch(
   },
 );
 
-// React to `?highlight=` changing while already on this collection
-// (e.g. following two record links to the same collection in a
-// row). The initial / cross-collection case is handled by
-// `loadCollection`; here we only act once items are loaded.
+// React to `?selected=` changing while already on this collection:
+// follow it to open the new record, OR close the modal when the
+// param is removed (browser back) or points at a missing id. The
+// initial / cross-collection case is handled by `loadCollection`;
+// here we only act once items are loaded.
 watch(
-  () => route.query.highlight,
+  () => route.query.selected,
   () => {
-    if (!loading.value && collection.value) maybeOpenHighlighted();
+    if (!loading.value && collection.value) syncViewToSelected();
   },
 );
 

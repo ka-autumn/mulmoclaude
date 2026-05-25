@@ -1326,6 +1326,7 @@ const frMessages = {
     backToIndex: "Retour aux collections",
     indexEmpty: "Aucune collection installée. Mettez une étoile sur une compétence avec un schema depuis la page Skills pour la voir ici.",
     editItem: "Modifier",
+    openItem: "Ouvrir {id}",
     confirmDelete: "Supprimer cet élément ? Cette action est irréversible.",
     itemsEmpty: "Aucun élément pour l'instant. Cliquez sur + pour en ajouter un.",
     notFound: "Collection introuvable",

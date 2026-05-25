@@ -1332,6 +1332,7 @@ const esMessages = {
     backToIndex: "Volver a colecciones",
     indexEmpty: "No hay colecciones instaladas. Marca con estrella una skill que incluya un schema desde la página Skills para verla aquí.",
     editItem: "Editar",
+    openItem: "Abrir {id}",
     confirmDelete: "¿Eliminar este elemento? Esta acción no se puede deshacer.",
     itemsEmpty: "Aún no hay elementos. Pulsa + para añadir uno.",
     notFound: "Colección no encontrada",

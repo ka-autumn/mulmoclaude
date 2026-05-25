@@ -1319,6 +1319,7 @@ const koMessages = {
     backToIndex: "컬렉션 목록으로 돌아가기",
     indexEmpty: "설치된 컬렉션이 없습니다. Skills 페이지에서 스키마를 포함한 스킬에 별표를 추가하면 여기에 표시됩니다.",
     editItem: "편집",
+    openItem: "{id} 열기",
     confirmDelete: "이 항목을 삭제하시겠습니까? 되돌릴 수 없습니다.",
     itemsEmpty: "아직 항목이 없습니다. + 를 눌러 추가하세요.",
     notFound: "컬렉션을 찾을 수 없습니다",

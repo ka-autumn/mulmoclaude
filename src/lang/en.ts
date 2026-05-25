@@ -1319,6 +1319,7 @@ const enMessages = {
     backToIndex: "Back to collections",
     indexEmpty: "No collections installed. Star a skill that ships a schema from the Skills page to see it here.",
     editItem: "Edit",
+    openItem: "Open {id}",
     confirmDelete: "Delete this item? This cannot be undone.",
     itemsEmpty: "No items yet. Click + to add one.",
     notFound: "Collection not found",

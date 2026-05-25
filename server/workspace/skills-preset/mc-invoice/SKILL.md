@@ -112,15 +112,13 @@ remove the file.
 When you reference a specific invoice in your reply, link to the collection
 view — NOT the raw JSON file path:
 
-- Do: `[INV-2026-0002](/collections/mc-invoice?highlight=INV-2026-0002)`
+- Do: `[INV-2026-0002](/collections/mc-invoice?selected=INV-2026-0002)`
 - Don't: `[INV-2026-0002](data/invoice/items/INV-2026-0002.json)` — that opens
   the raw file in the Files view instead of the rendered table.
 
-Always include the `?highlight=<id>` query. Today it just opens the table; a
-later host update will use it to scroll to and highlight the matching row, and
-existing links will start working automatically. The "see the list at
-/collections/mc-invoice" pointer is also fine for a general (non-specific)
-reference.
+Always include the `?selected=<id>` query: it opens that invoice directly in
+the read-only detail view. Omit it (link to plain `/collections/mc-invoice`)
+only for a general, non-specific reference to the whole list.
 
 ## When to ask vs. when to act
 

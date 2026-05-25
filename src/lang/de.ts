@@ -1337,6 +1337,7 @@ const deMessages = {
     backToIndex: "Zurück zu Sammlungen",
     indexEmpty: "Keine Sammlungen installiert. Markiere auf der Skills-Seite eine Skill mit Schema, um sie hier zu sehen.",
     editItem: "Bearbeiten",
+    openItem: "{id} öffnen",
     confirmDelete: "Diesen Eintrag löschen? Das kann nicht rückgängig gemacht werden.",
     itemsEmpty: "Noch keine Einträge. Klicke auf +, um einen hinzuzufügen.",
     notFound: "Sammlung nicht gefunden",
