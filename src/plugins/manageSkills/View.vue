@@ -341,14 +341,15 @@
                 </button>
                 <button
                   v-if="isSelectedEditable"
-                  class="h-8 px-2.5 flex items-center gap-1 text-sm rounded border border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-40"
+                  class="h-8 px-2.5 flex items-center gap-1 text-sm rounded border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+                  :class="isSelectedPreset ? '' : 'border-red-300 text-red-600 hover:bg-red-50'"
                   :disabled="detailLoading || deleting"
-                  data-testid="skill-delete-btn"
+                  :data-testid="isSelectedPreset ? 'skill-unstar-btn' : 'skill-delete-btn'"
                   :title="t('pluginManageSkills.deleteProjectSkill')"
                   @click="deleteSkill"
                 >
-                  <span class="material-icons text-sm">delete</span>
-                  {{ t("pluginManageSkills.btnDelete") }}
+                  <span class="material-icons text-sm">{{ isSelectedPreset ? "star_border" : "delete" }}</span>
+                  {{ isSelectedPreset ? t("pluginManageSkills.btnUnstar") : t("pluginManageSkills.btnDelete") }}
                 </button>
                 <button
                   class="h-8 px-2.5 flex items-center gap-1 text-sm rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40"
@@ -584,6 +585,15 @@ const renderedBody = computed(() => {
 // activation one-way (no un-star / edit from /skills). The mc- =
 // "system" classification survives only as the provenance badge.
 const isSelectedEditable = computed(() => detail.value?.source === "project");
+
+// `mc-*` is the launcher's preset namespace (see PRESET_SLUG_PREFIX
+// in server/workspace/skills-preset.ts). When a preset is active in
+// `.claude/skills/`, "delete" really just removes the activation —
+// the launcher re-syncs the catalog copy under
+// `data/skills/catalog/preset/<slug>/` on every boot, so the skill
+// is recoverable. We expose this as "Unstar" with a non-destructive
+// confirm message; the underlying DELETE endpoint is identical.
+const isSelectedPreset = computed(() => detail.value?.name.startsWith("mc-") === true);
 
 const listError = ref<string | null>(null);
 
@@ -1107,10 +1117,14 @@ function runSkill(): void {
 // in server/skills/writer.ts. The button is hidden in the template
 // when source !== "project". A native confirm() is enough for phase 1
 // since the action is reversible by re-saving via the conversation.
+// For preset (mc-*) entries the same endpoint is invoked, but the
+// confirm copy reflects that the catalog copy survives — see
+// `isSelectedPreset` above and `syncPresetSkills` in skills-preset.ts.
 async function deleteSkill(): Promise<void> {
   if (!detail.value || detail.value.source !== "project") return;
   const { name } = detail.value;
-  if (!window.confirm(t("pluginManageSkills.confirmDelete", { name }))) {
+  const confirmKey = isSelectedPreset.value ? "pluginManageSkills.confirmUnstar" : "pluginManageSkills.confirmDelete";
+  if (!window.confirm(t(confirmKey, { name }))) {
     return;
   }
   deleting.value = true;
