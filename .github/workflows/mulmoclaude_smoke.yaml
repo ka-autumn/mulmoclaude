@@ -135,7 +135,7 @@ jobs:
       # lets you retry the install locally.
       - name: Upload smoke-verified tarball
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: mulmoclaude-tarball
           path: packages/mulmoclaude/mulmoclaude-*.tgz
@@ -151,7 +151,7 @@ jobs:
       # keeps green runs quiet (the log exists but nobody needs it).
       - name: Upload launcher log on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: mulmoclaude-launcher-log
           # mktemp-generated path — match by glob because the suffix
