@@ -33,6 +33,18 @@ const L22_TIMEOUT_MS = 3 * ONE_MINUTE_MS;
 const L31_TIMEOUT_MS = 3 * ONE_MINUTE_MS;
 const L32_TIMEOUT_MS = 3 * ONE_MINUTE_MS;
 const L33_TIMEOUT_MS = 3 * ONE_MINUTE_MS;
+const L33B_TIMEOUT_MS = 2 * ONE_MINUTE_MS;
+
+// L-33B target: a launcher preset that's reliably NOT auto-starred
+// in normal user workspaces. `mc-invoice` is bundled (lives in
+// `server/workspace/skills-preset/mc-invoice/`) so its catalog row
+// always renders, but it's a niche workflow rarely starred by
+// default — minimising the chance that an L-33B run collides with
+// a user who's actively relying on the preset between runs. The
+// test fs-removes any existing star before exercising the UI and
+// fs-removes again in `finally`, so the workspace ends in the same
+// "unstarred" state regardless of where it started.
+const L33B_PRESET_SLUG = "mc-invoice";
 
 // L-33: launcher preset slug + a signature line from its bundled
 // `SKILL.md`. Treated as pinned literals because the canary's whole
@@ -58,12 +70,11 @@ const L33_BODY_SIGNATURE = "bundled MulmoClaude preset skill";
 // SKILL.md body actually conditioned the response.
 const L33_COOKING_VOCAB_PATTERN = /recipe|料理|レシピ/i;
 
-// All six scenarios talk to the live LLM (L-21: chart tool dispatch,
-// L-21B: encore defineEncore tool dispatch, L-22: skill execution,
-// L-31: mc-manage-skills bridge dispatch canary, L-32: end-to-end
-// skill landing canary, L-33: mc-cooking-coach preset chain canary).
-// They share no state — run in parallel to cut wall time, mirroring
-// the other category specs.
+// Five LLM-dependent scenarios (L-21 chart dispatch, L-21B encore
+// defineEncore dispatch, L-22 skill execution, L-31 bridge dispatch,
+// L-32 end-to-end landing, L-33 preset chain) + one UI-only canary
+// (L-33B catalog→Star rail). They share no state — run in parallel
+// to cut wall time, mirroring the other category specs.
 test.describe.configure({ mode: "parallel" });
 
 // Fully-qualified MCP tool name for the encore plugin's defineEncore
@@ -703,6 +714,64 @@ test.describe("skills (real LLM / static)", () => {
       for (const sid of sessionsToCleanup) {
         await deleteSession(page, sid);
       }
+    }
+  });
+
+  test("L-33B: catalog → ☆ Star → /skills active row 出現 (catalog→active UI rail canary)", async ({ page }) => {
+    test.setTimeout(L33B_TIMEOUT_MS);
+    // L-33 verifies the FULL preset chain end-to-end (catalog → active
+    // → /skills → /<slug> dispatch → LLM-conditioned response). But
+    // L-33's `starPresetViaCatalog` path runs ONLY when the target
+    // preset isn't already starred — and in normal dev / CI
+    // environments `mc-cooking-coach` is starred from a previous
+    // boot, so L-33 takes the disk-snapshot fast path every time and
+    // the catalog→active UI is never actually clicked.
+    //
+    // L-33B is a smaller dedicated canary that ALWAYS exercises the
+    // catalog→active UI rail:
+    //   (a) fs-unstar the target preset (idempotent — no-op when the
+    //       slot is already absent)
+    //   (b) navigate /skills → catalog row visible + project-skill
+    //       row count === 0 (pre-state assertion)
+    //   (c) click the catalog row → click ☆ Star
+    //   (d) wait for `skill-item-<slug>` to surface in /skills
+    //       (proves starCatalogEntry copied `data/skills/catalog/preset/<slug>/`
+    //       → `.claude/skills/<slug>/` AND the subsequent registry
+    //       refresh picked it up)
+    //   (e) finally: fs-unstar so the workspace ends in the same
+    //       "unstarred" state regardless of starting point
+    //
+    // No LLM dispatch / no agent turn — pure UI + filesystem chain.
+    // That keeps it fast and lets the CI matrix run it without
+    // `E2E_LIVE_NO_LLM` skipping; the regression net it adds is
+    // independent of fake-echo's reach. mc-invoice is picked because
+    // it's a launcher preset (catalog row guaranteed) that's rarely
+    // starred by default.
+    try {
+      await removeProjectSkill(L33B_PRESET_SLUG);
+      await page.goto("/skills");
+      const catalogRow = page.getByTestId(`skill-catalog-item-${L33B_PRESET_SLUG}`);
+      await expect(
+        catalogRow,
+        `catalog list must include ${L33B_PRESET_SLUG} — proves syncPresetSkills landed the launcher preset under data/skills/catalog/preset/`,
+      ).toBeVisible({ timeout: ONE_MINUTE_MS });
+      const skillRow = page.getByTestId(`skill-item-${L33B_PRESET_SLUG}`);
+      await expect(
+        skillRow,
+        `${L33B_PRESET_SLUG} project-skill row must be absent before star — pre-cleanup fs-unstar must have taken effect`,
+      ).toHaveCount(0);
+      await catalogRow.click();
+      await page.getByTestId("skill-catalog-detail-star-btn").click();
+      await expect(
+        skillRow,
+        `${L33B_PRESET_SLUG} project-skill row must appear after ☆ Star — proves catalog→active rail (starCatalogEntry + registry refresh) is wired`,
+      ).toBeVisible({ timeout: ONE_MINUTE_MS });
+    } finally {
+      // fs-rm is idempotent (ENOENT-tolerant via removeProjectSkill).
+      // Restoring to the "unstarred" baseline matches what the next
+      // L-33B run expects, regardless of whether the user started
+      // with mc-invoice starred or unstarred.
+      await removeProjectSkill(L33B_PRESET_SLUG);
     }
   });
 });
