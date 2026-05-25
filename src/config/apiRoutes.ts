@@ -217,17 +217,18 @@ const HOST_API_ROUTES = {
     manage: "/api/roles/manage",
   },
 
-  // Schema-driven apps (see plans/feat-skill-driven-apps.md). One
-  // "app" is a skill that ships a `schema.json` alongside its
-  // `SKILL.md`; the host renders its records via `<AppCollectionView>`.
-  apps: {
-    list: "/api/apps",
-    /** GET → { app, items } */
-    detail: "/api/apps/:slug",
+  // Schema-driven collections (see plans/done/feat-skill-driven-apps.md
+  // — historical name predates the rename). One "collection" is a
+  // skill that ships a `schema.json` alongside its `SKILL.md`; the
+  // host renders its records via `<CollectionView>`.
+  collections: {
+    list: "/api/collections",
+    /** GET → { collection, items } */
+    detail: "/api/collections/:slug",
     /** POST → create one record (auto-id when primaryKey value omitted) */
-    items: "/api/apps/:slug/items",
+    items: "/api/collections/:slug/items",
     /** PUT → upsert; DELETE → remove */
-    item: "/api/apps/:slug/items/:itemId",
+    item: "/api/collections/:slug/items/:itemId",
   },
 
   // `scheduler` group migrated to META — see `src/plugins/scheduler/calendarMeta.ts`.

@@ -363,42 +363,15 @@ export const ROLES: Role[] = [
   // migration helper moves any pre-skill recipes from the plugin's
   // `files.data` scope to the new path.
 
-  // Account beta — PoC for the schema-driven app architecture (see
-  // plans/feat-skill-driven-apps.md). The `mc-clients` preset skill
-  // ships a `schema.json` alongside its `SKILL.md`; once starred,
-  // the host renders its records via <AppCollectionView> at
-  // /apps/mc-clients. This role's job is to demonstrate that flow:
-  // Claude does file I/O via the Agent SDK's native Read/Write/Edit;
-  // no MCP plugins per domain. `presentForm` stays available as the
-  // sanctioned way to collect structured input when needed.
-  {
-    id: "account-beta",
-    name: "Account beta",
-    icon: "science",
-    prompt:
-      "You are a beta accounting assistant testing the schema-driven app architecture.\n\n" +
-      "## How this differs from the regular Accounting role\n\n" +
-      "You do NOT have the dedicated manageClient / manageInvoice / manageWorklog MCP tools. Instead, the user has starred preset skills that define each domain via a `schema.json` file. The file layouts under `data/<app>/items/` are the database; the host renders each at `/apps/<slug>`.\n\n" +
-      "Available skill-driven apps (read each skill's `SKILL.md` for the per-app conventions — id format, where files live, when to ask vs. when to act):\n\n" +
-      "- **mc-clients** — `data/clients/items/<id>.json`, viewed at `/apps/mc-clients`. Tracks client records (name, email, address, notes).\n" +
-      "- **mc-worklog** — `data/worklog/items/<id>.json`, viewed at `/apps/mc-worklog`. Tracks billable / non-billable hours per client per day. `clientId` references slugs in `data/clients/items/`; resolve client names to slugs by reading that directory first (no `ref` field-type validation yet — that's your responsibility).\n\n" +
-      "Use Read / Write / Edit directly for CRUD — these are always available via the Agent SDK; no MCP plugin needed.\n\n" +
-      "## Hard rules\n\n" +
-      "- Always derive a kebab-case `id` per each skill's documented format (mc-clients: from name; mc-worklog: `{date}-{clientId}-{4hex}`). Read the directory first; never silently overwrite an existing file.\n" +
-      "- Don't recite the full record list in chat after a mutation. A one-line confirmation is enough — the user can see the table at the app's `/apps/<slug>` route.\n" +
-      "- Use `presentForm` only when you need information the user hasn't given you. Don't use it to re-confirm values they already typed.\n" +
-      "- When logging worklog hours for a client name, resolve the name to a real `clientId` slug by reading `data/clients/items/` first. Never invent a clientId that doesn't exist there — that breaks the worklog table.\n\n" +
-      "## When the user asks for something the schema doesn't cover\n\n" +
-      "If the user wants to track a field not declared in `schema.json` (e.g. a phone number on a client, start/end times on a worklog entry), tell them the field isn't part of the current schema and offer two paths: (a) put it in the `notes` markdown field, or (b) extend the schema (which requires the launcher's owner to update the bundled preset). Don't silently add an unknown key to the record.",
-    availablePlugins: [TOOL_NAMES.presentForm],
-    queries: [
-      "Add a client: Acme Corp, billing@acme.example, San Francisco",
-      "List my clients",
-      "Log 2 hours for Acme today on the migration work",
-      "How many hours did I bill Acme this week?",
-      "Log 30 minutes of non-billable internal review for Globex yesterday",
-    ],
-  },
+  // Schema-driven `mc-*` collection skills (mc-clients, mc-worklog,
+  // mc-invoice) are NOT gated by a special role. Once starred via
+  // `/skills`, Claude Code's skill discovery surfaces them in every
+  // role's system prompt and each SKILL.md is self-contained
+  // (conventions, "don't write derived fields", file paths). In
+  // roles that ALSO have the legacy manageInvoice / manageClient /
+  // manageWorklog MCP tools (Accounting), Claude may still pick the
+  // dedicated tool over the skill; that's expected during the
+  // transition period while both paths coexist.
   {
     id: "debug",
     name: "Debug",
@@ -477,7 +450,6 @@ export const BUILTIN_ROLE_IDS = {
   // single-skill `mc-settings` originally introduced in #1283 was
   // split into three in #1295 for stronger discovery).
   accounting: "accounting",
-  "account-beta": "account-beta",
   investor: "investor",
   // cookingCoach: removed (#1286) — replaced by `mc-cooking-coach` preset skill.
   debug: "debug",

@@ -1,9 +1,9 @@
 ---
 name: mc-clients
-description: A simple client database. Use whenever the user asks to add, list, update, or delete a client. Skill files live at `.claude/skills/mc-clients/` (SKILL.md + schema.json); records live at `data/clients/items/<id>.json` (one JSON file per client). The user views the records at `/apps/mc-clients`, rendered from the schema by the host — you do all I/O via Read / Write / Edit on the JSON files.
+description: A simple client database. Use whenever the user asks to add, list, update, or delete a client. Skill files live at `.claude/skills/mc-clients/` (SKILL.md + schema.json); records live at `data/clients/items/<id>.json` (one JSON file per client). The user views the records at `/collections/mc-clients`, rendered from the schema by the host — you do all I/O via Read / Write / Edit on the JSON files.
 ---
 
-# Clients (schema-driven app)
+# Clients (schema-driven collection)
 
 A bundled MulmoClaude preset skill (`mc-` prefix = launcher-managed; do not edit
 this file in the workspace, it is overwritten on every server boot).
@@ -15,9 +15,9 @@ this file in the workspace, it is overwritten on every server boot).
 | This skill's instructions (you are reading it) | `.claude/skills/mc-clients/SKILL.md` |
 | Field schema (source of truth for the host UI) | `.claude/skills/mc-clients/schema.json` |
 | Records — one JSON per client | `data/clients/items/<id>.json` |
-| User-visible app surface | `/apps/mc-clients` (in the host UI) |
+| User-visible collection surface | `/collections/mc-clients` (in the host UI) |
 
-You write JSON; the host's `<AppCollectionView>` reads the same files and
+You write JSON; the host's `<CollectionView>` reads the same files and
 renders a table + form. There is no separate database — the workspace IS the
 database.
 
@@ -45,13 +45,26 @@ and pick a fresh slug if the file already exists — don't silently overwrite.
 
 **List / look up**: read `data/clients/items/` and answer from those files.
 Don't recite the whole table in chat — the user can see it at
-`/apps/mc-clients`. A one-line confirmation ("Added Acme Corp.") is enough.
+`/collections/mc-clients`. A one-line confirmation ("Added Acme Corp.") is enough.
 
 **Update**: read the record, merge changes, write it back. Preserve fields
 you weren't asked to change.
 
 **Delete**: confirm with the user once if the request is ambiguous, then
 remove the file.
+
+## Linking to a client in chat
+
+When you reference a specific client in your reply, link to the collection
+view — NOT the raw JSON file path:
+
+- Do: `[Acme Corp](/collections/mc-clients?highlight=acme-corp)`
+- Don't: `[Acme Corp](data/clients/items/acme-corp.json)` — that opens the raw
+  file in the Files view instead of the rendered table.
+
+Always include the `?highlight=<id>` query. Today it just opens the table; a
+later host update will use it to scroll to and highlight the matching row, and
+existing links will start working automatically.
 
 ## When to ask vs. when to act
 

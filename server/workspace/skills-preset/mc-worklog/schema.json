@@ -16,7 +16,8 @@
       "required": true
     },
     "clientId": {
-      "type": "string",
+      "type": "ref",
+      "to": "mc-clients",
       "label": "Client",
       "required": true
     },

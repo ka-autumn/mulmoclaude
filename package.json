@@ -76,7 +76,7 @@
     "@google/genai": "^2.2.0",
     "@gui-chat-plugin/browse": "^0.4.0",
     "@gui-chat-plugin/camera": "^0.4.1",
-    "@gui-chat-plugin/google-map": "^0.4.0",
+    "@gui-chat-plugin/google-map": "^0.4.2",
     "@gui-chat-plugin/mindmap": "^0.4.1",
     "@gui-chat-plugin/present3d": "^0.4.1",
     "@mulmobridge/client": "^0.1.0",

@@ -6,7 +6,7 @@ import { log } from "../system/logger/index.js";
 import { EAGER_WORKSPACE_DIRS, WORKSPACE_PATHS, workspacePath } from "./paths.js";
 import { readWorkspaceTextSync, writeWorkspaceTextSync } from "../utils/files/workspace-io.js";
 import { loadCustomDirs, ensureCustomDirs } from "./custom-dirs.js";
-import { syncPresetSkills } from "./skills-preset.js";
+import { syncActivePresetSkills, syncPresetSkills } from "./skills-preset.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATES_DIR = path.join(__dirname, "helps");
@@ -53,6 +53,25 @@ export function initWorkspace(): string {
   syncPresetSkills({
     sourceDir: SKILLS_PRESET_SOURCE_DIR,
     destDir: WORKSPACE_PATHS.skillsCatalogPreset,
+    onInfo: (message, data) => log.info("skills-preset", message, data),
+    onWarn: (message, data) => log.warn("skills-preset", message, data),
+  });
+
+  // Also refresh the ACTIVE copy of any already-starred mc-* preset.
+  // The catalog sync above keeps factory defaults fresh, but a user
+  // who has ★ Starred an entry would otherwise see their active
+  // `<workspace>/.claude/skills/<slug>/` stay forever pinned to the
+  // version that was current when they starred — including bugs and
+  // identifier renames. `syncActivePresetSkills` diffs each file
+  // against source and overwrites differences, backing up any
+  // pre-existing dest contents to `<file>.bak.<timestamp>` so a user
+  // who had locally tweaked the preset can recover. Only `mc-*`
+  // slugs are touched (defensive prefix check); user-authored skills
+  // are never modified. Slugs that aren't starred yet are skipped
+  // (never auto-starred).
+  syncActivePresetSkills({
+    sourceDir: SKILLS_PRESET_SOURCE_DIR,
+    activeDir: WORKSPACE_PATHS.claudeSkills,
     onInfo: (message, data) => log.info("skills-preset", message, data),
     onWarn: (message, data) => log.warn("skills-preset", message, data),
   });

@@ -1,0 +1,133 @@
+---
+name: mc-invoice
+description: A simple invoice ledger — create, list, edit, and remove invoices as JSON files. Skill at `.claude/skills/mc-invoice/` (SKILL.md + schema.json); records at `data/invoice/items/<id>.json`. Each invoice references a client (`clientId` is a `ref` to `mc-clients`) and carries an array of line items. Subtotal / tax / total are computed by the host from the line items + tax rate — you don't write them. The user views records at `/collections/mc-invoice`.
+---
+
+# Invoice (schema-driven collection)
+
+A bundled MulmoClaude preset skill (`mc-` prefix = launcher-managed; do not edit
+this file in the workspace, it is overwritten on every server boot).
+
+## Files
+
+| Purpose | Path |
+|---|---|
+| This skill's instructions (you are reading it) | `.claude/skills/mc-invoice/SKILL.md` |
+| Field schema (source of truth for the host UI) | `.claude/skills/mc-invoice/schema.json` |
+| Records — one JSON per invoice | `data/invoice/items/<id>.json` |
+| Client database (referenced by `clientId`) | `data/clients/items/` (managed by `mc-clients` skill) |
+| User-visible collection surface | `/collections/mc-invoice` (in the host UI) |
+
+You write JSON; the host's `<CollectionView>` reads the same files and renders
+a table + form. There is no separate database — the workspace IS the database.
+
+## Record shape
+
+The schema declares these fields (read `schema.json` for the authoritative
+types):
+
+- `id` — string, **primary key** (the filename, no extension)
+- `clientId` — ref → `mc-clients`, **required**
+- `issueDate` — ISO date `YYYY-MM-DD`, **required**
+- `dueDate` — ISO date (optional)
+- `status` — enum `draft | sent | paid | void`, **required** (default to `draft` when creating)
+- `lineItems` — array of `{ description, quantity, rate }` rows
+- `taxRate` — decimal (e.g. `0.10` for 10%)
+- `notes` — markdown
+- `subtotal`, `tax`, `total` — **computed by the host**; never write these
+
+### id format
+
+`INV-YYYY-NNNN`, year-then-zero-padded counter. Examples: `INV-2026-0001`,
+`INV-2026-0042`. List `data/invoice/items/` first to find the highest existing
+number for the year, then increment. If the file already exists (concurrent
+draft, edited copy), pick the next free number rather than overwriting.
+
+### Computed fields — do NOT write these
+
+`subtotal`, `tax`, and `total` are **derived** fields. The host re-computes
+them from `lineItems` + `taxRate` whenever the record is rendered, and
+`<CollectionView>` will refuse to persist them through the form. If you ever
+see a value for these in an existing JSON file (e.g. from a hand-edit or
+import), leave it alone — the host's computed value wins for display.
+
+## clientId resolution
+
+`clientId` is a `ref` field pointing at the `mc-clients` collection. The host
+renders it as a dropdown picker in the form and a clickable link in the table;
+you write the raw slug.
+
+When the user says "invoice Acme for May consulting":
+
+- List `data/clients/items/` and find the slug whose `name` matches "Acme"
+  (case-insensitive substring is fine for a first pass).
+- If no match: ask the user whether to (a) create the client first via the
+  `mc-clients` skill or (b) supply a literal slug.
+- Never invent a clientId that doesn't exist — it'll render as a broken link
+  in the invoice table.
+
+## What to do
+
+**Create**: derive an `id`, build the record with the fields you have, write
+to `data/invoice/items/<id>.json` via the `Write` tool. Defaults:
+`status: "draft"`, `issueDate: <today>`. Don't write `subtotal` / `tax` /
+`total` (computed).
+
+**Create from worklog hours** — common case. When the user says
+"invoice Acme for the work I did this month" (or "for May", or "since the
+last invoice"):
+
+1. Resolve "Acme" → a real client slug by reading `data/clients/items/`.
+2. List `data/worklog/items/` and filter to entries where `clientId`
+   matches AND `date` falls in the requested period.
+3. Group the matching worklog entries into invoice line items. The simplest
+   grouping: one line item per worklog entry (`description = entry.notes`,
+   `quantity = entry.hours`, `rate = <user's standing rate or asked>`).
+   You can also group by description if many entries share the same notes.
+4. If the user hasn't specified a line-item rate and you don't have one on
+   file, ASK via `presentForm` — don't invent one.
+5. Write the invoice. The host will display Subtotal / Tax / Total
+   automatically once the file is saved.
+
+Do NOT skip step 2 and just ask the user "what should the invoice say?" —
+the whole reason mc-worklog exists is so you can pull that data without
+re-asking. If the worklog has no matching entries, tell the user and ask
+whether to create one-off line items instead.
+
+**List / summarize**: read `data/invoice/items/` and answer from those files.
+Don't recite the whole table in chat — the user can see it at
+`/collections/mc-invoice`. For aggregates ("how much have I billed Acme this
+quarter?") group by clientId + date range and answer in one line.
+
+**Mark sent / paid / void**: read the record, change `status`, write back.
+
+**Edit line items**: read, mutate the `lineItems` array, write back. Preserve
+fields you weren't asked to change.
+
+**Delete**: confirm with the user once if the request is ambiguous, then
+remove the file.
+
+## Linking to an invoice in chat
+
+When you reference a specific invoice in your reply, link to the collection
+view — NOT the raw JSON file path:
+
+- Do: `[INV-2026-0002](/collections/mc-invoice?highlight=INV-2026-0002)`
+- Don't: `[INV-2026-0002](data/invoice/items/INV-2026-0002.json)` — that opens
+  the raw file in the Files view instead of the rendered table.
+
+Always include the `?highlight=<id>` query. Today it just opens the table; a
+later host update will use it to scroll to and highlight the matching row, and
+existing links will start working automatically. The "see the list at
+/collections/mc-invoice" pointer is also fine for a general (non-specific)
+reference.
+
+## When to ask vs. when to act
+
+If the user gives you clear info ("invoice Acme $5000 for May consulting"),
+just write the record: one line item `{ description: "May consulting",
+quantity: 1, rate: 5000 }`, status `draft`, today's `issueDate`, `dueDate`
+empty (or 30 days out if a default is set elsewhere).
+
+Use `presentForm` only when something is ambiguous: multiple clients match
+the name they typed, line-item rate vs total isn't clear, etc.

@@ -160,7 +160,7 @@ e2e-live/
 | L-27 | docker | Mac keychain credential 渡し (macOS のみ) | manual-l4 |
 | L-28 | docker | Docker 内で git/gh 認証通る | ✅ |
 | L-29 | docker | Docker 環境で MCP server crash しない | 対象外推奨 |
-| L-30 | docker | skill symlink が Docker 内で dangling にならない | 未実装 |
+| L-30 | docker | skill symlink が Docker 内で dangling にならない | ✅ |
 | L-31 | skills | mc-manage-skills bridge dispatch canary (post-#1298) | ✅ |
 | L-32 | skills | end-to-end skill landing + Run canary (post-#1298) | ✅ |
 | L-EDIT | mulmo | beat 編集永続化 (#1074) | ✅ |
@@ -174,7 +174,7 @@ e2e-live/
 
 ## 未実装シナリオ詳細
 
-> 未実装 (L-10 / L-13 / L-17 / L-30) + manual-l4 (L-25 / L-27) + 対象外推奨 (L-29) + 廃止 (L-24、 L-FRESH-SANDBOX-BUILD に統合) + fresh-user smoke (L-FRESH-BOOT / L-FRESH-SANDBOX-BUILD / L-FRESH-PRESET-SKILL) を本セクションでカバー。 各シナリオの現在の評価は 「未実装シナリオの再評価 (2026-05-23)」、 次に着手する順は 「実装順 (2026-05-23 時点)」 を参照。 実装済シナリオの初期設計仕様は [`plans/done/feat-e2e-live-history.md`](done/feat-e2e-live-history.md) の 「設計仕様 archive」 を参照。
+> 未実装 (L-10 / L-13 / L-17) + manual-l4 (L-25 / L-27) + 対象外推奨 (L-29) + 廃止 (L-24、 L-FRESH-SANDBOX-BUILD に統合) + fresh-user smoke (L-FRESH-BOOT / L-FRESH-SANDBOX-BUILD / L-FRESH-PRESET-SKILL) を本セクションでカバー。 各シナリオの現在の評価は 「未実装シナリオの再評価 (2026-05-23)」、 次に着手する順は 「実装順 (2026-05-23 時点)」 を参照。 実装済シナリオの初期設計仕様は [`plans/done/feat-e2e-live-history.md`](done/feat-e2e-live-history.md) の 「設計仕様 archive」 を参照。
 
 凡例:
 - 重要度: **S** = 致命級, **A** = 高, **B** = 中
@@ -323,7 +323,8 @@ e2e-live/
 | **L-23** X MCP が Docker 内で .env から key を読める (B-01) | ✅ 実装済 | docker.spec.ts、 `getSandboxStatus(page)` で `/api/sandbox` を叩いて `null` (= sandbox disabled) なら test.skip → 加えて `process.env.X_BEARER_TOKEN` を直接見て host env 未設定なら test.skip (spec 冒頭で workspace の `.env` を dotenv load) → `getMcpToolsList(page)` で `/api/mcp-tools` catalog を取り `readXPost.enabled === true` + `searchX.enabled === true` を assert。 `requiredEnv: ["X_BEARER_TOKEN"]` の宣言保持も同 assert で carry-along チェック。 precondition が test 対象 flag (`enabled`) と独立しているので catalog バグで `enabled: false` が出た時に silent skip せず fail する (Sourcery iter-1 / PR #1462)。 fake-echo backend では fake 不能 (catalog は host MCP registry の素 read) のため per-test に `E2E_LIVE_NO_LLM=1` skip。 spec ファイルは `.github/workflows/e2e_live_no_llm.yaml` matrix に **意図的に登録していない** (fake-friendly な test が 1 つもないため、 `docs/e2e-live-testing.md` の matrix 規約に従う) |
 | **L-26** Docker sandbox 上で session resume できる (B-04) | ✅ 実装済 | docker.spec.ts、 sandbox enabled gate → 「Reply with the single word: ok-`<nonce>`.」 で 1 ターン → session id capture → `page.reload()` → (1) `getByText(prompt).first()` で transcript hydration、 (2) `getByText(/No conversation found/i).toHaveCount(0)` で B-04 error string の不在、 (3) session id 不変、 を 3 段 assert。 L-11 が「sandbox on/off どちらでも」 で同等の assert を持つので shape は重複するが、 L-26 は **sandbox on 状態でしか走らない** ことで in-container workspace path (`/home/node/mulmoclaude`) と server-side jsonl reader の整合だけを切り出す net。 fake-echo は sandbox-bound CLI を spawn しないので per-test に `E2E_LIVE_NO_LLM=1` skip |
 | **L-28** Docker sandbox 内で git/gh 認証通る (B-06) | ✅ 実装済 | docker.spec.ts、 sandbox enabled gate に加えて `status.sshAgent` または `status.mounts.includes("gh")` の credential-bridge gate → credential が 1 つも attach されてなければ「テストしたいシナリオではない」 として skip。 agent prompt は `cat /etc/hostname && echo --- && gh auth status` を Bash で実行させ stdout/stderr の verbatim quote を要求 (hostname は per-run docker id で training data から予測不能、 LLM が tool dispatch を skip して text-reply に逃げる経路を塞ぐ) → (a) `readSessionToolCalls(sessionId)` を `bashCommandFromCall` でフィルタし `gh auth status` を含む `Bash` 呼出が 1 件以上あることを assert (Codex iter-1)、 (b) 同 `toolUseId` の `tool_call_result` を `readSessionToolResults(sessionId)` で取り、 result `content` (= 実 gh の stdout/stderr) に `/Logged in to github\.com/i` が含まれ `/not logged into any (?:GitHub )?hosts/i` を含まないことを assert (LLM が dispatch 後に paraphrase / hallucinate で false-pass する経路を塞ぐ、 Codex iter-2)、 (c) UI rendering sanity として `[data-testid="text-response-assistant-body"].last()` にも success line が出ることを confirm。 load-bearing は (b) の tool_call_result body 検査、 fake-echo は Bash dispatch を再現できないので per-test に `E2E_LIVE_NO_LLM=1` skip |
-| L-10, L-13, L-17, L-30 | 未実装 | L-10 / L-13 は test 専用 dev server 起動 infra (案 C 拡張、 `MULMOCLAUDE_WORKSPACE_PATH` + 別 port) が前提。 L-17 は `00f4a740 fix(notifier): drop HTTP publish` で外部から bridge message を注入するルートが廃止されており、 test 用 inject 経路追加 PR が前提。 L-30 は 階層 1 (spec scope の broken symlink seed) で 1 PR 完結。 「未実装シナリオの再評価 (2026-05-23)」 「実装順 (2026-05-23 時点)」 を参照 |
+| **L-30** skill symlink dangling silently skipped (B-08) | ✅ 実装済 | docker.spec.ts、 sandbox enabled gate → workspace の `.claude/skills/<dangling-slug>` に `node:fs/promises#symlink` で broken symlink を seed (target は `os.tmpdir()` 配下の nonce-stamped 不在 path で固定) + sibling として `placeProjectSkill(<sibling-slug>, ...)` で valid な SKILL.md を seed → `/skills` 直叩き → (a) `skill-item-<siblingSlug>` が visible で discovery が dangling で crash していないことを assert、 (b) `skill-item-<danglingSlug>` の `toHaveCount(0)` で dangling slot が silently skip されている (error row として surface していない) ことを assert → finally で `removeBrokenSymlinkSkill` (lstat-guarded、 symlink でなければ no-op) + `removeProjectSkill` で cleanup。 L-30 自体は LLM 不要 (`server/workspace/skills/discovery.ts:collectSkillsFromDir` の `stat()` 経路は host-side のみ) だが、 sandbox enabled gate を file-level で共有しているため fake-echo CI matrix への登録は引き続き見送り。 helper として `placeBrokenSymlinkSkill` / `removeBrokenSymlinkSkill` を live-chat.ts に新設 (今後 「discovery resilience」 系シナリオで再利用可能な shape) |
+| L-10, L-13, L-17 | 未実装 | L-10 / L-13 は test 専用 dev server 起動 infra (案 C 拡張、 `MULMOCLAUDE_WORKSPACE_PATH` + 別 port) が前提。 L-17 は `00f4a740 fix(notifier): drop HTTP publish` で外部から bridge message を注入するルートが廃止されており、 test 用 inject 経路追加 PR が前提。 「未実装シナリオの再評価 (2026-05-23)」 「実装順 (2026-05-23 時点)」 を参照 |
 | L-24 | 廃止 | ID が `e2e-live/tests/workspace-link-routing.spec.ts:134` の `L-24` (wiki Markdown link) と衝突しており plan 側を廃止。 元のシナリオ (B-02、 image 不在 → auto-build) は **L-FRESH-SANDBOX-BUILD** に統合 (fresh-user smoke 群)。 spec 側の L-23 / L-24 を `L-WSLINK-*` 等にリネームする follow-up は 「未確定事項 / TODO」 を参照 |
 | L-25, L-27 | manual-l4 | `docs/manual-testing.md` のチェックリストへ。 L-25 は Linux のみ、 L-27 は macOS のみで Playwright 自動化困難 |
 | L-29 | 対象外推奨 | PR #429 fix 済、 現コードで crash 再現不能。 unit test (`test/agent/test_agent_config.ts` の `buildDockerSpawnArgs`) で構造的退行は cover 済、 e2e-live への移植は tautology spec。 「未実装シナリオの再評価 (2026-05-23)」 参照 |
@@ -347,7 +348,7 @@ e2e-live/
 | **L-25** root 権限ファイル副作用 | manual-l4 | `docs/manual-testing.md` のチェックリストへ。 自動化対象外で確定 |
 | **L-27** Mac Keychain credential expire | manual-l4 | 同上 |
 | **L-29** MCP server Docker crash (B-07) | **対象外推奨** | PR #429 で fix 済、 現コードで crash 再現不能。 既存 unit test (`test/agent/test_agent_config.ts` の `buildDockerSpawnArgs` 11 cases) で構造的退行は cover 済。 「tautology spec」 (修正済 PR の再発検出だけを書く) は機能別 unit test の責務、 e2e-live に乗せる価値が薄い。 実装ステータス表からは 「対象外」 ラベルで除外することを推奨 (上記 「機能別 unit test / mock e2e との分担」 の e2e-live 除外基準と整合) |
-| **L-30** skill + symlink dangling | **実装可能** | 「環境を壊さず再現する設計指針」 階層 1 で局所再現可。 共有 workspace の `.claude/skills/<test-nonce>` を broken symlink で seed → sandbox 起動状態で `/api/config/refresh` 後に対象 slug が skill list に出ないことを assert → finally で symlink 削除。 host `~/.claude/skills/` は触らない |
+| **L-30** skill + symlink dangling | ✅ **実装済** | 設計通り、 階層 1 で局所再現。 docker.spec.ts に `placeBrokenSymlinkSkill` (新規 helper) + sibling 用の `placeProjectSkill` を組み合わせ、 broken symlink slot が silently skip され (rowなし) かつ valid sibling は visible で discovery 生存を assert。 当初想定していた `/api/config/refresh` 経由の更新は不要 (discovery は per-call で fresh readdir/stat、 cache なし) と確認できたので skip。 host `~/.claude/skills/` は触らない |
 | **L-FRESH-BOOT** 新規ユーザー smoke | **実装可能** (要 infra) | 「環境を壊さず再現する設計指針」 階層 2 + 3。 host 環境 (`~/.claude/` / `~/mulmoclaude/`) を `HOME` + `MULMOCLAUDE_WORKSPACE_PATH` env で test 専用 dir に振り、 認証だけ host から copy で持ち越し。 test 専用 dev server spawn infra (Docker on/off 案 C と launcher 共通化) が前提。 詳細は 「未実装シナリオ詳細 → fresh-user」 を参照 |
 | **L-FRESH-SANDBOX-BUILD** image 不在 → auto-build | **実装可能** (要 env 新設) | L-FRESH-BOOT の枠 + `MULMOCLAUDE_SANDBOX_IMAGE` env 新設 (階層 3)。 sandbox image を test 専用名で参照させて 「image が無い」 状態を疑似、 host の `mulmoclaude-sandbox:latest` を消さずに済む |
 | **L-FRESH-PRESET-SKILL** preset skill mirror | **実装可能** (要 infra) | L-FRESH-BOOT と同じ infra で空 workspace 起動 → preset migration 経路 (catalog → bridge mirror) を end-to-end で検証 |
@@ -358,8 +359,8 @@ e2e-live/
 
 ### Phase 1: 即着手可能 (高重要度 + 1 PR 完結)
 
-1. **L-30 skill symlink dangling (B-08、 docker)** — 重要度 **A**、 階層 1 (spec scope の broken symlink seed) で局所再現可、 ユーザー環境を一切触らない。 PR #1462 で docker e2e-live の cover が始まったばかり (L-23 / L-26 / L-28) の段階なので、 docker 系で唯一 e2e-live 化可能な L-30 を続いて早く積むと網が滑らかに繋がる
-2. ~~**encore plugin dispatch canary (#1437 / #1440 / #1441 / #1443)**~~ — **L-21B として実装済** (skills.spec.ts)。 元: 重要度 **A**、 L-21 (chart) shape を copy するだけ。 新 plugin の deferred-tool dispatch が壊れると plugin View 全消失する退行に直結。 runtime plugin が増えるトレンドで net 強化の効果が最大
+1. ~~**L-30 skill symlink dangling (B-08、 docker)**~~ — ✅ 実装済 (PR #1492、 docker.spec.ts)。 階層 1 設計指針通り、 ユーザー環境を一切触らない broken symlink seed + valid sibling 対比で discovery resilience を end-to-end で検証
+2. ~~**encore plugin dispatch canary (#1437 / #1440 / #1441 / #1443)**~~ — ✅ **L-21B として実装済** (PR #1493、 skills.spec.ts)。 元: 重要度 **A**、 L-21 (chart) shape を copy するだけ。 新 plugin の deferred-tool dispatch が壊れると plugin View 全消失する退行に直結。 runtime plugin が増えるトレンドで net 強化の効果が最大
 
 ### Phase 2: 前提 PR + 本体 PR (中〜高重要度、 要 infra 整備)
 
@@ -382,7 +383,7 @@ e2e-live/
 
 ### docker 系の優先度
 
-「docker 系は早い方が良い？」 の問いには **L-30 を Phase 1 に置く** ことで応えている。 docker 系で残る他のシナリオ (L-24 は廃止、 L-29 は対象外推奨) は drop / 統合になるため、 e2e-live で着手できる docker シナリオは **L-30 が唯一かつ最大の ROI**。 PR #1462 で docker e2e-live (L-23 / L-26 / L-28) の cover が landed し、 同じ docker.spec.ts に L-30 を追記する形で網を厚くできる。
+「docker 系は早い方が良い？」 の問いには **L-30 を Phase 1 に置く** ことで応えていた。 docker 系で残る他のシナリオ (L-24 は廃止、 L-29 は対象外推奨) は drop / 統合になるため、 e2e-live で着手できる docker シナリオは **L-30 が最大の ROI** だった。 L-30 は本セッションで docker.spec.ts に追記済 (PR #1462 の L-23 / L-26 / L-28 と同じファイル) で、 これにより docker 系の e2e-live cover はひとまず想定範囲を満たした。 残る docker トピック (L-FRESH-SANDBOX-BUILD = sandbox image 不在からの auto-build) は Phase 4 の通り `MULMOCLAUDE_SANDBOX_IMAGE` env 新設 + 分単位 build を要するため別途扱う。
 
 なお boot path 系の **個別経路** (dev server boot / sandbox image build / MCP catalog 初期化 / CLI spawn args 構築) はすべて既存の unit test (`test/system/`、 `test/agent/test_agent_config.ts` の `buildDockerSpawnArgs` 11 cases) で構造的退行を cover している。 一方で **「first-run UX として連動する」 経路** (起動 → workspace auto-init → SPA hydrate → 1 ターン送信) を end-to-end で見るネットは fresh-user smoke (`L-FRESH-BOOT` 等) で扱う方向で plan に追加した — 「未実装シナリオ詳細 → fresh-user」 参照。 ユーザー指摘で 「新規ユーザーがちゃんと動かせるかどうかのテストがほしい」 という具体的な需要が顕在化したため、 当初の 「e2e-live で boot path 自体を見る新規シナリオは起こさない」 という立場から方針転換している。
 

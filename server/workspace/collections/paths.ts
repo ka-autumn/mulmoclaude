@@ -1,4 +1,4 @@
-// Path helpers + safe-slug guard for the apps module. Mirrors the
+// Path helpers + safe-slug guard for the collections module. Mirrors the
 // pattern used by `server/workspace/skills/catalog.ts` so CodeQL's
 // `js/path-injection` sanitiser recognises our taint-launder.
 

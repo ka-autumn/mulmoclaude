@@ -1,9 +1,9 @@
 ---
 name: mc-worklog
-description: A simple timesheet — log billable / non-billable hours per client per day as JSON files. Skill files at `.claude/skills/mc-worklog/` (SKILL.md + schema.json); records at `data/worklog/items/<id>.json`. User views records at `/apps/mc-worklog`, rendered from the schema by the host. Companion to the `mc-clients` skill — clientId values reference that database.
+description: A simple timesheet — log billable / non-billable hours per client per day as JSON files. Skill files at `.claude/skills/mc-worklog/` (SKILL.md + schema.json); records at `data/worklog/items/<id>.json`. User views records at `/collections/mc-worklog`, rendered from the schema by the host. Companion to the `mc-clients` skill — clientId values reference that database.
 ---
 
-# Worklog (schema-driven app)
+# Worklog (schema-driven collection)
 
 A bundled MulmoClaude preset skill (`mc-` prefix = launcher-managed; do not edit
 this file in the workspace, it is overwritten on every server boot).
@@ -16,9 +16,9 @@ this file in the workspace, it is overwritten on every server boot).
 | Field schema (source of truth for the host UI) | `.claude/skills/mc-worklog/schema.json` |
 | Records — one JSON per worklog entry | `data/worklog/items/<id>.json` |
 | Client database (referenced by `clientId`) | `data/clients/items/` (managed by `mc-clients` skill) |
-| User-visible app surface | `/apps/mc-worklog` (in the host UI) |
+| User-visible collection surface | `/collections/mc-worklog` (in the host UI) |
 
-You write JSON; the host's `<AppCollectionView>` reads the same files and
+You write JSON; the host's `<CollectionView>` reads the same files and
 renders a table + form. There is no separate database — the workspace IS the
 database.
 
@@ -29,7 +29,7 @@ types):
 
 - `id` — string, **primary key** (the filename, no extension)
 - `date` — ISO date `YYYY-MM-DD`, **required**
-- `clientId` — string, **required** (slug from `data/clients/items/`)
+- `clientId` — ref → `mc-clients`, **required** (slug from `data/clients/items/`)
 - `hours` — decimal number, **required** (1.5 = 90 minutes; not seconds)
 - `billable` — boolean (defaults to `true` if the user doesn't say otherwise)
 - `notes` — markdown (what was worked on)
@@ -39,21 +39,20 @@ types):
 sessions in the same day for the same client. Generate the suffix randomly
 and check that the resulting file doesn't already exist.
 
-## clientId resolution (until `ref` exists)
+## clientId resolution
 
-The schema language doesn't yet have a `ref` field type, so `clientId` is a
-free string and the host doesn't validate that it points at a real client.
+`clientId` is a `ref` field pointing at the `mc-clients` collection.
+The host renders it as a dropdown picker in the UI and a clickable link
+in the table, but you write the raw slug into the JSON.
 
-That validation is your job:
+When the user says "log 2 hours for Acme":
 
-- When the user says "log 2 hours for Acme", list `data/clients/items/` first,
-  find the slug whose `name` matches "Acme" (case-insensitive substring is
-  fine for a first pass), and use that slug as `clientId`.
-- If no match: ask the user whether to (a) create the client first (via the
-  `mc-clients` skill) or (b) use a literal slug they provide.
-- Never silently invent a clientId that doesn't exist in `data/clients/items/`
-  — that breaks the table the user sees at `/apps/mc-worklog` and any
-  downstream reporting.
+- List `data/clients/items/` and find the slug whose `name` matches
+  "Acme" (case-insensitive substring is fine for a first pass).
+- If no match: ask the user whether to (a) create the client first
+  (via the `mc-clients` skill) or (b) use a literal slug they provide.
+- Never invent a clientId that doesn't exist in `data/clients/items/` —
+  it'll show up as a broken link in the worklog table.
 
 ## What to do
 
@@ -64,11 +63,24 @@ this iteration — just total hours per day per client.
 
 **List / summarize**: read `data/worklog/items/` and answer from those
 files. Don't recite the whole table in chat — the user can see it at
-`/apps/mc-worklog`. For aggregates ("how many hours did I bill Acme last
+`/collections/mc-worklog`. For aggregates ("how many hours did I bill Acme last
 month?") group by clientId + date range and answer in one line.
 
 **Edit / delete**: same conventions as `mc-clients` — read, merge, write,
 or unlink. Preserve fields you weren't asked to change.
+
+## Linking to an entry in chat
+
+When you reference a specific worklog entry in your reply, link to the
+collection view — NOT the raw JSON file path:
+
+- Do: `[2026-05-24 Acme](/collections/mc-worklog?highlight=2026-05-24-acme-corp-a1b2)`
+- Don't: `[…](data/worklog/items/2026-05-24-acme-corp-a1b2.json)` — that opens
+  the raw file in the Files view instead of the rendered table.
+
+Always include the `?highlight=<id>` query. Today it just opens the table; a
+later host update will use it to scroll to and highlight the matching row, and
+existing links will start working automatically.
 
 ## When to ask vs. when to act
 

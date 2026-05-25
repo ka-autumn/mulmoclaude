@@ -1,4 +1,4 @@
-// File-disclosure defense for the apps io module. The dataDir-level
+// File-disclosure defense for the collections io module. The dataDir-level
 // realpath containment in test_paths.ts only proves the directory
 // anchor is inside the workspace — a `*.json` symlink dropped INSIDE
 // an otherwise-contained data dir could still point at any file on
@@ -12,7 +12,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { listItems, readItem } from "../../../server/workspace/apps/io.js";
+import { listItems, readItem } from "../../../server/workspace/collections/io.js";
 
 let workdir: string;
 let dataDir: string;

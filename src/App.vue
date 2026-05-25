@@ -221,13 +221,14 @@
           <RolesView v-else-if="currentPage === 'roles'" />
           <SourcesView v-else-if="currentPage === 'sources'" />
           <NewsView v-else-if="currentPage === 'news'" />
-          <!-- Schema-driven apps. The route is `/apps/:slug?`; with
-               a slug we mount the CollectionView, without one we
-               mount the index. Both are host components (no
-               PluginScopedRoot needed) — they call the host's
-               /api/apps endpoints directly. -->
-          <AppCollectionView v-else-if="currentPage === 'apps' && route.params.slug" :key="String(route.params.slug)" />
-          <AppsIndexView v-else-if="currentPage === 'apps'" />
+          <!-- Schema-driven collections. The route is
+               `/collections/:slug?`; with a slug we mount the
+               CollectionView, without one we mount the index. Both
+               are host components (no PluginScopedRoot needed) —
+               they call the host's /api/collections endpoints
+               directly. -->
+          <CollectionView v-else-if="currentPage === 'collections' && route.params.slug" :key="String(route.params.slug)" />
+          <CollectionsIndexView v-else-if="currentPage === 'collections'" />
           <!-- Debug page (encore plan PR 1 follow-up). The View ships
                inside the @mulmoclaude/debug-plugin runtime package; we
                look it up by tool name and render the registered
@@ -338,8 +339,8 @@ import SkillsView from "./plugins/manageSkills/View.vue";
 import RolesView from "./components/RolesView.vue";
 import SourcesView from "./components/SourcesView.vue";
 import NewsView from "./components/NewsView.vue";
-import AppsIndexView from "./components/AppsIndexView.vue";
-import AppCollectionView from "./components/AppCollectionView.vue";
+import CollectionsIndexView from "./components/CollectionsIndexView.vue";
+import CollectionView from "./components/CollectionView.vue";
 import PluginScopedRoot from "./components/PluginScopedRoot.vue";
 import SettingsModal from "./components/SettingsModal.vue";
 import { PAGE_ROUTES, type PageRouteName } from "./router";
@@ -1059,6 +1060,13 @@ function navigateToWorkspacePath(href: string): void {
       break;
     case "session":
       handleSessionSelect(target.sessionId);
+      break;
+    case "spa-route":
+      // Top-level SPA route — push the URL directly and let vue-router
+      // resolve the matching route + params (it knows `/collections/:slug?`,
+      // `/todos/:itemId?`, etc.). This is what the bare push handles
+      // generically; we don't need to map per-route param names.
+      router.push(target.path).catch(() => {});
       break;
   }
 }

@@ -3,7 +3,7 @@
 // install any API mocks — the real Claude API runs end-to-end. Use
 // these helpers from specs in `e2e-live/tests/`.
 
-import { copyFile, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, lstat, mkdir, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -241,6 +241,48 @@ export async function removeProjectSkill(slug: string): Promise<void> {
   const stagingDir = resolveWorkspacePath(`data/skills/${slug}`);
   await rm(canonicalDir, { recursive: true, force: true });
   await rm(stagingDir, { recursive: true, force: true });
+}
+
+/**
+ * Seed a project-skill slot whose entry is a symlink pointing at a
+ * non-existent path. The discovery loop in
+ * `server/workspace/skills/discovery.ts:collectSkillsFromDir` calls
+ * `stat()` (not `lstat`) on every entry so a real symlink is
+ * transparently followed; when the target is missing `stat()` throws
+ * ENOENT and the entry is skipped. L-30 (B-08) drives that branch
+ * end-to-end to prove a dangling symlink (e.g. a host-relative
+ * `~/ss/llm/skills/...` link that disappears inside the sandbox)
+ * cannot crash discovery for the sibling skills sitting alongside it.
+ *
+ * Caller picks `target` (no implicit `/tmp` use) so the test can
+ * choose a path that's guaranteed missing even with parallel runs
+ * (e.g. nonce-stamped under `os.tmpdir()`). Slug must satisfy
+ * `isValidSlug` for the same reasons as {@link placeProjectSkill}.
+ */
+export async function placeBrokenSymlinkSkill(slug: string, target: string): Promise<void> {
+  assertValidSkillSlug(slug);
+  const linkPath = resolveWorkspacePath(`.claude/skills/${slug}`);
+  await mkdir(path.dirname(linkPath), { recursive: true });
+  await symlink(target, linkPath);
+}
+
+/**
+ * Best-effort delete for {@link placeBrokenSymlinkSkill}. Uses `lstat`
+ * to confirm the slot is still a symlink before `rm`-ing it — guards
+ * against an unlikely race where a parallel run replaced the link with
+ * a real dir we shouldn't touch. Silent no-op when the slot is gone.
+ */
+export async function removeBrokenSymlinkSkill(slug: string): Promise<void> {
+  assertValidSkillSlug(slug);
+  const linkPath = resolveWorkspacePath(`.claude/skills/${slug}`);
+  try {
+    const stat = await lstat(linkPath);
+    if (!stat.isSymbolicLink()) return;
+  } catch (err) {
+    if (isErrorWithCode(err) && err.code === "ENOENT") return;
+    throw err;
+  }
+  await rm(linkPath, { force: true });
 }
 
 /**
@@ -1475,6 +1517,47 @@ export async function getMcpToolsList(page: Page): Promise<McpToolSnapshot[]> {
   if (!probe.ok) throw new Error(`getMcpToolsList: ${probe.reason}`);
   if (!Array.isArray(probe.body)) throw new Error(`getMcpToolsList: ${API_ROUTES.mcpTools.list} returned non-array payload`);
   return probe.body.map((row, idx) => parseMcpToolRow(row, idx));
+}
+
+/**
+ * One row in the `/api/skills` listing. Specs only need the name to
+ * test for presence / absence (L-30 dangling-symlink resilience uses
+ * this), so the helper keeps the parsed shape minimal — `description`
+ * and `source` come back as `string | null` rather than the strict
+ * server type so a future schema add-on doesn't bite the spec.
+ */
+export interface SkillListEntry {
+  name: string;
+}
+
+/**
+ * Fetch the server's view of `/api/skills` directly, bypassing the
+ * SPA's `/skills` listing route. Used by L-30 (B-08 discovery
+ * resilience) to pin the server contract before falling through to
+ * the UI assertion — proves the discovery loop itself surfaced the
+ * sibling and skipped the dangling slot, independent of any rendering
+ * idiosyncrasies in `manageSkills/View.vue`.
+ */
+export async function listSkillsViaApi(page: Page): Promise<SkillListEntry[]> {
+  const probe = await fetchAuthedJsonViaPage(page, API_ROUTES.skills.list.url);
+  if (!probe.ok) throw new Error(`listSkillsViaApi: ${probe.reason}`);
+  if (!isRecord(probe.body)) throw new Error(`listSkillsViaApi: unexpected payload ${JSON.stringify(probe.body)}`);
+  const { skills } = probe.body;
+  if (!Array.isArray(skills)) throw new Error(`listSkillsViaApi: skills field is not an array (got ${JSON.stringify(skills)})`);
+  return skills.map((row, idx) => parseSkillListRow(row, idx));
+}
+
+/**
+ * Pure parser for one `/api/skills` row. Exported so unit tests can
+ * exercise the validation contract directly (CodeRabbit iter-1 review
+ * — keeps "pure logic in exported helpers for testability" per
+ * CLAUDE.md, without routing through Playwright / page plumbing).
+ */
+export function parseSkillListRow(row: unknown, idx: number): SkillListEntry {
+  if (!isRecord(row)) throw new Error(`skillsList[${idx}] is not an object`);
+  const { name } = row;
+  if (typeof name !== "string") throw new Error(`skillsList[${idx}].name is not a string`);
+  return { name };
 }
 
 function parseMcpToolRow(row: unknown, idx: number): McpToolSnapshot {

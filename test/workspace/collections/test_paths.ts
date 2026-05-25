@@ -1,4 +1,4 @@
-// Realpath-based containment + slug-safety tests for the apps module.
+// Realpath-based containment + slug-safety tests for the collections module.
 //
 // Locks in the symlink-traversal fix from the PR-1483 second review:
 // `resolveDataDir` used to do only lexical normalization, so a
@@ -16,7 +16,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { isContainedInRoot, safeSlugName } from "../../../server/workspace/apps/paths.js";
+import { isContainedInRoot, safeSlugName } from "../../../server/workspace/collections/paths.js";
 
 let rootDir: string;
 let outsideDir: string;

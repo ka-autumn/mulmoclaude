@@ -10,11 +10,11 @@
 
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { syncPresetSkills, isPresetSlug } from "../../server/workspace/skills-preset.js";
+import { syncActivePresetSkills, syncPresetSkills, isPresetSlug } from "../../server/workspace/skills-preset.js";
 
 let workdir: string;
 let sourceDir: string;
@@ -336,6 +336,169 @@ describe("syncPresetSkills — combined scenarios", () => {
     assert.match(readFileSync(path.join(destDir, "mc-keep", "SKILL.md"), "utf-8"), /refreshed/);
     assert.ok(existsSync(path.join(destDir, "mc-new", "SKILL.md")));
     assert.equal(readFileSync(path.join(destDir, "library", "SKILL.md"), "utf-8"), "user content");
+  });
+});
+
+// ---------------------------------------------------------------
+// syncActivePresetSkills — refreshes the already-starred copy in
+// `.claude/skills/<slug>/` to match the source. New in the
+// apps→collections rename PR; the rename itself was the trigger.
+// ---------------------------------------------------------------
+
+describe("syncActivePresetSkills", () => {
+  let activeDir: string;
+
+  beforeEach(() => {
+    activeDir = path.join(workdir, "active");
+    mkdirSync(activeDir, { recursive: true });
+  });
+
+  function writeActiveSkill(slug: string, body: string): void {
+    const slugDir = path.join(activeDir, slug);
+    mkdirSync(slugDir, { recursive: true });
+    writeFileSync(path.join(slugDir, "SKILL.md"), body);
+  }
+
+  it("overwrites the active SKILL.md when the source has changed, backing up the prior contents", () => {
+    writePresetSource("mc-clients", "NEW BODY");
+    writeActiveSkill("mc-clients", "OLD BODY");
+    const result = syncActivePresetSkills({ sourceDir, activeDir });
+    assert.deepEqual(result.updated, ["mc-clients"]);
+    assert.equal(result.unchanged.length, 0);
+    const activeSkillPath = path.join(activeDir, "mc-clients", "SKILL.md");
+    assert.ok(readFileSync(activeSkillPath, "utf-8").includes("NEW BODY"));
+    const backups = readdirSync(path.join(activeDir, "mc-clients")).filter((entry) => entry.startsWith("SKILL.md.bak."));
+    assert.equal(backups.length, 1, "expected exactly one .bak file alongside SKILL.md");
+    assert.equal(readFileSync(path.join(activeDir, "mc-clients", backups[0]), "utf-8"), "OLD BODY");
+  });
+
+  it("is a no-op when the active copy already matches source (no .bak created)", () => {
+    writePresetSource("mc-clients", "SAME BODY");
+    const activeSlugDir = path.join(activeDir, "mc-clients");
+    mkdirSync(activeSlugDir, { recursive: true });
+    writeFileSync(path.join(activeSlugDir, "SKILL.md"), `---\nname: mc-clients\ndescription: test fixture\n---\nSAME BODY\n`);
+    const result = syncActivePresetSkills({ sourceDir, activeDir });
+    assert.deepEqual(result.unchanged, ["mc-clients"]);
+    assert.equal(result.updated.length, 0);
+    const entries = readdirSync(activeSlugDir);
+    assert.deepEqual(
+      entries.filter((entry) => entry.includes(".bak.")),
+      [],
+      "no .bak file should be created when contents already match",
+    );
+  });
+
+  it("skips slugs that haven't been starred yet (never auto-stars)", () => {
+    writePresetSource("mc-worklog", "NEVER STARRED");
+    const result = syncActivePresetSkills({ sourceDir, activeDir });
+    assert.deepEqual(result.notActive, ["mc-worklog"]);
+    assert.equal(result.updated.length, 0);
+    assert.equal(existsSync(path.join(activeDir, "mc-worklog")), false, "must not auto-create the active dir");
+  });
+
+  it("leaves user-added files in the active slug dir untouched", () => {
+    // Same body in both so the SKILL.md compare is a no-op — the
+    // assertion of interest is that `my-notes.md` (which only
+    // exists in active) survives the sync.
+    writePresetSource("mc-clients", "SOURCE BODY");
+    const activeSlugDir = path.join(activeDir, "mc-clients");
+    mkdirSync(activeSlugDir, { recursive: true });
+    writeFileSync(path.join(activeSlugDir, "SKILL.md"), `---\nname: mc-clients\ndescription: test fixture\n---\nSOURCE BODY\n`);
+    const userFile = path.join(activeSlugDir, "my-notes.md");
+    writeFileSync(userFile, "user's private notes");
+    const result = syncActivePresetSkills({ sourceDir, activeDir });
+    assert.deepEqual(result.unchanged, ["mc-clients"]);
+    assert.equal(readFileSync(userFile, "utf-8"), "user's private notes");
+  });
+
+  it("ignores non-mc-* slugs even if they exist under sourceDir", () => {
+    // Defense in depth — `syncPresetSkills` already rejects non-mc
+    // slugs at the source side, but `syncActivePresetSkills` should
+    // double-check so a stray non-prefixed source dir can never
+    // touch a user-authored skill of the same name.
+    mkdirSync(path.join(sourceDir, "user-private"), { recursive: true });
+    writeFileSync(path.join(sourceDir, "user-private", "SKILL.md"), "INJECTED");
+    writeActiveSkill("user-private", "USER VERSION");
+    const result = syncActivePresetSkills({ sourceDir, activeDir });
+    assert.equal(result.updated.length, 0);
+    assert.equal(result.notActive.length, 0);
+    assert.equal(readFileSync(path.join(activeDir, "user-private", "SKILL.md"), "utf-8"), "USER VERSION");
+  });
+
+  it("returns empty result when sourceDir is missing", () => {
+    const result = syncActivePresetSkills({ sourceDir: path.join(workdir, "nonexistent"), activeDir });
+    assert.deepEqual(result, { updated: [], unchanged: [], notActive: [], skipped: [], backupSuffix: null });
+  });
+
+  // Codex P1 review on PR #1490: the original `syncActivePresetSkills`
+  // used `statSync` (follows symlinks) on the dest slug dir, so a
+  // starred `mc-*` slug that was actually a symlink to outside the
+  // workspace would let the recursive copy write to the link's
+  // target. Pin the realpath-containment rejection here so a
+  // regression resurfaces the file-disclosure / arbitrary-write
+  // primitive immediately.
+
+  it("refuses to sync when the active slug dir is a symlink pointing outside activeDir", () => {
+    writePresetSource("mc-clients", "NEW BODY");
+    // Outside-the-workspace target the symlink points at.
+    const outsideDir = mkdtempSync(path.join(tmpdir(), "outside-active-"));
+    writeFileSync(path.join(outsideDir, "SKILL.md"), "ATTACKER WOULD LOVE TO READ/WRITE THIS");
+    try {
+      // Active slot is a symlink, not a real dir.
+      symlinkSync(outsideDir, path.join(activeDir, "mc-clients"));
+      const warnings: string[] = [];
+      const result = syncActivePresetSkills({
+        sourceDir,
+        activeDir,
+        onWarn: (message, data) => warnings.push(`${message} ${JSON.stringify(data)}`),
+      });
+      assert.equal(result.updated.length, 0, "must not report success");
+      assert.equal(result.skipped.length, 1);
+      assert.match(result.skipped[0], /mc-clients/);
+      assert.match(result.skipped[0], /symlink|escapes/);
+      // The outside file must remain untouched (no overwrite, no .bak rename).
+      assert.equal(readFileSync(path.join(outsideDir, "SKILL.md"), "utf-8"), "ATTACKER WOULD LOVE TO READ/WRITE THIS");
+      assert.deepEqual(
+        readdirSync(outsideDir).filter((entry) => entry.includes(".bak.")),
+        [],
+      );
+      assert.ok(
+        warnings.some((line) => /symlink|escapes/.test(line)),
+        "must log a warning",
+      );
+    } finally {
+      rmSync(outsideDir, { recursive: true, force: true });
+    }
+  });
+
+  it("accepts a symlink whose target stays inside activeDir (intra-workspace symlink)", () => {
+    // Symlinks within the workspace are legitimate (e.g. a user
+    // who likes git-managing their skills via a checkout under
+    // .claude/_repo/ and symlinks the active dir to it). Make
+    // sure we don't false-positive on those.
+    writePresetSource("mc-clients", "FRESH FROM SOURCE");
+    const realSlugDir = path.join(activeDir, "mc-clients-real");
+    mkdirSync(realSlugDir, { recursive: true });
+    writeFileSync(path.join(realSlugDir, "SKILL.md"), "STALE");
+    symlinkSync(realSlugDir, path.join(activeDir, "mc-clients"));
+    const result = syncActivePresetSkills({ sourceDir, activeDir });
+    assert.deepEqual(result.updated, ["mc-clients"]);
+    assert.match(readFileSync(path.join(realSlugDir, "SKILL.md"), "utf-8"), /FRESH FROM SOURCE/);
+  });
+
+  it("syncs newly-added files from source to an existing active dir", () => {
+    // e.g. `schema.json` was added to a preset that the user had
+    // already starred when only SKILL.md existed.
+    writePresetSource("mc-clients", "SKILL BODY");
+    const srcSchema = path.join(sourceDir, "mc-clients", "schema.json");
+    writeFileSync(srcSchema, '{"title":"X"}');
+    writeActiveSkill("mc-clients", `---\nname: mc-clients\ndescription: test fixture\n---\nSKILL BODY\n`);
+    const result = syncActivePresetSkills({ sourceDir, activeDir });
+    assert.deepEqual(result.updated, ["mc-clients"]);
+    const activeSchema = path.join(activeDir, "mc-clients", "schema.json");
+    assert.equal(readFileSync(activeSchema, "utf-8"), '{"title":"X"}');
+    // No .bak — schema.json didn't exist before.
+    assert.equal(readdirSync(path.join(activeDir, "mc-clients")).filter((entry) => entry.includes(".bak.")).length, 0);
   });
 });
 

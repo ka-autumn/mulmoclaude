@@ -5,15 +5,41 @@
 //
 // Pure function — no DOM or Vue dependencies, fully unit-testable.
 
+import { PAGE_ROUTES } from "../../router/pageRoutes";
 import { isExternalHref, extractSessionIdFromPath } from "./relativeLink";
 
-export type WorkspaceLinkTarget = { kind: "wiki"; slug: string } | { kind: "file"; path: string } | { kind: "session"; sessionId: string };
+export type WorkspaceLinkTarget =
+  | { kind: "wiki"; slug: string }
+  | { kind: "file"; path: string }
+  | { kind: "session"; sessionId: string }
+  /** A top-level SPA route like `/collections/mc-clients`,
+   *  `/calendar`, `/todos/<id>`. `path` includes the leading slash
+   *  so callers can pass it directly to `router.push(string)`. */
+  | { kind: "spa-route"; path: string };
 
 // Match `data/wiki/pages/<slug>.md` or `wiki/pages/<slug>.md`.
 const WIKI_PAGE_PATTERN = /(?:data\/)?wiki\/pages\/([^/]+)\.md$/;
 
 // Match `conversations/chat/<id>.jsonl` (delegates to extractSessionIdFromPath).
 const CHAT_LOG_PREFIX = "conversations/";
+
+// Top-level SPA route names whose leading-segment match should
+// short-circuit the files-view fallback. Without this set, an
+// agent-emitted link like `[Microsoft](/collections/mc-clients)` or
+// `[my calendar](/calendar)` falls into the `kind: "file"` default
+// and gets routed to `/files/collections/mc-clients`, which 404s
+// because that path doesn't exist on disk.
+//
+// `chat` and `files` are intentionally OMITTED:
+//   - `chat`: agent-emitted chat links go through the
+//     `conversations/chat/<id>.jsonl` convention above so the
+//     session-load handler (mark-read, start-chat) runs. A bare
+//     `/chat/<id>` would skip that flow.
+//   - `files`: a bare `/files/<path>` from agent text is already
+//     a file-view URL — letting it stay in the file fallback
+//     keeps the per-segment URL encoding the catch-all route does
+//     (see App.vue navigateToWorkspacePath#file).
+const SPA_ROUTE_NAMES: ReadonlySet<string> = new Set(Object.values(PAGE_ROUTES).filter((name) => name !== PAGE_ROUTES.chat && name !== PAGE_ROUTES.files));
 
 /**
  * Given a raw href attribute from agent Markdown, return a typed
@@ -60,6 +86,26 @@ export function classifyWorkspacePath(href: string): WorkspaceLinkTarget | null 
     if (sessionId) {
       return { kind: "session", sessionId };
     }
+  }
+
+  // Top-level SPA route: leading segment names one of the host's
+  // pages (collections, calendar, todos, automations, skills, …).
+  // Without this branch, those links would be routed to the Files
+  // view (with `files/` prepended) and 404 — the trigger for this
+  // generalization was `[X](/collections/mc-clients)` from the
+  // mc-clients SKILL.md ending up at `/files/collections/mc-clients`.
+  //
+  // Caveat: a workspace file path that happens to share a leading
+  // segment with a SPA route (`skills/guide.md`, `news/archive.json`,
+  // etc.) must NOT get reclassified as SPA — the router defines
+  // `/skills` as an exact match and `skills/guide.md` would resolve
+  // away from the file view, hiding the file. Heuristic: if any
+  // non-leading segment looks like it has a file extension, the
+  // path is treated as a file, not a route. Slugs don't normally
+  // carry dots; file extensions almost always do.
+  const [firstSegment, ...restSegments] = normalized.split("/");
+  if (SPA_ROUTE_NAMES.has(firstSegment) && !restSegments.some(looksLikeFileSegment)) {
+    return { kind: "spa-route", path: `/${normalized}` };
   }
 
   // Everything else: open in Files view
@@ -111,6 +157,21 @@ function decodeSegment(seg: string): string {
   } catch {
     return seg;
   }
+}
+
+// Matches a trailing `.ext` (1-8 alphanumeric chars) on a path
+// segment. Slugs are kebab-case alphanumeric without dots, so a
+// segment ending in a `.ext`-shape is almost certainly a file
+// (`.md`, `.json`, `.png`, `.jsonl`, …). Bounded length avoids
+// false positives on slugs with a single trailing dot.
+//
+// Used by the SPA-route classifier to decline reclassifying file
+// paths that share a leading segment with a SPA route (e.g.
+// `skills/guide.md`). Standalone helper so the test file can
+// exercise edge cases (`mc-clients` vs `mc-clients.v2` vs
+// `notes.txt`) directly.
+function looksLikeFileSegment(segment: string): boolean {
+  return /\.[a-zA-Z0-9]{1,8}$/.test(segment);
 }
 
 function stripFragmentAndQuery(str: string): string {

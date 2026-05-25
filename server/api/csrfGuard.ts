@@ -10,7 +10,7 @@
 // This middleware checks the Origin header on every non-safe
 // method and rejects anything that didn't come from localhost
 // (or an operator-allowlisted Origin — see `MULMOCLAUDE_TRUSTED_ORIGINS`
-// in server/system/env.ts and plans/feat-csrf-trusted-origins.md).
+// in server/system/env.ts and plans/done/feat-csrf-trusted-origins.md).
 // Requests with NO Origin header are allowed — that's how
 // non-browser callers (MCP tools, curl, CLI scripts) look, and
 // they're trustable only because the server binds to 127.0.0.1

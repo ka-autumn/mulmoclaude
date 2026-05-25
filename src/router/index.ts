@@ -82,10 +82,15 @@ const routes: RouteRecordRaw[] = [
   //     active obligations + cycle history. Reached from the
   //     top-bar launcher. See plans/done/feat-encore-as-builtin.md.
   { path: "/encore", name: PAGE_ROUTES.encore, component: Stub },
-  // Schema-driven apps (see plans/feat-skill-driven-apps.md). `/apps`
-  // lists every discovered app; `/apps/:slug` opens that app's
-  // CollectionView.
-  { path: "/apps/:slug?", name: PAGE_ROUTES.apps, component: Stub },
+  // Schema-driven collections (see plans/done/feat-skill-driven-apps.md
+  // — historical name predates the apps→collections rename).
+  // `/collections` lists every discovered collection;
+  // `/collections/:slug` opens that collection's <CollectionView>.
+  { path: "/collections/:slug?", name: PAGE_ROUTES.collections, component: Stub },
+  // Legacy `/apps` URL — kept as a redirect for ~one release so any
+  // existing bookmarks survive the rename. Safe to delete after.
+  { path: "/apps", redirect: "/collections" },
+  { path: "/apps/:slug", redirect: (route) => `/collections/${encodeURIComponent(String(route.params.slug))}` },
   { path: "/:pathMatch(.*)*", redirect: "/chat" },
 ];
 

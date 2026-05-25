@@ -1,4 +1,4 @@
-// Read / write item files for schema-driven apps. Records live at
+// Read / write item files for schema-driven collections. Records live at
 // `<dataDir>/<itemId>.json`, one JSON object per file. Writes are
 // atomic; deletes are idempotent enough to expose a clear 404 when
 // the file is missing.
@@ -10,7 +10,7 @@ import { log } from "../../system/logger/index.js";
 import { writeFileAtomic } from "../../utils/files/atomic.js";
 import { workspacePath } from "../workspace.js";
 import { isContainedInRoot, itemFilePath, safeSlugName } from "./paths.js";
-import type { AppItem } from "./types.js";
+import type { CollectionItem } from "./types.js";
 
 export interface IoOptions {
   /** Override the workspace root for containment checks. Default:
@@ -41,13 +41,13 @@ async function isRegularFile(filePath: string): Promise<boolean> {
  *  or has a read/parse error. Caller logs the per-entry skip — this
  *  helper just classifies. Split out to keep `listItems` under the
  *  `sonarjs/cognitive-complexity` threshold. */
-async function tryReadRecord(filePath: string): Promise<AppItem | null> {
+async function tryReadRecord(filePath: string): Promise<CollectionItem | null> {
   if (!(await isRegularFile(filePath))) return null;
   try {
     const raw = await readFile(filePath, "utf-8");
     const parsed = JSON.parse(raw) as unknown;
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return parsed as AppItem;
+      return parsed as CollectionItem;
     }
     return null;
   } catch {
@@ -61,10 +61,10 @@ async function tryReadRecord(filePath: string): Promise<AppItem | null> {
  *  defense — see `isRegularFile`). Re-validates the realpath
  *  containment to defend against a symlinked data dir appearing
  *  between discovery and use. */
-export async function listItems(dataDir: string, opts: IoOptions = {}): Promise<AppItem[]> {
+export async function listItems(dataDir: string, opts: IoOptions = {}): Promise<CollectionItem[]> {
   const workspaceRoot = opts.workspaceRoot ?? workspacePath;
   if (!isContainedInRoot(dataDir, workspaceRoot)) {
-    log.warn("apps", "listItems refused: dataDir escapes workspace via symlink", { dataDir });
+    log.warn("collections", "listItems refused: dataDir escapes workspace via symlink", { dataDir });
     return [];
   }
   let entries: string[];
@@ -75,14 +75,14 @@ export async function listItems(dataDir: string, opts: IoOptions = {}): Promise<
     if (error.code === "ENOENT") return [];
     throw err;
   }
-  const results: AppItem[] = [];
+  const results: CollectionItem[] = [];
   for (const name of entries) {
     if (!name.endsWith(".json")) continue;
     if (name.startsWith(".")) continue;
     const filePath = path.join(dataDir, name);
     const record = await tryReadRecord(filePath);
     if (record === null) {
-      log.warn("apps", "skipping record (missing, symlink, or unreadable)", { path: filePath });
+      log.warn("collections", "skipping record (missing, symlink, or unreadable)", { path: filePath });
       continue;
     }
     results.push(record);
@@ -94,7 +94,7 @@ export async function listItems(dataDir: string, opts: IoOptions = {}): Promise<
  *  when the resolved path escapes the workspace via a symlink, or
  *  when the record file itself is a symlink (file-disclosure
  *  defense — see `isRegularFile`). */
-export async function readItem(dataDir: string, itemId: string, opts: IoOptions = {}): Promise<AppItem | null> {
+export async function readItem(dataDir: string, itemId: string, opts: IoOptions = {}): Promise<CollectionItem | null> {
   const safeId = safeSlugName(itemId);
   if (safeId === null) return null;
   const workspaceRoot = opts.workspaceRoot ?? workspacePath;
@@ -105,7 +105,7 @@ export async function readItem(dataDir: string, itemId: string, opts: IoOptions 
     const raw = await readFile(filePath, "utf-8");
     const parsed = JSON.parse(raw) as unknown;
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return parsed as AppItem;
+      return parsed as CollectionItem;
     }
     return null;
   } catch (err) {
@@ -122,7 +122,7 @@ export interface WriteItemOptions extends IoOptions {
 }
 
 export type WriteItemResult =
-  | { kind: "ok"; itemId: string; item: AppItem }
+  | { kind: "ok"; itemId: string; item: CollectionItem }
   | { kind: "invalid-id"; itemId: string }
   | { kind: "conflict"; itemId: string }
   | { kind: "path-escape"; itemId: string };
@@ -141,7 +141,7 @@ export type WriteItemResult =
  *
  *  Update path (`refuseOverwrite: false`) uses `writeFileAtomic` so
  *  PUT remains crash-atomic. No race there — the URL pins the id. */
-export async function writeItem(dataDir: string, itemId: string, item: AppItem, opts: WriteItemOptions = {}): Promise<WriteItemResult> {
+export async function writeItem(dataDir: string, itemId: string, item: CollectionItem, opts: WriteItemOptions = {}): Promise<WriteItemResult> {
   const safeId = safeSlugName(itemId);
   if (safeId === null) return { kind: "invalid-id", itemId };
   const workspaceRoot = opts.workspaceRoot ?? workspacePath;
@@ -151,12 +151,12 @@ export async function writeItem(dataDir: string, itemId: string, item: AppItem, 
   // a symlink racing in between the two — belt + suspenders, cheap
   // and the only honest defense against TOCTOU on directory creation.
   if (!isContainedInRoot(dataDir, workspaceRoot)) {
-    log.warn("apps", "writeItem refused: dataDir escapes workspace via symlink (pre-mkdir)", { dataDir, itemId: safeId });
+    log.warn("collections", "writeItem refused: dataDir escapes workspace via symlink (pre-mkdir)", { dataDir, itemId: safeId });
     return { kind: "path-escape", itemId: safeId };
   }
   await mkdir(dataDir, { recursive: true });
   if (!isContainedInRoot(dataDir, workspaceRoot)) {
-    log.warn("apps", "writeItem refused: dataDir escapes workspace via symlink (post-mkdir)", { dataDir, itemId: safeId });
+    log.warn("collections", "writeItem refused: dataDir escapes workspace via symlink (post-mkdir)", { dataDir, itemId: safeId });
     return { kind: "path-escape", itemId: safeId };
   }
   const filePath = itemFilePath(dataDir, safeId);
@@ -194,7 +194,7 @@ export async function deleteItem(dataDir: string, itemId: string, opts: IoOption
   if (safeId === null) return { kind: "invalid-id", itemId };
   const workspaceRoot = opts.workspaceRoot ?? workspacePath;
   if (!isContainedInRoot(dataDir, workspaceRoot)) {
-    log.warn("apps", "deleteItem refused: dataDir escapes workspace via symlink", { dataDir, itemId: safeId });
+    log.warn("collections", "deleteItem refused: dataDir escapes workspace via symlink", { dataDir, itemId: safeId });
     return { kind: "path-escape", itemId: safeId };
   }
   const filePath = itemFilePath(dataDir, safeId);
