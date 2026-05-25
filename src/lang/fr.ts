@@ -1153,8 +1153,10 @@ const frMessages = {
       'Remettre "{name}" dans le catalogue ? Elle ne sera plus chargée dans le prompt, mais la copie du catalogue reste — vous pouvez la remettre en favori à tout moment.',
     sectionActive: "Actives",
     sectionCatalog: "Catalogue",
-    sectionLegend:
-      "Actives : chargées automatiquement dans le prompt à chaque tour ({system} Système = incluses mc- · {project} Projet = modifiables · {user} Utilisateur = ~/.claude/skills/). Catalogue : skills disponibles mais pas encore activées — non chargées dans le prompt. ★Mettre en favori déplace la skill vers Actives (chargée à chaque tour ensuite) ; ▶Exécuter une fois l'invoque une seule fois sans l'activer.",
+    sectionLegendActive:
+      "Actives : skills que Claude peut utiliser dès maintenant ({system} mc- intégrée / {project} projet / {user} utilisateur). Claude les utilise automatiquement dans le fil de la conversation, ou vous pouvez en invoquer une en saisissant son nom.",
+    sectionLegendCatalog:
+      "Catalogue : skills qui deviennent Actives quand vous les marquez par ★. Retirer le favori depuis Actives renvoie la skill au Catalogue — Claude cesse de l'utiliser (la skill n'est pas supprimée). ▶ exécute la skill une seule fois sans l'ajouter.",
     catalogEmpty: "Aucune skill de préréglage disponible.",
     catalogPresetHeading: "Préréglages",
     catalogStar: "Favori",

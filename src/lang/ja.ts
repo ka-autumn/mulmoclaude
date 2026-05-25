@@ -1145,8 +1145,10 @@ const jaMessages = {
     confirmUnstar: "「{name}」をカタログに戻しますか? アクティブから外れてプロンプトに読み込まれなくなりますが、カタログには残るのでいつでも再有効化できます。",
     sectionActive: "アクティブ",
     sectionCatalog: "カタログ",
-    sectionLegend:
-      "アクティブ: 毎ターン自動でプロンプトに読み込まれるスキル ({system} システム = mc- 同梱 · {project} プロジェクト = 編集可 · {user} ユーザー = ~/.claude/skills/)。カタログ: 使えるけどまだ有効化していないスキル — プロンプトには含まれません。★スターでアクティブに移動 (以降ずっと毎ターン読み込まれる)、▶今だけ実行は 1 回だけ呼び出し (有効化はしません)。",
+    sectionLegendActive:
+      "アクティブ: Claude がいま使えるスキル ({system} mc- 同梱 / {project} プロジェクト / {user} ユーザー共通)。会話の流れで Claude が自動的に使うほか、スキル名を指定して呼び出すこともできます。",
+    sectionLegendCatalog:
+      "カタログ: ★ を付けるとアクティブになるスキル。アクティブから ★ を外せばカタログに戻り、Claude は使わなくなります (削除はされません)。▶ は追加せずに 1 回だけ実行します。",
     catalogEmpty: "利用できるプリセットスキルがありません。",
     catalogPresetHeading: "プリセット",
     catalogStar: "スター",

@@ -1146,8 +1146,10 @@ const koMessages = {
     confirmUnstar: '"{name}" 을(를) 카탈로그로 되돌릴까요? 프롬프트에는 더 이상 로드되지 않지만, 카탈로그의 복사본은 남아 있어 언제든 다시 별표할 수 있습니다.',
     sectionActive: "활성",
     sectionCatalog: "카탈로그",
-    sectionLegend:
-      "활성: 매 턴마다 프롬프트에 자동으로 로드되는 스킬 ({system} 시스템 = mc- 동봉 · {project} 프로젝트 = 편집 가능 · {user} 사용자 = ~/.claude/skills/). 카탈로그: 사용 가능하지만 아직 활성화하지 않은 스킬 — 프롬프트에 포함되지 않습니다. ★별 표시는 스킬을 활성으로 이동 (이후 매 턴마다 로드됨), ▶한 번만 실행은 활성화하지 않고 1회만 호출합니다.",
+    sectionLegendActive:
+      "활성: Claude가 지금 사용할 수 있는 스킬 ({system} mc- 동봉 / {project} 프로젝트 / {user} 사용자 공통). 대화 흐름에서 Claude가 자동으로 사용하거나, 스킬 이름을 입력해 호출할 수 있습니다.",
+    sectionLegendCatalog:
+      "카탈로그: ★를 누르면 활성이 되는 스킬. 활성에서 ★를 해제하면 카탈로그로 돌아가고 Claude는 사용하지 않게 됩니다 (스킬은 삭제되지 않습니다). ▶는 추가하지 않고 한 번만 실행합니다.",
     catalogEmpty: "사용 가능한 프리셋 스킬이 없습니다.",
     catalogPresetHeading: "프리셋",
     catalogStar: "별 표시",

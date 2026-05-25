@@ -1159,8 +1159,10 @@ const esMessages = {
       '¿Devolver "{name}" al catálogo? Dejará de cargarse en el prompt, pero la copia del catálogo permanece — puedes volver a destacarla cuando quieras.',
     sectionActive: "Activas",
     sectionCatalog: "Catálogo",
-    sectionLegend:
-      "Activas: cargadas automáticamente en el prompt en cada turno ({system} Sistema = incluidas mc- · {project} Proyecto = editables · {user} Usuario = ~/.claude/skills/). Catálogo: skills disponibles pero aún no activadas — no se cargan en el prompt. ★Destacar mueve la skill a Activas (se cargará en cada turno a partir de entonces); ▶Ejecutar una vez la invoca una sola vez sin activarla.",
+    sectionLegendActive:
+      "Activas: skills que Claude puede usar ahora mismo ({system} mc- incluida / {project} proyecto / {user} de usuario). Claude las usa automáticamente en el flujo de la conversación, o puedes invocar una escribiendo su nombre.",
+    sectionLegendCatalog:
+      "Catálogo: skills que pasan a Activas al destacarlas con ★. Quitar la estrella desde Activas devuelve la skill al Catálogo — Claude deja de usarla (la skill no se elimina). ▶ ejecuta la skill una sola vez sin añadirla.",
     catalogEmpty: "No hay skills de preajuste disponibles.",
     catalogPresetHeading: "Preajustes",
     catalogStar: "Destacar",

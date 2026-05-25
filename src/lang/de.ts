@@ -1163,8 +1163,10 @@ const deMessages = {
       'Skill "{name}" zurück in den Katalog verschieben? Sie wird nicht mehr in den Prompt geladen, aber die Katalog-Kopie bleibt erhalten — du kannst sie jederzeit erneut markieren.',
     sectionActive: "Aktiv",
     sectionCatalog: "Katalog",
-    sectionLegend:
-      "Aktiv: in jedem Turn automatisch in den Prompt geladen ({system} System = mc- mitgeliefert · {project} Projekt = bearbeitbar · {user} Benutzer = ~/.claude/skills/). Katalog: Skills, die verfügbar, aber noch nicht aktiviert sind — werden nicht in den Prompt geladen. ★Markieren verschiebt eine Skill nach Aktiv (danach in jedem Turn geladen); ▶Einmal ausführen ruft sie genau einmal auf, ohne sie zu aktivieren.",
+    sectionLegendActive:
+      "Aktiv: Skills, die Claude jetzt verwenden kann ({system} mc- mitgeliefert / {project} Projekt / {user} Nutzer). Claude verwendet sie automatisch im Verlauf des Gesprächs, oder du kannst eine durch Eingabe ihres Namens aufrufen.",
+    sectionLegendCatalog:
+      "Katalog: Skills, die durch ★ Markieren Aktiv werden. Markierung in Aktiv entfernen bringt eine Skill zurück in den Katalog — Claude verwendet sie dann nicht mehr (die Skill wird nicht gelöscht). ▶ führt die Skill einmal aus, ohne sie hinzuzufügen.",
     catalogEmpty: "Keine Preset-Skills verfügbar.",
     catalogPresetHeading: "Presets",
     catalogStar: "Markieren",

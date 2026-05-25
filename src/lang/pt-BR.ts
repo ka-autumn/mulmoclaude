@@ -1148,8 +1148,10 @@ const ptBRMessages = {
       'Mover "{name}" de volta ao catálogo? Ela deixará de ser carregada no prompt, mas a cópia do catálogo permanece — você pode favoritá-la novamente quando quiser.',
     sectionActive: "Ativas",
     sectionCatalog: "Catálogo",
-    sectionLegend:
-      "Ativas: carregadas automaticamente no prompt em cada turno ({system} Sistema = inclusas mc- · {project} Projeto = editáveis · {user} Usuário = ~/.claude/skills/). Catálogo: skills disponíveis mas ainda não ativadas — não são carregadas no prompt. ★Favoritar move a skill para Ativas (carregada em cada turno depois disso); ▶Executar uma vez a invoca uma única vez sem ativá-la.",
+    sectionLegendActive:
+      "Ativas: skills que o Claude pode usar agora ({system} mc- inclusa / {project} projeto / {user} de usuário). O Claude as usa automaticamente no fluxo da conversa, ou você pode invocar uma digitando seu nome.",
+    sectionLegendCatalog:
+      "Catálogo: skills que passam a ser Ativas ao marcar com ★. Remover o favorito de Ativas devolve a skill ao Catálogo — o Claude deixa de usá-la (a skill não é excluída). ▶ executa a skill uma única vez sem adicioná-la.",
     catalogEmpty: "Nenhuma skill de preset disponível.",
     catalogPresetHeading: "Presets",
     catalogStar: "Favoritar",

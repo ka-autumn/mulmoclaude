@@ -1136,8 +1136,9 @@ const zhMessages = {
     confirmUnstar: '将 "{name}" 移回目录? 它将不再被载入提示词,但目录中的副本会保留 — 你可以随时重新收藏它。',
     sectionActive: "活动",
     sectionCatalog: "目录",
-    sectionLegend:
-      "活动: 每轮对话都会自动载入提示词 ({system} 系统 = mc- 随附 · {project} 项目 = 可编辑 · {user} 用户 = ~/.claude/skills/)。目录: 可用但尚未激活的技能 — 不会载入提示词。★收藏可将技能移到活动 (之后每轮都会载入)，▶运行一次只调用一次而不激活。",
+    sectionLegendActive:
+      "活动: Claude 现在可以使用的技能 ({system} mc- 自带 / {project} 项目 / {user} 用户通用)。在对话过程中 Claude 会自动调用，你也可以输入技能名来调用。",
+    sectionLegendCatalog: "目录: 标记 ★ 后会成为活动的技能。从活动中取消 ★ 会回到目录 — Claude 将不再使用 (技能不会被删除)。▶ 不加入活动，只运行一次。",
     catalogEmpty: "没有可用的预设技能。",
     catalogPresetHeading: "预设",
     catalogStar: "收藏",

@@ -1145,8 +1145,10 @@ const enMessages = {
     confirmUnstar: 'Move "{name}" back to the catalog? It will stop loading into the prompt, but the catalog copy stays — you can re-star it any time.',
     sectionActive: "Active",
     sectionCatalog: "Catalog",
-    sectionLegend:
-      "Active: loaded into the prompt every turn ({system} System = mc- bundled · {project} Project = editable · {user} User = ~/.claude/skills/). Catalog: skills you can use but haven't activated — not loaded into the prompt. ★ Star moves a skill to Active (loaded every turn after that); ▶ Run once invokes it one time without activating it.",
+    sectionLegendActive:
+      "Active: skills Claude can use right now ({system} mc- bundled / {project} project / {user} user-wide). Claude calls them automatically in the flow of a conversation, or you can invoke one by typing its name.",
+    sectionLegendCatalog:
+      "Catalog: skills that become Active when starred. Unstarring from Active sends a skill back to Catalog — Claude stops using it (the skill is not deleted). ▶ runs the skill once without adding it.",
     catalogEmpty: "No preset skills available.",
     catalogPresetHeading: "Presets",
     catalogStar: "Star",
