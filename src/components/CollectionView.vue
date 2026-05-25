@@ -48,7 +48,13 @@
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-100">
-          <tr v-for="item in items" :key="String(item[collection.schema.primaryKey] ?? '')" class="hover:bg-gray-50">
+          <tr
+            v-for="item in items"
+            :key="String(item[collection.schema.primaryKey] ?? '')"
+            class="hover:bg-gray-50 cursor-pointer"
+            :data-testid="`collections-row-${item[collection.schema.primaryKey]}`"
+            @click="openView(item)"
+          >
             <td v-for="(field, key) in collection.schema.fields" :key="key" class="px-4 py-2 text-gray-800 align-top max-w-xs">
               <span v-if="field.type === 'boolean'" class="block">
                 <span v-if="item[key] === true" class="material-icons text-green-600 text-base align-middle">check</span>
@@ -60,6 +66,7 @@
                   :to="{ path: `/collections/${field.to}`, query: { highlight: String(item[key]) } }"
                   class="text-blue-600 hover:underline"
                   :data-testid="`collections-ref-link-${key}-${item[key]}`"
+                  @click.stop
                   >{{ refDisplay(field.to, String(item[key])) }}</router-link
                 >
               </span>
@@ -75,7 +82,7 @@
                 type="button"
                 class="text-xs text-blue-600 hover:underline mr-3"
                 :data-testid="`collections-edit-item-${item[collection.schema.primaryKey]}`"
-                @click="openEdit(item)"
+                @click.stop="openEdit(item)"
               >
                 {{ t("collectionsView.editItem") }}
               </button>
@@ -83,7 +90,7 @@
                 type="button"
                 class="text-xs text-red-600 hover:underline"
                 :data-testid="`collections-delete-item-${item[collection.schema.primaryKey]}`"
-                @click="confirmDelete(item)"
+                @click.stop="confirmDelete(item)"
               >
                 {{ t("common.remove") }}
               </button>
@@ -305,6 +312,85 @@
       </div>
     </div>
 
+    <!-- Open / detail modal (read-only) -->
+    <div
+      v-if="viewing && collection"
+      class="fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-4"
+      data-testid="collections-detail"
+      @click.self="closeView"
+    >
+      <div class="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col">
+        <header class="px-5 py-3 border-b border-gray-200 flex items-center gap-3">
+          <span class="material-icons text-blue-600 text-base">{{ collection.icon }}</span>
+          <h2 class="text-base font-medium text-gray-900 flex-1 min-w-0 truncate">{{ viewTitle }}</h2>
+          <button
+            type="button"
+            class="h-8 px-2.5 flex items-center gap-1 rounded border border-gray-300 bg-white hover:bg-gray-50 text-sm text-gray-700"
+            data-testid="collections-detail-edit"
+            @click="editFromView"
+          >
+            <span class="material-icons text-base">edit</span>
+            <span>{{ t("collectionsView.editItem") }}</span>
+          </button>
+          <button
+            type="button"
+            class="h-8 w-8 flex items-center justify-center rounded text-gray-400 hover:bg-gray-100"
+            :aria-label="t('common.close')"
+            data-testid="collections-detail-close"
+            @click="closeView"
+          >
+            <span class="material-icons text-base">close</span>
+          </button>
+        </header>
+
+        <div class="flex-1 overflow-auto px-5 py-4 space-y-3">
+          <div v-for="(field, key) in collection.schema.fields" :key="key" class="space-y-1">
+            <div class="text-xs font-medium text-gray-500">{{ field.label }}</div>
+            <div class="text-sm text-gray-800 break-words" :data-testid="`collections-detail-value-${key}`">
+              <template v-if="field.type === 'boolean'">
+                <span v-if="viewing[key] === true" class="material-icons text-green-600 text-base align-middle">check</span>
+                <!-- eslint-disable-next-line @intlify/vue-i18n/no-raw-text -- bare "—" empty-value glyph, same treatment as the table cell + formatCell. -->
+                <span v-else class="text-gray-400">—</span>
+              </template>
+              <router-link
+                v-else-if="field.type === 'ref' && field.to && typeof viewing[key] === 'string' && viewing[key]"
+                :to="{ path: `/collections/${field.to}`, query: { highlight: String(viewing[key]) } }"
+                class="text-blue-600 hover:underline"
+                :data-testid="`collections-detail-ref-${key}`"
+                >{{ refDisplay(field.to, String(viewing[key])) }}</router-link
+              >
+              <span v-else-if="field.type === 'money'" class="tabular-nums">{{ formatMoney(viewing[key], field.currency, locale) }}</span>
+              <span v-else-if="field.type === 'derived'" class="tabular-nums">{{
+                derivedDisplay(field, evaluateDerivedAgainstItem(field, String(key), viewing))
+              }}</span>
+              <table v-else-if="field.type === 'table' && field.of && hasTableRows(viewing[key])" class="w-full text-sm border border-gray-200 rounded">
+                <thead class="bg-gray-50 text-xs text-gray-500">
+                  <tr>
+                    <th v-for="(subField, subKey) in field.of" :key="subKey" class="text-left px-2 py-1 font-medium">{{ subField.label }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(row, rowIdx) in tableRows(viewing[key])" :key="rowIdx" class="border-t border-gray-100">
+                    <td v-for="(subField, subKey) in field.of" :key="subKey" class="px-2 py-1 align-top">
+                      <template v-if="subField.type === 'boolean'">
+                        <span v-if="row[subKey] === true" class="material-icons text-green-600 text-base align-middle">check</span>
+                        <!-- eslint-disable-next-line @intlify/vue-i18n/no-raw-text -- bare "—" empty-value glyph (boolean=false), same as elsewhere. -->
+                        <span v-else class="text-gray-400">—</span>
+                      </template>
+                      <span v-else :class="subField.type === 'money' ? 'tabular-nums' : ''">{{ formatSubCell(subField, row[subKey]) }}</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <span v-else-if="field.type === 'table'" class="text-gray-400">{{ formatCell(undefined, "string") }}</span>
+              <p v-else-if="field.type === 'markdown'" class="whitespace-pre-wrap">{{ detailText(viewing[key]) }}</p>
+              <span v-else>{{ formatCell(viewing[key], field.type) }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <ConfirmModal />
   </div>
 </template>
@@ -442,6 +528,12 @@ const items = ref<CollectionItem[]>([]);
 const loading = ref(true);
 const loadError = ref<string | null>(null);
 const editing = ref<EditState | null>(null);
+/** The record currently shown in read-only "open" mode. Distinct
+ *  from `editing`: open mode renders formatted values (no inputs)
+ *  and is what a `/collections/<slug>?highlight=<id>` deep link
+ *  lands on. Mutually exclusive with `editing` in practice —
+ *  `editFromView` hands off from one to the other. */
+const viewing = ref<CollectionItem | null>(null);
 const saving = ref(false);
 const saveError = ref<string | null>(null);
 const refCache = ref<RefCache>({});
@@ -464,6 +556,7 @@ async function loadCollection(slug: string): Promise<void> {
   collection.value = null;
   items.value = [];
   refCache.value = {};
+  viewing.value = null;
   const result = await apiGet<CollectionDetailResponse>(detailUrl(slug));
   loading.value = false;
   if (!result.ok) {
@@ -480,6 +573,10 @@ async function loadCollection(slug: string): Promise<void> {
   // its result if a faster subsequent load has already switched us
   // to a different collection (Codex P1 review on PR #1495).
   await loadRefTargets(result.data.collection.schema, slug);
+  // A `?highlight=<id>` deep link opens that record in read-only
+  // mode once its items are available. Guard against a stale load:
+  // only act if we're still on the slug that triggered this fetch.
+  if (collection.value?.slug === slug) maybeOpenHighlighted();
 }
 
 function uniqueRefTargets(schema: CollectionSchema): string[] {
@@ -684,6 +781,40 @@ function formatCell(value: unknown, type: FieldType): string {
   return JSON.stringify(value);
 }
 
+/** Full (untruncated) text rendering for open mode. `formatCell`
+ *  clips markdown to 80 chars for the dense table; the detail view
+ *  has room to show the whole value. */
+function detailText(value: unknown): string {
+  if (value === undefined || value === null || value === "") return "—";
+  return String(value);
+}
+
+/** Coerce a persisted `table` cell into a typed row array for
+ *  read-only rendering (open mode). Mirrors the filtering in
+ *  `openEdit` so a malformed non-object row never reaches the
+ *  template. */
+function tableRows(value: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === "object" && !Array.isArray(row));
+}
+
+function hasTableRows(value: unknown): boolean {
+  return tableRows(value).length > 0;
+}
+
+/** Format one cell of a `table` sub-field for open mode. Booleans
+ *  are handled in the template (check / em-dash icon); everything
+ *  else routes through the same formatters the top-level fields
+ *  use. Sub-fields can't be `table`/`derived` (schema-rejected),
+ *  so only money / ref / scalar need handling here. */
+function formatSubCell(subField: FieldSpec, value: unknown): string {
+  if (subField.type === "money") return formatMoney(value, subField.currency, locale.value);
+  if (subField.type === "ref" && subField.to && typeof value === "string" && value.length > 0) {
+    return refDisplay(subField.to, value);
+  }
+  return formatCell(value, subField.type);
+}
+
 function openCreate(): void {
   if (!collection.value) return;
   const text: Record<string, string> = {};
@@ -752,6 +883,56 @@ function closeEditor(): void {
   saving.value = false;
   saveError.value = null;
 }
+
+/** Open mode (read-only detail). */
+function openView(item: CollectionItem): void {
+  viewing.value = item;
+}
+
+/** Close open mode and drop the `?highlight=` query param so a
+ *  refresh / back-button doesn't immediately reopen the record and
+ *  the URL reflects the closed state. */
+function closeView(): void {
+  viewing.value = null;
+  if (route.query.highlight !== undefined) {
+    const query = { ...route.query };
+    delete query.highlight;
+    router.replace({ query }).catch(() => {});
+  }
+}
+
+/** Hand off from open mode to the editor for the same record. */
+function editFromView(): void {
+  const item = viewing.value;
+  if (!item) return;
+  viewing.value = null;
+  openEdit(item);
+}
+
+function findItemById(itemId: string): CollectionItem | undefined {
+  if (!collection.value) return undefined;
+  const { primaryKey } = collection.value.schema;
+  return items.value.find((item) => String(item[primaryKey] ?? "") === itemId);
+}
+
+/** If the route carries `?highlight=<id>` and that id is present in
+ *  the loaded items, open it in read-only mode. No-op when the id
+ *  is absent (deleted record, stale link) so a bad link just shows
+ *  the list rather than erroring. */
+function maybeOpenHighlighted(): void {
+  const { highlight } = route.query;
+  if (typeof highlight !== "string" || highlight.length === 0) return;
+  const match = findItemById(highlight);
+  if (match) viewing.value = match;
+}
+
+/** Title for the open-mode header: the record's primary-key value
+ *  (e.g. `INV-2026-0001`), falling back to the collection title. */
+const viewTitle = computed<string>(() => {
+  if (!viewing.value || !collection.value) return "";
+  const pkValue = viewing.value[collection.value.schema.primaryKey];
+  return typeof pkValue === "string" && pkValue.length > 0 ? pkValue : (collection.value.title ?? "");
+});
 
 /** Decide whether and how to emit a boolean field's draft value.
  *  Extracted from `draftToRecord` to keep that function's
@@ -1041,6 +1222,17 @@ watch(
       items.value = [];
       loading.value = false;
     }
+  },
+);
+
+// React to `?highlight=` changing while already on this collection
+// (e.g. following two record links to the same collection in a
+// row). The initial / cross-collection case is handled by
+// `loadCollection`; here we only act once items are loaded.
+watch(
+  () => route.query.highlight,
+  () => {
+    if (!loading.value && collection.value) maybeOpenHighlighted();
   },
 );
 
