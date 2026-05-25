@@ -16,6 +16,7 @@ import {
   deleteItem,
   listItems,
   loadCollection,
+  resolveCreateItemId,
   toDetail,
   toSummary,
   writeItem,
@@ -87,11 +88,14 @@ router.post(API_ROUTES.collections.items, async (req: Request<{ slug: string }>,
     badRequest(res, "request body must be a JSON object");
     return;
   }
-  // Honour the schema's primaryKey: if the record carries it, use that
-  // value as the item id; otherwise generate one. The body always wins
-  // over a generated id so Claude-derived semantic slugs stick.
-  const primaryRaw = record[collection.schema.primaryKey];
-  const itemId = typeof primaryRaw === "string" && primaryRaw.length > 0 ? primaryRaw : generateItemId();
+  // Resolve the item id: a singleton collection pins EVERY create to
+  // its fixed id (so the "at most one record" contract holds against
+  // direct API calls / scripts / concurrent clients — not just the UI,
+  // which merely hides Add; with the id pinned, a second create targets
+  // the same file and hits the refuseOverwrite conflict below). For a
+  // normal collection the body's primaryKey value wins, else a
+  // generated id (Codex P1 on #1510).
+  const itemId = resolveCreateItemId(collection.schema, record) ?? generateItemId();
   const recordWithId: CollectionItem = { ...record, [collection.schema.primaryKey]: itemId };
   try {
     const result = await writeItem(collection.dataDir, itemId, recordWithId, { refuseOverwrite: true });
@@ -126,10 +130,17 @@ router.put(API_ROUTES.collections.item, async (req: Request<{ slug: string; item
     badRequest(res, "request body must be a JSON object");
     return;
   }
+  // Singleton enforcement: only the fixed id is writable, so a PUT to
+  // any other id can't smuggle in a second record (Codex P1 on #1510).
+  const { singleton, primaryKey } = collection.schema;
+  if (singleton && req.params.itemId !== singleton) {
+    badRequest(res, `collection '${collection.slug}' is a singleton; the only valid item id is '${singleton}'`);
+    return;
+  }
   // PUT pins the primaryKey to the URL itemId — disregard any
   // mismatched primary-key value in the body so the file's id and its
   // record id never drift.
-  const recordWithId: CollectionItem = { ...record, [collection.schema.primaryKey]: req.params.itemId };
+  const recordWithId: CollectionItem = { ...record, [primaryKey]: req.params.itemId };
   try {
     const result = await writeItem(collection.dataDir, req.params.itemId, recordWithId);
     if (result.kind === "invalid-id") {

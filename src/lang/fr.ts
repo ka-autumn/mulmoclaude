@@ -1343,6 +1343,8 @@ const frMessages = {
     removeRow: "Supprimer la ligne",
     noRows: "Aucune ligne pour l'instant",
     tableSummary: "{count} éléments",
+    embedMissing: "Aucun enregistrement « {id} » trouvé dans {collection}.",
+    embedCreate: "Le configurer",
     source: {
       user: "Utilisateur",
       project: "Projet",

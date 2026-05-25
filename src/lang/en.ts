@@ -1335,6 +1335,8 @@ const enMessages = {
     removeRow: "Remove row",
     noRows: "No rows yet",
     tableSummary: "{count} items",
+    embedMissing: "No “{id}” record found in {collection}.",
+    embedCreate: "Set it up",
     source: {
       user: "User",
       project: "Project",

@@ -10,6 +10,12 @@
       "primary": true,
       "required": true
     },
+    "issuer": {
+      "type": "embed",
+      "to": "mc-profile",
+      "id": "me",
+      "label": "From (issuer)"
+    },
     "clientId": {
       "type": "ref",
       "to": "mc-clients",

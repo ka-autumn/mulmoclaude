@@ -1354,6 +1354,8 @@ const deMessages = {
     removeRow: "Zeile entfernen",
     noRows: "Noch keine Zeilen",
     tableSummary: "{count} Einträge",
+    embedMissing: "Kein Datensatz {id} in {collection} gefunden.",
+    embedCreate: "Einrichten",
     source: {
       user: "Benutzer",
       project: "Projekt",

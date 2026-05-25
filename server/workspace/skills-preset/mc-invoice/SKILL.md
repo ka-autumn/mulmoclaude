@@ -27,6 +27,11 @@ The schema declares these fields (read `schema.json` for the authoritative
 types):
 
 - `id` — string, **primary key** (the filename, no extension)
+- `issuer` — **display-only**; the host embeds the user's own business
+  profile (the `me` record from the `mc-profile` collection) as the
+  "bill-from" block in the read-only invoice view. You do **not** write this
+  field — it carries no stored value. If the user hasn't set up their profile,
+  the invoice view shows a "set it up" prompt; point them at `mc-profile`.
 - `clientId` — ref → `mc-clients`, **required**
 - `issueDate` — ISO date `YYYY-MM-DD`, **required**
 - `dueDate` — ISO date (optional)

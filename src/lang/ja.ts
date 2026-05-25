@@ -1332,6 +1332,8 @@ const jaMessages = {
     removeRow: "行を削除",
     noRows: "行がありません",
     tableSummary: "{count}件",
+    embedMissing: "{collection} に「{id}」のレコードが見つかりません。",
+    embedCreate: "設定する",
     source: {
       user: "ユーザー",
       project: "プロジェクト",

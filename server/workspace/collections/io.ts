@@ -10,7 +10,7 @@ import { log } from "../../system/logger/index.js";
 import { writeFileAtomic } from "../../utils/files/atomic.js";
 import { workspacePath } from "../workspace.js";
 import { isContainedInRoot, itemFilePath, safeSlugName } from "./paths.js";
-import type { CollectionItem } from "./types.js";
+import type { CollectionItem, CollectionSchema } from "./types.js";
 
 export interface IoOptions {
   /** Override the workspace root for containment checks. Default:
@@ -213,4 +213,17 @@ export async function deleteItem(dataDir: string, itemId: string, opts: IoOption
  *  semantic id from the record's name). */
 export function generateItemId(): string {
   return randomBytes(4).toString("hex");
+}
+
+/** The item id a CREATE should use for `schema`, or null when the
+ *  caller should generate one. A singleton collection pins every
+ *  create to its fixed `schema.singleton` id, so the "at most one
+ *  record" contract is enforced server-side (a second create targets
+ *  the same file and hits `writeItem`'s refuseOverwrite conflict) —
+ *  not only in the UI. Otherwise the record's own primaryKey value
+ *  wins, falling back to a generated id (null = "generate"). */
+export function resolveCreateItemId(schema: CollectionSchema, record: CollectionItem): string | null {
+  if (schema.singleton) return schema.singleton;
+  const primaryRaw = record[schema.primaryKey];
+  return typeof primaryRaw === "string" && primaryRaw.length > 0 ? primaryRaw : null;
 }

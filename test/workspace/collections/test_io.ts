@@ -12,7 +12,8 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { listItems, readItem } from "../../../server/workspace/collections/io.js";
+import { listItems, readItem, resolveCreateItemId } from "../../../server/workspace/collections/io.js";
+import type { CollectionSchema } from "../../../server/workspace/collections/types.js";
 
 let workdir: string;
 let dataDir: string;
@@ -75,5 +76,25 @@ describe("readItem file-disclosure defense", () => {
   it("returns null for an invalid slug", async () => {
     const item = await readItem(dataDir, "../escape", { workspaceRoot: workdir });
     assert.equal(item, null);
+  });
+});
+
+describe("resolveCreateItemId — singleton enforcement", () => {
+  const base = { title: "T", icon: "i", dataPath: "data/x/items", primaryKey: "id" };
+  const singleton: CollectionSchema = { ...base, singleton: "me", fields: { id: { type: "string", label: "ID", primary: true } } };
+  const normal: CollectionSchema = { ...base, fields: { id: { type: "string", label: "ID", primary: true } } };
+
+  it("pins a singleton create to the fixed id, ignoring the body's primary key", () => {
+    assert.equal(resolveCreateItemId(singleton, { id: "evil", name: "x" }), "me");
+    assert.equal(resolveCreateItemId(singleton, {}), "me");
+  });
+
+  it("uses the body's primary key for a normal collection", () => {
+    assert.equal(resolveCreateItemId(normal, { id: "acme-corp" }), "acme-corp");
+  });
+
+  it("returns null (caller generates) when a normal collection's body has no primary key", () => {
+    assert.equal(resolveCreateItemId(normal, { name: "x" }), null);
+    assert.equal(resolveCreateItemId(normal, { id: "" }), null);
   });
 });

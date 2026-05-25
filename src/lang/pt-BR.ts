@@ -1338,6 +1338,8 @@ const ptBRMessages = {
     removeRow: "Remover linha",
     noRows: "Ainda não há linhas",
     tableSummary: "{count} itens",
+    embedMissing: "Nenhum registro '{id}' encontrado em {collection}.",
+    embedCreate: "Configurar",
     source: {
       user: "Usuário",
       project: "Projeto",

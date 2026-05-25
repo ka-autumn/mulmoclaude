@@ -1325,6 +1325,8 @@ const zhMessages = {
     removeRow: "删除行",
     noRows: "暂无行",
     tableSummary: "{count} 项",
+    embedMissing: "在 {collection} 中找不到「{id}」记录。",
+    embedCreate: "去设置",
     source: {
       user: "用户",
       project: "项目",

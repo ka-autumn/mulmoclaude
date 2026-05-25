@@ -1349,6 +1349,8 @@ const esMessages = {
     removeRow: "Quitar fila",
     noRows: "Aún no hay filas",
     tableSummary: "{count} elementos",
+    embedMissing: "No se encontró el registro «{id}» en {collection}.",
+    embedCreate: "Configurarlo",
     source: {
       user: "Usuario",
       project: "Proyecto",

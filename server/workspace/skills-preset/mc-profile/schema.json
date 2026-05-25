@@ -3,6 +3,7 @@
   "icon": "badge",
   "dataPath": "data/profile/items",
   "primaryKey": "id",
+  "singleton": "me",
   "fields": {
     "id": {
       "type": "string",

@@ -11,7 +11,20 @@
 // plans/done/feat-skill-driven-apps-worklog.md — historical names predate
 // the rename).
 
-export type CollectionFieldType = "string" | "text" | "email" | "number" | "date" | "boolean" | "markdown" | "ref" | "money" | "enum" | "table" | "derived";
+export type CollectionFieldType =
+  | "string"
+  | "text"
+  | "email"
+  | "number"
+  | "date"
+  | "boolean"
+  | "markdown"
+  | "ref"
+  | "money"
+  | "enum"
+  | "table"
+  | "derived"
+  | "embed";
 
 export type CollectionSource = "user" | "project";
 
@@ -22,14 +35,21 @@ export interface CollectionFieldSpec {
    *  separate auto-id). Exactly one field per schema may set this. */
   primary?: boolean;
   required?: boolean;
-  /** When `type === "ref"`: the slug of the target collection the
-   *  field's value references (e.g. `clientId` in mc-worklog has
-   *  `to: "mc-clients"`). The record stores the target item's
-   *  primary-key slug as a plain string; the host uses `to` to
-   *  render a clickable link, populate a dropdown picker, and
-   *  (future) validate referential integrity. Required when type
-   *  is `ref`; ignored on every other type. */
+  /** When `type === "ref"` or `type === "embed"`: the slug of the
+   *  target collection. For `ref` the record stores the target
+   *  item's primary-key slug and the host renders a clickable link
+   *  + dropdown picker. For `embed` the host pulls a *fixed* record
+   *  (see `id`) from the target and renders its fields read-only in
+   *  the detail view. Required for both; ignored on every other
+   *  type. */
   to?: string;
+  /** When `type === "embed"`: the primary-key value of the fixed
+   *  record to pull from the `to` collection (e.g. `me` for the
+   *  singleton mc-profile). Nothing is stored on this record — the
+   *  embed is a display-only directive resolved at render time, so
+   *  it never appears in the list table or the edit form. Required
+   *  when type is `embed`; ignored on every other type. */
+  id?: string;
   /** When `type === "money"` (or `type === "derived"` with
    *  `display: "money"`): ISO 4217 currency code passed to
    *  `Intl.NumberFormat` for table display. Defaults to "USD"
@@ -69,6 +89,11 @@ export interface CollectionSchema {
   dataPath: string;
   /** Field name whose value doubles as the record's filename. */
   primaryKey: string;
+  /** When set, the collection is a singleton: at most one record,
+   *  whose primary key is fixed to this value (e.g. `me` for the
+   *  business profile). The host pre-fills + locks the create form's
+   *  primary key and hides Add once the record exists. */
+  singleton?: string;
   /** Ordered map: insertion order = column order in the table view. */
   fields: Record<string, CollectionFieldSpec>;
 }

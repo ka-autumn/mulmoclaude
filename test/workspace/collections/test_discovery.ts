@@ -362,6 +362,71 @@ describe("discoverCollections — field-type support", () => {
     const collections = await listCollections();
     assert.equal(collections.length, 0);
   });
+
+  // ─── embed (feat-collections-embed PR) ───
+
+  it("accepts `embed` with a valid `to` and non-empty `id`", async () => {
+    writeSkill("test-embed", {
+      title: "Invoice-like",
+      icon: "receipt",
+      dataPath: "data/embed/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        issuer: { type: "embed", to: "mc-profile", id: "me", label: "From (issuer)" },
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 1);
+    assert.equal(collections[0]?.schema.fields.issuer?.type, "embed");
+    assert.equal(collections[0]?.schema.fields.issuer?.to, "mc-profile");
+    assert.equal(collections[0]?.schema.fields.issuer?.id, "me");
+  });
+
+  it("rejects `embed` with no `to`", async () => {
+    writeSkill("test-embed-no-to", {
+      title: "Bad Embed",
+      icon: "warning",
+      dataPath: "data/embednoto/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        issuer: { type: "embed", id: "me", label: "Issuer" },
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 0, "embed without `to` must be skipped");
+  });
+
+  it("rejects `embed` with no `id`", async () => {
+    writeSkill("test-embed-no-id", {
+      title: "Bad Embed",
+      icon: "warning",
+      dataPath: "data/embednoid/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        issuer: { type: "embed", to: "mc-profile", label: "Issuer" },
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 0, "embed without `id` must be skipped");
+  });
+
+  it("rejects `embed` whose `to` contains path traversal", async () => {
+    writeSkill("test-embed-traversal", {
+      title: "Traversal Embed",
+      icon: "warning",
+      dataPath: "data/embedtrav/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        issuer: { type: "embed", to: "../escape", id: "me", label: "Issuer" },
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 0);
+  });
 });
 
 describe("discoverCollections — structural validation", () => {
@@ -417,6 +482,35 @@ describe("discoverCollections — structural validation", () => {
 
   it("ignores skills that ship no schema.json (they're regular skills)", async () => {
     writeSkill("test-no-schema", null);
+    const collections = await listCollections();
+    assert.equal(collections.length, 0);
+  });
+});
+
+describe("discoverCollections — singleton", () => {
+  it("accepts a schema declaring a `singleton` id", async () => {
+    writeSkill("test-singleton", {
+      title: "Profile-like",
+      icon: "badge",
+      dataPath: "data/singleton/items",
+      primaryKey: "id",
+      singleton: "me",
+      fields: { id: { type: "string", label: "ID", primary: true, required: true } },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 1);
+    assert.equal(collections[0]?.schema.singleton, "me");
+  });
+
+  it("rejects a `singleton` containing a path separator", async () => {
+    writeSkill("test-singleton-bad", {
+      title: "Bad Singleton",
+      icon: "warning",
+      dataPath: "data/singletonbad/items",
+      primaryKey: "id",
+      singleton: "../escape",
+      fields: { id: { type: "string", label: "ID", primary: true, required: true } },
+    });
     const collections = await listCollections();
     assert.equal(collections.length, 0);
   });

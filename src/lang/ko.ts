@@ -1335,6 +1335,8 @@ const koMessages = {
     removeRow: "행 삭제",
     noRows: "행이 없습니다",
     tableSummary: "{count}개",
+    embedMissing: "{collection}에 '{id}' 레코드가 없습니다.",
+    embedCreate: "설정하기",
     source: {
       user: "사용자",
       project: "프로젝트",
