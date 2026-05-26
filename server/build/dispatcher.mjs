@@ -146,31 +146,38 @@ function errorMessage(err, fallback) {
 var DATA_SKILLS_DIR = path3.join("data", "skills");
 var CLAUDE_SKILLS_DIR = path3.join(".claude", "skills");
 var SKILL_FILENAME = "SKILL.md";
+var SCHEMA_FILENAME = "schema.json";
+var TEMPLATES_DIR = "templates";
+var SAFE_TEMPLATE_RE = /^[A-Za-z0-9_-][A-Za-z0-9._-]*\.md$/;
 var SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 var RM_RE = /^\s*rm\s+((?:-[a-zA-Z]+\s+)+)['"]?data\/skills\/([a-z0-9-]+)\/?['"]?\s*$/;
 var RECURSIVE_FLAG_RE = /[rR]/;
 function dataSkillDir(slug) {
   return path3.join(workspaceRoot(), DATA_SKILLS_DIR, slug);
 }
-function dataSkillFilePath(slug) {
-  return path3.join(dataSkillDir(slug), SKILL_FILENAME);
-}
 function claudeSkillDir(slug) {
   return path3.join(workspaceRoot(), CLAUDE_SKILLS_DIR, slug);
 }
-function claudeSkillFilePath(slug) {
-  return path3.join(claudeSkillDir(slug), SKILL_FILENAME);
+function isAllowlisted(relSegments) {
+  if (relSegments.length === 1) {
+    return relSegments[0] === SKILL_FILENAME || relSegments[0] === SCHEMA_FILENAME;
+  }
+  if (relSegments.length === 2 && relSegments[0] === TEMPLATES_DIR) {
+    return SAFE_TEMPLATE_RE.test(relSegments[1]);
+  }
+  return false;
 }
-function slugFromDataPath(filePath) {
+function bridgeTargetFromDataPath(filePath) {
   const root = workspaceRoot();
   const staging = path3.join(root, DATA_SKILLS_DIR);
   const rel = path3.relative(staging, filePath);
-  if (!rel || rel.startsWith("..")) return null;
+  if (!rel || rel.startsWith("..") || path3.isAbsolute(rel)) return null;
   const segments = rel.split(path3.sep);
-  if (segments.length !== 2) return null;
-  const [slug, basename] = segments;
-  if (basename !== SKILL_FILENAME) return null;
-  return SLUG_RE.test(slug) ? slug : null;
+  if (segments.length < 2) return null;
+  const [slug, ...relSegments] = segments;
+  if (!SLUG_RE.test(slug)) return null;
+  if (!isAllowlisted(relSegments)) return null;
+  return { slug, relSegments };
 }
 function slugFromRmCommand(command) {
   const match = RM_RE.exec(command);
@@ -179,12 +186,14 @@ function slugFromRmCommand(command) {
   if (!RECURSIVE_FLAG_RE.test(flags)) return null;
   return SLUG_RE.test(slug) ? slug : null;
 }
-function mirrorWrite(slug) {
-  const content = readFileSync2(dataSkillFilePath(slug), "utf-8");
-  const destDir = claudeSkillDir(slug);
+function mirrorWrite(target) {
+  const { slug, relSegments } = target;
+  const src = path3.join(dataSkillDir(slug), ...relSegments);
+  const content = readFileSync2(src, "utf-8");
+  const dest = path3.join(claudeSkillDir(slug), ...relSegments);
+  const destDir = path3.dirname(dest);
   mkdirSync(destDir, { recursive: true });
-  const dest = claudeSkillFilePath(slug);
-  const tmp = path3.join(destDir, `.SKILL.md.${process.pid}.tmp`);
+  const tmp = path3.join(destDir, `.${path3.basename(dest)}.${process.pid}.tmp`);
   writeFileSync(tmp, content, "utf-8");
   renameSync(tmp, dest);
 }
@@ -197,16 +206,20 @@ async function refreshConfig() {
 async function handleWriteOrEdit(payload) {
   const filePath = extractFilePath(payload);
   if (!filePath) return;
-  const slug = slugFromDataPath(filePath);
-  if (slug === null) return;
+  const target = bridgeTargetFromDataPath(filePath);
+  if (target === null) return;
+  const { slug, relSegments } = target;
+  const relPath = relSegments.join("/");
   try {
-    mirrorWrite(slug);
+    mirrorWrite(target);
     await refreshConfig();
-    await serverLog("skill-bridge", `mirrored ${dataSkillFilePath(slug)} \u2192 ${claudeSkillFilePath(slug)}`, { data: { slug, op: "write" } });
+    const srcPath = path3.join(dataSkillDir(slug), ...relSegments);
+    const destPath = path3.join(claudeSkillDir(slug), ...relSegments);
+    await serverLog("skill-bridge", `mirrored ${srcPath} \u2192 ${destPath}`, { data: { slug, relPath, op: "write" } });
   } catch (err) {
-    await serverLog("skill-bridge", `mirror write failed for slug=${slug}`, {
+    await serverLog("skill-bridge", `mirror write failed for slug=${slug} (${relPath})`, {
       level: "error",
-      data: { slug, error: errorMessage(err) }
+      data: { slug, relPath, error: errorMessage(err) }
     });
   }
 }
