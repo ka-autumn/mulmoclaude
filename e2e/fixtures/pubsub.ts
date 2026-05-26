@@ -57,34 +57,37 @@ function handleSocketFrame(text: string, webSocket: MockSocket, events: readonly
   void streamEventsToSocket(webSocket, arg, events, opts);
 }
 
-export async function mockAgentWithPubSub(page: Page, events: readonly unknown[], opts: StreamOptions = {}): Promise<void> {
+// Accept the Socket.IO handshake and relay the scripted events on the
+// session channel the client subscribes to.
+async function mockPubSubSocket(page: Page, events: readonly unknown[], opts: StreamOptions): Promise<void> {
   await page.routeWebSocket(
     (url) => url.pathname.startsWith("/ws/pubsub"),
     (webSocket) => {
-      webSocket.send(
-        `0${JSON.stringify({
-          sid: "mock-sid",
-          upgrades: [],
-          pingInterval: 25000,
-          pingTimeout: 20000,
-          maxPayload: 1_000_000,
-        })}`,
-      );
+      const handshake = { sid: "mock-sid", upgrades: [], pingInterval: 25000, pingTimeout: 20000, maxPayload: 1_000_000 };
+      webSocket.send(`0${JSON.stringify(handshake)}`);
       webSocket.onMessage((msg) => handleSocketFrame(String(msg), webSocket, events, opts));
     },
   );
+}
 
+// Stub POST /api/agent so the client believes a run started.
+async function mockAgentEndpoint(page: Page): Promise<void> {
   await page.route(urlEndsWith("/api/agent"), (route: Route) => {
     if (route.request().method() !== "POST") return route.fallback();
-    return route.fulfill({
-      status: 202,
-      json: { chatSessionId: "mock-session" },
-    });
+    return route.fulfill({ status: 202, json: { chatSessionId: "mock-session" } });
   });
 }
 
+export async function mockAgentWithPubSub(page: Page, events: readonly unknown[], opts: StreamOptions = {}): Promise<void> {
+  await mockPubSubSocket(page, events, opts);
+  await mockAgentEndpoint(page);
+}
+
 /** Wait until scrollHeight stops growing for two consecutive samples,
- *  meaning streaming has finished and the DOM has settled. */
+ *  meaning streaming has finished and the DOM has settled. Throws on
+ *  timeout so a never-settling stream surfaces as a clear failure
+ *  rather than silently letting downstream assertions run on a moving
+ *  target. */
 export async function waitForScrollHeightStable(page: Page, testId: string, opts: { sampleGapMs?: number; maxWaitMs?: number } = {}): Promise<void> {
   const gap = opts.sampleGapMs ?? 300;
   const maxWait = opts.maxWaitMs ?? 10_000;
@@ -102,6 +105,7 @@ export async function waitForScrollHeightStable(page: Page, testId: string, opts
     }
     await page.waitForTimeout(gap);
   }
+  throw new Error(`waitForScrollHeightStable: "${testId}" scrollHeight never stabilised within ${maxWait}ms`);
 }
 
 /** Read scrollTop + scrollHeight + clientHeight from a scroll container. */

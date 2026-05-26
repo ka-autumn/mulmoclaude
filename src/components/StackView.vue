@@ -467,10 +467,22 @@ watch(latestResultScrollKey, () => {
   });
 });
 
+// The scroll container lives in the `v-else` branch (rendered only once
+// `toolResults` is non-empty). Sessions mount empty — the transcript /
+// stream populates them after mount — so binding the scroll-spy listener
+// in `onMounted` would attach it to a null ref and never fire. Watch the
+// ref instead so the listener (re)binds whenever the container appears
+// or is replaced.
+watch(
+  containerRef,
+  (element, previous) => {
+    previous?.removeEventListener("scroll", onContainerScroll);
+    element?.addEventListener("scroll", onContainerScroll, { passive: true });
+  },
+  { immediate: true },
+);
+
 onMounted(() => {
-  containerRef.value?.addEventListener("scroll", onContainerScroll, {
-    passive: true,
-  });
   window.addEventListener("message", handleIframeHeightMessage);
   // Align the initial scroll position with the externally selected
   // item so the sidebar and stack start in sync on mount.
