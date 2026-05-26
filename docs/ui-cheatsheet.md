@@ -235,7 +235,7 @@ several layouts: the **index** (page list), a **single page** body, the activity
 
 ### Graph (`/wiki/graph`)
 
-```
+```text
 ┌─[<WikiView> action="graph"]───────────────────────────────────┐
 │ [wiki-graph]                                                   │
 │ ┌─[wiki-graph-canvas] (echarts force layout)────────────────┐ │

@@ -825,27 +825,23 @@ async function downloadPdf() {
   await rawDownloadPdf(content.value, filename, { baseDir: "data/wiki/pages", stripFrontmatter: true });
 }
 
-interface WikiResultData {
-  action?: string;
-  title?: string;
-  content?: string;
-  pageEntries?: WikiPageEntry[];
-  pageExists?: boolean;
-  graph?: WikiGraph;
-}
-
 // Graph tab response carries the link graph directly. On a page view,
 // lazily fetch the graph once so the "Linked references" panel has
-// data — the graph is global, so one fetch serves every page.
-function syncGraphFromResult(data: WikiResultData | undefined): void {
+// data — the graph is global, so one fetch serves every page. Reuses
+// the shared `WikiData` type (Partial — the server omits fields per
+// action) so the client payload shape can't drift from the server's.
+function syncGraphFromResult(data: Partial<WikiData> | undefined): void {
   if (data?.graph) {
+    // Clear any stale error from an earlier failed loadGraph so a
+    // fresh graph payload isn't hidden behind the error banner.
+    graphError.value = null;
     graphData.value = data.graph;
     return;
   }
   if (action.value === WIKI_ACTION.page && pageExists.value && graphData.value === null) void loadGraph();
 }
 
-function applyWikiResult(data: WikiResultData | undefined): void {
+function applyWikiResult(data: Partial<WikiData> | undefined): void {
   action.value = data?.action ?? "index";
   title.value = data?.title ?? "Wiki";
   content.value = data?.content ?? "";
@@ -856,7 +852,7 @@ function applyWikiResult(data: WikiResultData | undefined): void {
 
 async function callApi(body: Record<string, unknown>) {
   navError.value = null;
-  const response = await apiPost<{ data?: WikiResultData }>(wikiEndpoints.base, body);
+  const response = await apiPost<{ data?: Partial<WikiData> }>(wikiEndpoints.base, body);
   if (!response.ok) {
     navError.value = response.status === 0 ? response.error : `Wiki API error ${response.status}: ${response.error}`;
     return;
