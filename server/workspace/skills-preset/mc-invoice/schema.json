@@ -10,6 +10,12 @@
       "primary": true,
       "required": true
     },
+    "issuer": {
+      "type": "embed",
+      "to": "mc-profile",
+      "id": "me",
+      "label": "From (issuer)"
+    },
     "clientId": {
       "type": "ref",
       "to": "mc-clients",
@@ -69,5 +75,42 @@
       "type": "markdown",
       "label": "Notes"
     }
-  }
+  },
+  "actions": [
+    {
+      "id": "pdf",
+      "label": "Generate PDF",
+      "icon": "picture_as_pdf",
+      "kind": "chat",
+      "role": "accounting",
+      "template": "templates/invoice.md"
+    },
+    {
+      "id": "journal-sale",
+      "label": "Record sale",
+      "icon": "request_quote",
+      "kind": "chat",
+      "role": "accounting",
+      "template": "templates/journal-sale.md",
+      "when": { "field": "status", "in": ["sent", "paid"] }
+    },
+    {
+      "id": "journal-payment",
+      "label": "Record payment",
+      "icon": "payments",
+      "kind": "chat",
+      "role": "accounting",
+      "template": "templates/journal-payment.md",
+      "when": { "field": "status", "in": ["paid"] }
+    },
+    {
+      "id": "journal-void",
+      "label": "Record void",
+      "icon": "block",
+      "kind": "chat",
+      "role": "accounting",
+      "template": "templates/journal-void.md",
+      "when": { "field": "status", "in": ["void"] }
+    }
+  ]
 }

@@ -105,7 +105,16 @@ export function classifyWorkspacePath(href: string): WorkspaceLinkTarget | null 
   // carry dots; file extensions almost always do.
   const [firstSegment, ...restSegments] = normalized.split("/");
   if (SPA_ROUTE_NAMES.has(firstSegment) && !restSegments.some(looksLikeFileSegment)) {
-    return { kind: "spa-route", path: `/${normalized}` };
+    // Preserve the query string (e.g. `?selected=<id>`) so deep
+    // links like `/collections/mc-invoice?selected=INV-2026-0001`
+    // reach the target view's query handler — `router.push(string)`
+    // parses it into `route.query`. Kept for spa-route ONLY; wiki /
+    // file / session targets route by their own identifiers and
+    // take no query. Fragments stay dropped (no SPA route reads one
+    // today). The query is sliced from the raw href, so any
+    // percent-encoding marked emitted survives for vue-router to
+    // decode.
+    return { kind: "spa-route", path: `/${normalized}${extractQuery(href)}` };
   }
 
   // Everything else: open in Files view
@@ -172,6 +181,20 @@ function decodeSegment(seg: string): string {
 // `notes.txt`) directly.
 function looksLikeFileSegment(segment: string): boolean {
   return /\.[a-zA-Z0-9]{1,8}$/.test(segment);
+}
+
+// Extract the raw query string (including the leading "?") from an
+// href, or "" when there's none. Only a "?" that precedes any "#"
+// counts as a query delimiter — a "?" sitting inside the fragment
+// is part of the fragment, not a query. Sliced from the raw href so
+// percent-encoding is preserved for vue-router to decode.
+function extractQuery(href: string): string {
+  const queryIdx = href.indexOf("?");
+  if (queryIdx === -1) return "";
+  const hashIdx = href.indexOf("#");
+  if (hashIdx !== -1 && hashIdx < queryIdx) return "";
+  const end = hashIdx !== -1 ? hashIdx : href.length;
+  return href.slice(queryIdx, end);
 }
 
 function stripFragmentAndQuery(str: string): string {

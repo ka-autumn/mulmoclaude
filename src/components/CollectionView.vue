@@ -16,7 +16,7 @@
         {{ collection?.title ?? t("collectionsView.title") }}
       </h1>
       <button
-        v-if="collection"
+        v-if="canCreate"
         type="button"
         class="h-8 px-2.5 flex items-center gap-1 rounded border border-gray-300 bg-white hover:bg-gray-50 text-sm"
         data-testid="collections-add-item"
@@ -43,13 +43,24 @@
       <table v-else class="min-w-full text-sm">
         <thead class="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
           <tr>
-            <th v-for="(field, key) in collection.schema.fields" :key="key" class="px-4 py-2 font-medium">{{ field.label }}</th>
+            <th v-for="[key, field] in nonEmbedFields" :key="key" class="px-4 py-2 font-medium">{{ field.label }}</th>
             <th class="px-4 py-2 font-medium w-px"></th>
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-100">
-          <tr v-for="item in items" :key="String(item[collection.schema.primaryKey] ?? '')" class="hover:bg-gray-50">
-            <td v-for="(field, key) in collection.schema.fields" :key="key" class="px-4 py-2 text-gray-800 align-top max-w-xs">
+          <tr
+            v-for="item in items"
+            :key="String(item[collection.schema.primaryKey] ?? '')"
+            class="hover:bg-gray-50 cursor-pointer focus:outline-none focus:bg-blue-50"
+            role="button"
+            tabindex="0"
+            :aria-label="t('collectionsView.openItem', { id: String(item[collection.schema.primaryKey] ?? '') })"
+            :data-testid="`collections-row-${item[collection.schema.primaryKey]}`"
+            @click="openView(item)"
+            @keydown.enter.self="openView(item)"
+            @keydown.space.self.prevent="openView(item)"
+          >
+            <td v-for="[key, field] in nonEmbedFields" :key="key" class="px-4 py-2 text-gray-800 align-top max-w-xs">
               <span v-if="field.type === 'boolean'" class="block">
                 <span v-if="item[key] === true" class="material-icons text-green-600 text-base align-middle">check</span>
                 <!-- eslint-disable-next-line @intlify/vue-i18n/no-raw-text -- bare "—" is a universal "empty value" glyph already used in `formatCell` and reused here for the boolean=false case; translating it would diverge the two visual states across locales. -->
@@ -57,9 +68,10 @@
               </span>
               <span v-else-if="field.type === 'ref' && field.to && typeof item[key] === 'string' && item[key]" class="block truncate">
                 <router-link
-                  :to="{ path: `/collections/${field.to}`, query: { highlight: String(item[key]) } }"
+                  :to="{ path: `/collections/${field.to}`, query: { selected: String(item[key]) } }"
                   class="text-blue-600 hover:underline"
                   :data-testid="`collections-ref-link-${key}-${item[key]}`"
+                  @click.stop
                   >{{ refDisplay(field.to, String(item[key])) }}</router-link
                 >
               </span>
@@ -75,7 +87,7 @@
                 type="button"
                 class="text-xs text-blue-600 hover:underline mr-3"
                 :data-testid="`collections-edit-item-${item[collection.schema.primaryKey]}`"
-                @click="openEdit(item)"
+                @click.stop="openEdit(item)"
               >
                 {{ t("collectionsView.editItem") }}
               </button>
@@ -83,7 +95,7 @@
                 type="button"
                 class="text-xs text-red-600 hover:underline"
                 :data-testid="`collections-delete-item-${item[collection.schema.primaryKey]}`"
-                @click="confirmDelete(item)"
+                @click.stop="confirmDelete(item)"
               >
                 {{ t("common.remove") }}
               </button>
@@ -130,6 +142,10 @@
               />
               <span>{{ editing.bool[key] ? t("common.yes") : t("common.no") }}</span>
             </label>
+            <!-- embed: read-only in the form too. Not a dropdown — the
+                 referenced record is a fixed singleton, so there's
+                 nothing to pick; it just shows who the embed points at. -->
+            <CollectionEmbedView v-else-if="field.type === 'embed' && embedViews[key]" :view="embedViews[key]" :field-key="String(key)" />
             <select
               v-else-if="field.type === 'ref' && field.to && refOptions(field.to).length > 0"
               :id="`collections-field-${key}`"
@@ -271,7 +287,7 @@
               v-model="editing.text[key]"
               :type="inputTypeFor(field.type)"
               :required="isFieldRequiredInUi(field)"
-              :disabled="field.primary === true && editing.mode === 'edit'"
+              :disabled="field.primary === true && (editing.mode === 'edit' || isSingleton)"
               class="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:border-blue-400 focus:outline-none disabled:bg-gray-100 disabled:text-gray-500"
               :data-testid="`collections-input-${key}`"
             />
@@ -305,6 +321,101 @@
       </div>
     </div>
 
+    <!-- Open / detail modal (read-only) -->
+    <div
+      v-if="viewing && collection"
+      class="fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-4"
+      data-testid="collections-detail"
+      @click.self="closeView"
+    >
+      <div class="bg-white rounded-lg shadow-xl w-4/5 max-h-[80vh] flex flex-col">
+        <header class="px-5 py-3 border-b border-gray-200 flex items-center gap-3">
+          <span class="material-icons text-blue-600 text-base">{{ collection.icon }}</span>
+          <h2 class="text-base font-medium text-gray-900 flex-1 min-w-0 truncate">{{ viewTitle }}</h2>
+          <button
+            v-for="action in visibleActions"
+            :key="action.id"
+            type="button"
+            class="h-8 px-2.5 flex items-center gap-1 rounded border border-gray-300 bg-white hover:bg-gray-50 text-sm text-gray-700 disabled:opacity-50"
+            :disabled="actionPending"
+            :data-testid="`collections-detail-action-${action.id}`"
+            @click="runAction(action)"
+          >
+            <span v-if="action.icon" class="material-icons text-base">{{ action.icon }}</span>
+            <span>{{ action.label }}</span>
+          </button>
+          <button
+            type="button"
+            class="h-8 px-2.5 flex items-center gap-1 rounded border border-gray-300 bg-white hover:bg-gray-50 text-sm text-gray-700"
+            data-testid="collections-detail-edit"
+            @click="editFromView"
+          >
+            <span class="material-icons text-base">edit</span>
+            <span>{{ t("collectionsView.editItem") }}</span>
+          </button>
+          <button
+            type="button"
+            class="h-8 w-8 flex items-center justify-center rounded text-gray-400 hover:bg-gray-100"
+            :aria-label="t('common.close')"
+            data-testid="collections-detail-close"
+            @click="closeView"
+          >
+            <span class="material-icons text-base">close</span>
+          </button>
+        </header>
+
+        <div class="flex-1 overflow-auto px-5 py-4 space-y-3">
+          <p v-if="actionError" class="text-sm text-red-700" data-testid="collections-detail-action-error">{{ actionError }}</p>
+          <div v-for="(field, key) in collection.schema.fields" :key="key" class="space-y-1">
+            <div class="text-xs font-medium text-gray-500">{{ field.label }}</div>
+            <div class="text-sm text-gray-800 break-words" :data-testid="`collections-detail-value-${key}`">
+              <template v-if="field.type === 'boolean'">
+                <span v-if="viewing[key] === true" class="material-icons text-green-600 text-base align-middle">check</span>
+                <!-- eslint-disable-next-line @intlify/vue-i18n/no-raw-text -- bare "—" empty-value glyph, same treatment as the table cell + formatCell. -->
+                <span v-else class="text-gray-400">—</span>
+              </template>
+              <router-link
+                v-else-if="field.type === 'ref' && field.to && typeof viewing[key] === 'string' && viewing[key]"
+                :to="{ path: `/collections/${field.to}`, query: { selected: String(viewing[key]) } }"
+                class="text-blue-600 hover:underline"
+                :data-testid="`collections-detail-ref-${key}`"
+                >{{ refDisplay(field.to, String(viewing[key])) }}</router-link
+              >
+              <span v-else-if="field.type === 'money'" class="tabular-nums">{{ formatMoney(viewing[key], field.currency, locale) }}</span>
+              <span v-else-if="field.type === 'derived'" class="tabular-nums">{{
+                derivedDisplay(field, evaluateDerivedAgainstItem(field, String(key), viewing))
+              }}</span>
+              <table v-else-if="field.type === 'table' && field.of && hasTableRows(viewing[key])" class="w-full text-sm border border-gray-200 rounded">
+                <thead class="bg-gray-50 text-xs text-gray-500">
+                  <tr>
+                    <th v-for="(subField, subKey) in field.of" :key="subKey" class="text-left px-2 py-1 font-medium">{{ subField.label }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(row, rowIdx) in tableRows(viewing[key])" :key="rowIdx" class="border-t border-gray-100">
+                    <td v-for="(subField, subKey) in field.of" :key="subKey" class="px-2 py-1 align-top">
+                      <template v-if="subField.type === 'boolean'">
+                        <span v-if="row[subKey] === true" class="material-icons text-green-600 text-base align-middle">check</span>
+                        <!-- eslint-disable-next-line @intlify/vue-i18n/no-raw-text -- bare "—" empty-value glyph (boolean=false), same as elsewhere. -->
+                        <span v-else class="text-gray-400">—</span>
+                      </template>
+                      <span v-else :class="subField.type === 'money' ? 'tabular-nums' : ''">{{ formatSubCell(subField, row[subKey]) }}</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <span v-else-if="field.type === 'table'" class="text-gray-400">{{ formatCell(undefined, "string") }}</span>
+              <p v-else-if="field.type === 'markdown'" class="whitespace-pre-wrap">{{ detailText(viewing[key]) }}</p>
+              <!-- embed: a fixed record from another collection (e.g. the
+                   issuer profile) rendered read-only inline. -->
+              <CollectionEmbedView v-else-if="field.type === 'embed' && embedViews[key]" :view="embedViews[key]" :field-key="String(key)" />
+              <span v-else>{{ formatCell(viewing[key], field.type) }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <ConfirmModal />
   </div>
 </template>
@@ -317,19 +428,28 @@ import { apiDelete, apiGet, apiPost, apiPut } from "../utils/api";
 import { API_ROUTES } from "../config/apiRoutes";
 import { PAGE_ROUTES } from "../router/pageRoutes";
 import ConfirmModal from "./ConfirmModal.vue";
+import CollectionEmbedView from "./CollectionEmbedView.vue";
+import type { EmbedRow, EmbedView } from "./collectionEmbed";
 import { useConfirm } from "../composables/useConfirm";
+import { useAppApi } from "../composables/useAppApi";
 import { evaluateDerived } from "../utils/collections/derivedFormula";
+import { actionVisible } from "../utils/collections/actionVisible";
 
-type FieldType = "string" | "text" | "email" | "number" | "date" | "boolean" | "markdown" | "ref" | "money" | "enum" | "table" | "derived";
+type FieldType = "string" | "text" | "email" | "number" | "date" | "boolean" | "markdown" | "ref" | "money" | "enum" | "table" | "derived" | "embed";
 
 interface FieldSpec {
   type: FieldType;
   label: string;
   primary?: boolean;
   required?: boolean;
-  /** When type === "ref": slug of the target collection (see
-   *  plans/done/feat-collections-ref-field.md). */
+  /** When type === "ref" or "embed": slug of the target collection
+   *  (see plans/done/feat-collections-ref-field.md). */
   to?: string;
+  /** When type === "embed": primary-key value of the fixed record
+   *  pulled from `to` and rendered read-only in the detail view
+   *  (e.g. `me` for the singleton mc-profile). Display-only — never
+   *  stored, never shown in the list table or the edit form. */
+  id?: string;
   /** When type === "money": ISO 4217 currency for Intl display.
    *  Defaults to "USD" when omitted. */
   currency?: string;
@@ -349,18 +469,49 @@ interface FieldSpec {
 
 /** Per-target-collection cache: maps an item's primary-key slug to
  *  the value we'll show in the table and dropdown. Filled in by
- *  `loadRefTargets` after the main collection's items arrive — one
- *  fetch per unique target collection, regardless of how many ref
- *  fields point at it. */
+ *  `loadLinkedCollections` after the main collection's items arrive
+ *  — one fetch per unique target collection, regardless of how many
+ *  ref fields point at it. */
 type RefDisplayMap = Record<string, string>;
 type RefCache = Record<string, RefDisplayMap>;
+
+/** Per-target cache for `embed` fields: the target collection's
+ *  schema + items, kept in full (not reduced to display names like
+ *  RefCache) so the detail view can render the embedded record's
+ *  every field read-only. Keyed by target slug; the fixed record is
+ *  looked up by `field.id` at render time. */
+interface EmbedTargetData {
+  schema: CollectionSchema;
+  items: CollectionItem[];
+}
+type EmbedCache = Record<string, EmbedTargetData>;
+
+/** A schema-declared, per-record action rendered as a button in the
+ *  detail view. The host stays generic: it reads these fields and, on
+ *  click, asks the server to assemble the seed prompt for `kind:"chat"`
+ *  then starts a chat in `role`. */
+interface CollectionAction {
+  id: string;
+  label: string;
+  icon?: string;
+  kind: "chat";
+  role: string;
+  template: string;
+  /** Optional visibility predicate: the button renders only when
+   *  `String(record[when.field])` is one of `when.in`. */
+  when?: { field: string; in: string[] };
+}
 
 interface CollectionSchema {
   title: string;
   icon: string;
   dataPath: string;
   primaryKey: string;
+  /** When set, the collection is a singleton: at most one record whose
+   *  primary key is fixed to this value. */
+  singleton?: string;
   fields: Record<string, FieldSpec>;
+  actions?: CollectionAction[];
 }
 
 interface CollectionDetail {
@@ -436,15 +587,25 @@ const { t, locale } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const { openConfirm } = useConfirm();
+const appApi = useAppApi();
 
 const collection = ref<CollectionDetail | null>(null);
 const items = ref<CollectionItem[]>([]);
 const loading = ref(true);
 const loadError = ref<string | null>(null);
 const editing = ref<EditState | null>(null);
+/** The record currently shown in read-only "open" mode. Distinct
+ *  from `editing`: open mode renders formatted values (no inputs)
+ *  and is what a `/collections/<slug>?selected=<id>` deep link
+ *  lands on. Mutually exclusive with `editing` in practice —
+ *  `editFromView` hands off from one to the other. */
+const viewing = ref<CollectionItem | null>(null);
 const saving = ref(false);
 const saveError = ref<string | null>(null);
+const actionPending = ref(false);
+const actionError = ref<string | null>(null);
 const refCache = ref<RefCache>({});
+const embedCache = ref<EmbedCache>({});
 
 function detailUrl(slug: string): string {
   return API_ROUTES.collections.detail.replace(":slug", encodeURIComponent(slug));
@@ -458,12 +619,48 @@ function itemUrl(slug: string, itemId: string): string {
   return API_ROUTES.collections.item.replace(":slug", encodeURIComponent(slug)).replace(":itemId", encodeURIComponent(itemId));
 }
 
+function actionUrl(slug: string, itemId: string, actionId: string): string {
+  return API_ROUTES.collections.itemAction
+    .replace(":slug", encodeURIComponent(slug))
+    .replace(":itemId", encodeURIComponent(itemId))
+    .replace(":actionId", encodeURIComponent(actionId));
+}
+
+/** Actions whose optional `when` predicate matches the open record.
+ *  Status-driven buttons (e.g. invoice "Record payment") stay hidden
+ *  until the record reaches the matching state. */
+const visibleActions = computed<CollectionAction[]>(() => {
+  const record = viewing.value;
+  if (!record) return [];
+  return (collection.value?.schema.actions ?? []).filter((action) => actionVisible(action, record));
+});
+
+/** Run a schema-declared action on the open record: ask the server to
+ *  assemble the seed prompt, then start a new chat in the action's
+ *  role with it. Generic — no knowledge of what the action does. */
+async function runAction(action: CollectionAction): Promise<void> {
+  if (!collection.value || !viewing.value) return;
+  const itemId = String(viewing.value[collection.value.schema.primaryKey] ?? "");
+  if (!itemId) return;
+  actionPending.value = true;
+  actionError.value = null;
+  const result = await apiPost<{ prompt: string; role: string }>(actionUrl(collection.value.slug, itemId, action.id), {});
+  actionPending.value = false;
+  if (!result.ok) {
+    actionError.value = result.error;
+    return;
+  }
+  appApi.startNewChat(result.data.prompt, result.data.role);
+}
+
 async function loadCollection(slug: string): Promise<void> {
   loading.value = true;
   loadError.value = null;
   collection.value = null;
   items.value = [];
   refCache.value = {};
+  embedCache.value = {};
+  viewing.value = null;
   const result = await apiGet<CollectionDetailResponse>(detailUrl(slug));
   loading.value = false;
   if (!result.ok) {
@@ -479,7 +676,11 @@ async function loadCollection(slug: string): Promise<void> {
   // Pass the slug that triggered THIS load so the helper can drop
   // its result if a faster subsequent load has already switched us
   // to a different collection (Codex P1 review on PR #1495).
-  await loadRefTargets(result.data.collection.schema, slug);
+  await loadLinkedCollections(result.data.collection.schema, slug);
+  // A `?selected=<id>` deep link opens that record in read-only
+  // mode once its items are available. Guard against a stale load:
+  // only act if we're still on the slug that triggered this fetch.
+  if (collection.value?.slug === slug) syncViewToSelected();
 }
 
 function uniqueRefTargets(schema: CollectionSchema): string[] {
@@ -502,23 +703,44 @@ function uniqueRefTargets(schema: CollectionSchema): string[] {
   return [...targets];
 }
 
-async function loadRefTargets(schema: CollectionSchema, expectedSlug: string): Promise<void> {
-  const targets = uniqueRefTargets(schema);
-  if (targets.length === 0) return;
-  const results = await Promise.all(targets.map((target) => apiGet<CollectionDetailResponse>(detailUrl(target)).then((result) => ({ target, result }))));
+function uniqueEmbedTargets(schema: CollectionSchema): string[] {
+  const targets = new Set<string>();
+  // Embeds are top-level only — the schema rejects `embed` inside a
+  // table's `of` (SubFieldSpecSchema omits it), so no recursion.
+  for (const field of Object.values(schema.fields)) {
+    if (field.type === "embed" && typeof field.to === "string" && field.to.length > 0) targets.add(field.to);
+  }
+  return [...targets];
+}
+
+/** Fetch every collection this schema links to — `ref` targets (for
+ *  display-name labels + dropdown options) and `embed` targets (for
+ *  the full record rendered in the detail view). Fetched as one
+ *  union so a slug used by both is only requested once; the result
+ *  fans out into `refCache` (display maps) and `embedCache` (full
+ *  schema + items). */
+async function loadLinkedCollections(schema: CollectionSchema, expectedSlug: string): Promise<void> {
+  const refTargets = new Set(uniqueRefTargets(schema));
+  const embedTargets = new Set(uniqueEmbedTargets(schema));
+  const allTargets = [...new Set([...refTargets, ...embedTargets])];
+  if (allTargets.length === 0) return;
+  const results = await Promise.all(allTargets.map((target) => apiGet<CollectionDetailResponse>(detailUrl(target)).then((result) => ({ target, result }))));
   // Stale-write guard: a quicker subsequent `loadCollection()`
   // (user navigated to a different collection mid-fetch) may have
-  // already replaced `collection.value`. Overwriting `refCache`
-  // here would surface the previous collection's ref data on the
+  // already replaced `collection.value`. Overwriting the caches
+  // here would surface the previous collection's linked data on the
   // current one's UI — broken labels until another reload. Drop
   // the write if we're no longer on the slug that triggered us.
   if (collection.value?.slug !== expectedSlug) return;
-  const next: RefCache = {};
+  const nextRef: RefCache = {};
+  const nextEmbed: EmbedCache = {};
   for (const { target, result } of results) {
     if (!result.ok) continue;
-    next[target] = buildRefDisplayMap(result.data);
+    if (refTargets.has(target)) nextRef[target] = buildRefDisplayMap(result.data);
+    if (embedTargets.has(target)) nextEmbed[target] = { schema: result.data.collection.schema, items: result.data.items };
   }
-  refCache.value = next;
+  refCache.value = nextRef;
+  embedCache.value = nextEmbed;
 }
 
 function buildRefDisplayMap(detail: CollectionDetailResponse): RefDisplayMap {
@@ -526,7 +748,7 @@ function buildRefDisplayMap(detail: CollectionDetailResponse): RefDisplayMap {
   // prefer a field called `name`, fall back to `title`, then to the
   // primary key value (= the slug itself, which we'd show anyway).
   // Future-proof escape hatch (`displayField` in the schema) is
-  // explicitly deferred — see plans/feat-collections-ref-field.md.
+  // explicitly deferred — see plans/done/feat-collections-ref-field.md.
   const { fields, primaryKey } = detail.collection.schema;
   const displayField = "name" in fields ? "name" : "title" in fields ? "title" : primaryKey;
   const map: RefDisplayMap = {};
@@ -552,6 +774,76 @@ function refOptions(targetSlug: string): { slug: string; display: string }[] {
     .map(([slug, display]) => ({ slug, display }))
     .sort((left, right) => left.display.localeCompare(right.display));
 }
+
+/** Resolve the fixed record an `embed` field points at, from the
+ *  embedCache. Returns the target schema + the matching record, or
+ *  nulls when the target couldn't be loaded or has no record with
+ *  that id — the detail view renders the fields when `item` is set,
+ *  a "missing" message otherwise. */
+function resolveEmbed(field: FieldSpec): { schema: CollectionSchema | null; item: CollectionItem | null } {
+  if (field.type !== "embed" || !field.to || !field.id) return { schema: null, item: null };
+  const data = embedCache.value[field.to];
+  if (!data) return { schema: null, item: null };
+  const item = data.items.find((entry) => String(entry[data.schema.primaryKey] ?? "") === field.id) ?? null;
+  return { schema: data.schema, item };
+}
+
+/** Read-only string for one field of an embedded record. Booleans
+ *  and markdown are handled in the template (icon / pre-wrap); money
+ *  formats via Intl; everything else falls back to the full text
+ *  value (a ref inside an embedded record can't resolve a label
+ *  across the boundary, so it shows its raw slug). */
+function embedValue(field: FieldSpec, value: unknown): string {
+  if (field.type === "money") return formatMoney(value, field.currency, locale.value);
+  return detailText(value);
+}
+
+/** Render-ready model for each `embed` field of the current
+ *  collection, resolved against the embedCache and keyed by field
+ *  key. Pre-formatting the rows in script keeps the detail template
+ *  simple and type-safe. Independent of which record is open — an
+ *  embed shows a fixed record regardless. */
+const embedViews = computed<Record<string, EmbedView>>(() => {
+  const out: Record<string, EmbedView> = {};
+  if (!collection.value) return out;
+  for (const [key, field] of Object.entries(collection.value.schema.fields)) {
+    if (field.type !== "embed") continue;
+    const { schema, item } = resolveEmbed(field);
+    const rows: EmbedRow[] = [];
+    if (schema && item) {
+      for (const [subKey, subField] of Object.entries(schema.fields)) {
+        const value = item[subKey];
+        // Skip empty fields — the embed is a read-only summary of
+        // another record (e.g. a "From (issuer)" block), so unfilled
+        // optional fields would just be "—" noise rather than the
+        // editable blanks a form needs.
+        if (value === undefined || value === null || value === "") continue;
+        rows.push({ key: subKey, label: subField.label, type: subField.type, value, display: embedValue(subField, value) });
+      }
+    }
+    out[key] = { found: Boolean(item), rows, targetSlug: field.to ?? "", recordId: field.id ?? "" };
+  }
+  return out;
+});
+
+/** Schema fields excluding display-only `embed` fields — used by the
+ *  list table only (a whole embedded record doesn't fit a table cell,
+ *  and it'd be identical in every row). The detail modal and the edit
+ *  form iterate the full `schema.fields` so embeds render there too. */
+const nonEmbedFields = computed<[string, FieldSpec][]>(() =>
+  collection.value ? Object.entries(collection.value.schema.fields).filter(([, field]) => field.type !== "embed") : [],
+);
+
+/** True when the current collection declares `schema.singleton` —
+ *  exactly one record, its primary key fixed to the declared value. */
+const isSingleton = computed<boolean>(() => Boolean(collection.value?.schema.singleton));
+
+/** Whether the Add button should show. Always for a normal collection;
+ *  for a singleton only until its one record exists. */
+const canCreate = computed<boolean>(() => {
+  if (!collection.value) return false;
+  return !(isSingleton.value && items.value.length > 0);
+});
 
 function inputTypeFor(type: FieldType): string {
   if (type === "email") return "email";
@@ -684,6 +976,40 @@ function formatCell(value: unknown, type: FieldType): string {
   return JSON.stringify(value);
 }
 
+/** Full (untruncated) text rendering for open mode. `formatCell`
+ *  clips markdown to 80 chars for the dense table; the detail view
+ *  has room to show the whole value. */
+function detailText(value: unknown): string {
+  if (value === undefined || value === null || value === "") return "—";
+  return String(value);
+}
+
+/** Coerce a persisted `table` cell into a typed row array for
+ *  read-only rendering (open mode). Mirrors the filtering in
+ *  `openEdit` so a malformed non-object row never reaches the
+ *  template. */
+function tableRows(value: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === "object" && !Array.isArray(row));
+}
+
+function hasTableRows(value: unknown): boolean {
+  return tableRows(value).length > 0;
+}
+
+/** Format one cell of a `table` sub-field for open mode. Booleans
+ *  are handled in the template (check / em-dash icon); everything
+ *  else routes through the same formatters the top-level fields
+ *  use. Sub-fields can't be `table`/`derived` (schema-rejected),
+ *  so only money / ref / scalar need handling here. */
+function formatSubCell(subField: FieldSpec, value: unknown): string {
+  if (subField.type === "money") return formatMoney(value, subField.currency, locale.value);
+  if (subField.type === "ref" && subField.to && typeof value === "string" && value.length > 0) {
+    return refDisplay(subField.to, value);
+  }
+  return formatCell(value, subField.type);
+}
+
 function openCreate(): void {
   if (!collection.value) return;
   const text: Record<string, string> = {};
@@ -699,11 +1025,16 @@ function openCreate(): void {
       boolTouched[key] = false;
     } else if (field.type === "table") {
       table[key] = [];
-    } else if (field.type !== "derived") {
+    } else if (field.type !== "derived" && field.type !== "embed") {
       text[key] = "";
     }
-    // derived fields are computed on the fly; nothing to seed.
+    // derived (computed) and embed (display-only, foreign record)
+    // fields have no draft slot.
   }
+  // Singleton collections fix the primary key to the schema-declared
+  // value (e.g. "me") so the first Add can't pick an arbitrary id.
+  const { singleton, primaryKey } = collection.value.schema;
+  if (singleton) text[primaryKey] = singleton;
   editing.value = { mode: "create", text, bool, boolOriginallyPresent, boolTouched, table, originalId: null };
   saveError.value = null;
 }
@@ -733,7 +1064,7 @@ function openEdit(item: CollectionItem): void {
       table[key] = rows
         .filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === "object" && !Array.isArray(row))
         .map((row) => rowFromItem(row, sub));
-    } else if (field.type !== "derived") {
+    } else if (field.type !== "derived" && field.type !== "embed") {
       text[key] = raw === undefined || raw === null ? "" : String(raw);
     }
   }
@@ -752,6 +1083,66 @@ function closeEditor(): void {
   saving.value = false;
   saveError.value = null;
 }
+
+/** Open mode (read-only detail). */
+function openView(item: CollectionItem): void {
+  viewing.value = item;
+  actionError.value = null;
+}
+
+/** Close open mode and drop the `?selected=` query param so a
+ *  refresh / back-button doesn't immediately reopen the record and
+ *  the URL reflects the closed state. */
+function closeView(): void {
+  viewing.value = null;
+  actionError.value = null;
+  if (route.query.selected !== undefined) {
+    const query = { ...route.query };
+    delete query.selected;
+    router.replace({ query }).catch(() => {});
+  }
+}
+
+/** Hand off from open mode to the editor for the same record. */
+function editFromView(): void {
+  const item = viewing.value;
+  if (!item) return;
+  viewing.value = null;
+  openEdit(item);
+}
+
+function findItemById(itemId: string): CollectionItem | undefined {
+  if (!collection.value) return undefined;
+  const { primaryKey } = collection.value.schema;
+  return items.value.find((item) => String(item[primaryKey] ?? "") === itemId);
+}
+
+/** Reconcile the open-mode view with the `?selected=<id>` query —
+ *  the single source of truth for which record is open. Opens the
+ *  matching record, or closes the modal when the param is absent /
+ *  empty / points at an id that isn't loaded (deleted record, stale
+ *  link). Keeping `viewing` in lockstep with the URL means browser
+ *  back / forward and a removed param both close the modal instead
+ *  of leaving stale UI on screen (Codex P2 + CodeRabbit on #1502). */
+function syncViewToSelected(): void {
+  const { selected } = route.query;
+  if (typeof selected !== "string" || selected.length === 0) {
+    viewing.value = null;
+    return;
+  }
+  viewing.value = findItemById(selected) ?? null;
+}
+
+/** Title for the open-mode header: the record's primary-key value
+ *  (e.g. `INV-2026-0001`), falling back to the collection title.
+ *  Non-string primary keys (numeric ids) are stringified rather
+ *  than discarded (CodeRabbit on #1502). */
+const viewTitle = computed<string>(() => {
+  if (!viewing.value || !collection.value) return "";
+  const pkValue = viewing.value[collection.value.schema.primaryKey];
+  if (pkValue === undefined || pkValue === null || pkValue === "") return collection.value.title ?? "";
+  return String(pkValue);
+});
 
 /** Decide whether and how to emit a boolean field's draft value.
  *  Extracted from `draftToRecord` to keep that function's
@@ -871,7 +1262,8 @@ function validateOneField(key: string, field: FieldSpec, draft: EditState): stri
   }
   if (!field.required) return null;
   if (draft.mode === "create" && field.primary === true) return null;
-  if (field.type === "boolean" || field.type === "derived") return null;
+  // embed has no draft slot (foreign display-only); derived is computed.
+  if (field.type === "boolean" || field.type === "derived" || field.type === "embed") return null;
   return isMissingDraftValue(draft.text[key]) ? field.label : null;
 }
 
@@ -886,7 +1278,7 @@ function firstMissingRequiredField(draft: EditState, schema: CollectionSchema): 
 function draftToRecord(state: EditState, schema: CollectionSchema): CollectionItem {
   const record: CollectionItem = {};
   for (const [key, field] of Object.entries(schema.fields)) {
-    if (field.type === "derived") continue; // never persisted; computed on demand
+    if (field.type === "derived" || field.type === "embed") continue; // never persisted (computed / foreign display-only)
     if (field.type === "boolean") {
       if (shouldEmitBoolean(state, key, field)) record[key] = state.bool[key] === true;
       continue;
@@ -1041,6 +1433,18 @@ watch(
       items.value = [];
       loading.value = false;
     }
+  },
+);
+
+// React to `?selected=` changing while already on this collection:
+// follow it to open the new record, OR close the modal when the
+// param is removed (browser back) or points at a missing id. The
+// initial / cross-collection case is handled by `loadCollection`;
+// here we only act once items are loaded.
+watch(
+  () => route.query.selected,
+  () => {
+    if (!loading.value && collection.value) syncViewToSelected();
   },
 );
 

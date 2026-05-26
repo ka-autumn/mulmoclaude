@@ -39,19 +39,6 @@ export const PRESET_PLUGINS: readonly PresetPlugin[] = [
   // checkout. Owns `manageTodoList` end-to-end now that the static
   // entry under `src/plugins/todo/` has been removed.
   { packageName: "@mulmoclaude/todo-plugin" },
-  // #1464 — Solopreneur OS Worklog plugin (Manual Mode v1.0).
-  // Owns `manageWorklog` MCP tool and the weekly rollup / candidate boards.
-  // Being superseded by the `mc-worklog` preset skill (schema-driven
-  // collection); not published while that migration settles.
-  { packageName: "@mulmoclaude/worklog-plugin", devOnly: true },
-  // Solopreneur OS Client plugin (Manual Mode v1.0).
-  // Identity layer mapping clients, contacts, rates, and projects.
-  // Being superseded by the `mc-clients` preset skill.
-  { packageName: "@mulmoclaude/client-plugin", devOnly: true },
-  // Solopreneur OS Invoice plugin (Manual Mode v1.0).
-  // Printable Japanese invoice generator and dynamic double-entry bookkeeping journals mapper.
-  // Being superseded by the `mc-invoice` preset skill.
-  { packageName: "@mulmoclaude/invoice-plugin", devOnly: true },
   // #1162 — Spotify integration (Liked Songs / playlists / recently
   // played). PR 1 ships OAuth + token persistence; PR 2 adds the
   // listening-data kinds and the Vue View. Loaded the same way as

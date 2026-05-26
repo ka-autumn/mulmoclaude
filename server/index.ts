@@ -67,7 +67,6 @@ import { initWorkspace, workspacePath } from "./workspace/workspace.js";
 import { runMemoryMigrationOnce } from "./workspace/memory/run.js";
 import { runTopicMigrationOnce } from "./workspace/memory/topic-run.js";
 import { migrateCookingRecipesFromPlugin } from "./workspace/cooking-recipes/migrate.js";
-import { migrateWorklogPackageRename } from "./plugins/migrate-worklog-rename.js";
 import { env, isGeminiAvailable } from "./system/env.js";
 import { buildSandboxStatus } from "./api/sandboxStatus.js";
 import { existsSync, readFileSync } from "fs";
@@ -191,16 +190,6 @@ runMemoryMigrationOnce(workspacePath)
 // every boot after the first is a no-op.
 migrateCookingRecipesFromPlugin().catch((err) => {
   log.warn("cooking-recipes", "migration from plugin failed; falling back to original plugin path", {
-    error: errorMessage(err),
-  });
-});
-
-// Worklog package rename — `@mulmoclaude/worklog` → `@mulmoclaude/worklog-plugin`
-// (post-PR-#1465 cleanup). Atomic `rename` of the encodeURIComponent-keyed
-// data + config directories so existing entries survive the package
-// rename. Idempotent (legacy gone = nothing to do).
-migrateWorklogPackageRename().catch((err) => {
-  log.warn("worklog-rename", "migration failed; existing worklog data may be temporarily invisible", {
     error: errorMessage(err),
   });
 });

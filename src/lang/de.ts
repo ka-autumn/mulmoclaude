@@ -1138,6 +1138,7 @@ const deMessages = {
   },
   pluginManageSkills: {
     deleteProjectSkill: "Diese Projekt-Skill löschen",
+    unstarPresetSkill: "Markierung dieser Preset-Skill entfernen — sie kehrt in den Katalog zurück",
     heading: "Skills",
     previewCount: "{count} Skill | {count} Skills",
     previewMore: "+{count} weitere",
@@ -1151,16 +1152,21 @@ const deMessages = {
     emptyBody: "(leerer Inhalt)",
     btnEdit: "Bearbeiten",
     btnDelete: "Löschen",
+    btnUnstar: "Markierung entfernen",
     btnRun: "Ausführen",
     errListFailed: "Skills konnten nicht geladen werden: {error}",
     errDetailFailed: "Skill konnte nicht geladen werden: {error}",
     errSaveFailed: "Speichern fehlgeschlagen: {error}",
     errDeleteFailed: "Löschen fehlgeschlagen",
     confirmDelete: 'Skill "{name}" löschen? Dies entfernt ~/mulmoclaude/.claude/skills/{name}/SKILL.md.',
+    confirmUnstar:
+      'Skill "{name}" zurück in den Katalog verschieben? Sie wird nicht mehr in den Prompt geladen, aber die Katalog-Kopie bleibt erhalten — du kannst sie jederzeit erneut markieren.',
     sectionActive: "Aktiv",
     sectionCatalog: "Katalog",
-    sectionLegend:
-      "Aktiv: in den Prompt geladen ({system} System = mc- mitgeliefert · {project} Projekt = bearbeitbar · {user} Benutzer = ~/.claude/skills/). Katalog: durchsuchen, ★markieren oder ▶einmal ausführen, ohne den Prompt aufzublähen.",
+    sectionLegendActive:
+      "Skills, die Claude jetzt verwenden kann. Claude verwendet sie automatisch im Verlauf des Gesprächs, oder du kannst eine durch Eingabe ihres Namens aufrufen. {system} System (mc- mitgeliefert) / {project} Projekt (bearbeitbar, nur in diesem Workspace) / {user} Nutzer (Skills in ~/.claude/skills/).",
+    sectionLegendCatalog:
+      "Katalog: Skills, die durch {star} Markieren Aktiv werden. {star} in Aktiv entfernen bringt eine Skill zurück in den Katalog — Claude verwendet sie dann nicht mehr (die Skill wird nicht gelöscht). {runOnce} führt die Skill einmal aus, ohne sie hinzuzufügen.",
     catalogEmpty: "Keine Preset-Skills verfügbar.",
     catalogPresetHeading: "Presets",
     catalogStar: "Markieren",
@@ -1337,6 +1343,7 @@ const deMessages = {
     backToIndex: "Zurück zu Sammlungen",
     indexEmpty: "Keine Sammlungen installiert. Markiere auf der Skills-Seite eine Skill mit Schema, um sie hier zu sehen.",
     editItem: "Bearbeiten",
+    openItem: "{id} öffnen",
     confirmDelete: "Diesen Eintrag löschen? Das kann nicht rückgängig gemacht werden.",
     itemsEmpty: "Noch keine Einträge. Klicke auf +, um einen hinzuzufügen.",
     notFound: "Sammlung nicht gefunden",
@@ -1347,6 +1354,8 @@ const deMessages = {
     removeRow: "Zeile entfernen",
     noRows: "Noch keine Zeilen",
     tableSummary: "{count} Einträge",
+    embedMissing: "Kein Datensatz {id} in {collection} gefunden.",
+    embedCreate: "Einrichten",
     source: {
       user: "Benutzer",
       project: "Projekt",

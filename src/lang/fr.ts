@@ -1128,6 +1128,7 @@ const frMessages = {
   },
   pluginManageSkills: {
     deleteProjectSkill: "Supprimer cette skill de projet",
+    unstarPresetSkill: "Retirer ce préréglage des favoris — il retourne au catalogue",
     heading: "Skills",
     previewCount: "{count} skill | {count} skills",
     previewMore: "+{count} de plus",
@@ -1141,16 +1142,21 @@ const frMessages = {
     emptyBody: "(corps vide)",
     btnEdit: "Modifier",
     btnDelete: "Supprimer",
+    btnUnstar: "Retirer des favoris",
     btnRun: "Exécuter",
     errListFailed: "Échec du chargement des skills : {error}",
     errDetailFailed: "Échec du chargement de la skill : {error}",
     errSaveFailed: "Échec de l'enregistrement : {error}",
     errDeleteFailed: "Échec de la suppression",
     confirmDelete: 'Supprimer la skill "{name}" ? Cela retire ~/mulmoclaude/.claude/skills/{name}/SKILL.md.',
+    confirmUnstar:
+      'Remettre "{name}" dans le catalogue ? Elle ne sera plus chargée dans le prompt, mais la copie du catalogue reste — vous pouvez la remettre en favori à tout moment.',
     sectionActive: "Actives",
     sectionCatalog: "Catalogue",
-    sectionLegend:
-      "Actives : chargées dans le prompt ({system} Système = incluses mc- · {project} Projet = modifiables · {user} Utilisateur = ~/.claude/skills/). Catalogue : parcourez, ★ajoutez aux favoris ou ▶exécutez une fois sans alourdir le prompt.",
+    sectionLegendActive:
+      "Skills que Claude peut utiliser dès maintenant. Claude les utilise automatiquement dans le fil de la conversation, ou vous pouvez en invoquer une en saisissant son nom. {system} Système (mc- intégrée) / {project} Projet (modifiable, uniquement dans ce workspace) / {user} Utilisateur (skills dans ~/.claude/skills/).",
+    sectionLegendCatalog:
+      "Catalogue : skills qui deviennent Actives quand vous les marquez par {star}. Retirer {star} depuis Actives renvoie la skill au Catalogue — Claude cesse de l'utiliser (la skill n'est pas supprimée). {runOnce} exécute la skill une seule fois sans l'ajouter.",
     catalogEmpty: "Aucune skill de préréglage disponible.",
     catalogPresetHeading: "Préréglages",
     catalogStar: "Favori",
@@ -1326,6 +1332,7 @@ const frMessages = {
     backToIndex: "Retour aux collections",
     indexEmpty: "Aucune collection installée. Mettez une étoile sur une compétence avec un schema depuis la page Skills pour la voir ici.",
     editItem: "Modifier",
+    openItem: "Ouvrir {id}",
     confirmDelete: "Supprimer cet élément ? Cette action est irréversible.",
     itemsEmpty: "Aucun élément pour l'instant. Cliquez sur + pour en ajouter un.",
     notFound: "Collection introuvable",
@@ -1336,6 +1343,8 @@ const frMessages = {
     removeRow: "Supprimer la ligne",
     noRows: "Aucune ligne pour l'instant",
     tableSummary: "{count} éléments",
+    embedMissing: "Aucun enregistrement « {id} » trouvé dans {collection}.",
+    embedCreate: "Le configurer",
     source: {
       user: "Utilisateur",
       project: "Projet",

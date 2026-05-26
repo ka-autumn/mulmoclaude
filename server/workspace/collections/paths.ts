@@ -108,3 +108,18 @@ export function resolveDataDir(dataPath: string, rootPath: string = workspacePat
 export function itemFilePath(dataDir: string, itemId: string): string {
   return path.join(dataDir, `${itemId}.json`);
 }
+
+/** Resolve an action's skill-relative `template` path against
+ *  `skillDir`, refusing escapes — absolute paths, `..`-segments, or a
+ *  symlink pointing outside the skill dir. Mirrors `resolveDataDir`;
+ *  the realpath containment is the hard guarantee. Returns the
+ *  absolute path on success, null on refusal. */
+export function resolveTemplatePath(skillDir: string, templateRelPath: string): string | null {
+  if (typeof templateRelPath !== "string" || templateRelPath.length === 0) return null;
+  if (path.isAbsolute(templateRelPath)) return null;
+  const normalized = path.normalize(templateRelPath);
+  if (normalized.startsWith("..") || normalized.includes(`${path.sep}..${path.sep}`)) return null;
+  const resolved = path.resolve(skillDir, normalized);
+  if (!isContainedInRoot(resolved, skillDir)) return null;
+  return resolved;
+}

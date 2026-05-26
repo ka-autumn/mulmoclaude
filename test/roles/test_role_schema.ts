@@ -220,6 +220,10 @@ describe("Accounting role", () => {
   // - presentDocument (longer narrative outputs like month-end notes)
   // - presentSpreadsheet / presentChart / presentHtml (rich report
   //   surfaces for B/S, P&L, ratio analysis, dashboards)
+  //
+  // The legacy worklog / client / invoice plugins (manageWorklog /
+  // manageClient / manageInvoice) were removed entirely — the
+  // schema-driven `mc-*` collection skills replace them.
   const role = BUILTIN_ROLES.find((entry) => entry.id === "accounting");
 
   it("exists in BUILTIN_ROLES", () => {
@@ -230,9 +234,6 @@ describe("Accounting role", () => {
     assert.ok(role);
     assert.deepStrictEqual([...role.availablePlugins].sort(), [
       "manageAccounting",
-      "manageClient",
-      "manageInvoice",
-      "manageWorklog",
       "presentChart",
       "presentDocument",
       "presentForm",

@@ -5,7 +5,7 @@
       <div>
         <h2 class="text-lg font-semibold text-gray-800">{{ t("pluginManageSkills.heading") }}</h2>
         <p class="text-xs text-gray-400 mt-0.5">{{ t("pluginManageSkills.subheading", { count: skills.length }) }}</p>
-        <i18n-t keypath="pluginManageSkills.sectionLegend" tag="p" class="text-xs text-gray-400 mt-0.5">
+        <i18n-t keypath="pluginManageSkills.sectionLegendActive" tag="p" class="text-xs text-gray-400 mt-0.5">
           <template #system>
             <span class="material-icons !text-sm align-middle leading-none text-gray-500" aria-hidden="true">lock</span>
           </template>
@@ -14,6 +14,14 @@
           </template>
           <template #user>
             <span class="material-icons !text-sm align-middle leading-none text-blue-500" aria-hidden="true">home</span>
+          </template>
+        </i18n-t>
+        <i18n-t keypath="pluginManageSkills.sectionLegendCatalog" tag="p" class="text-xs text-gray-400 mt-0.5">
+          <template #star>
+            <span class="material-icons !text-sm align-middle leading-none text-amber-500" aria-hidden="true">star</span>
+          </template>
+          <template #runOnce>
+            <span class="material-icons !text-sm align-middle leading-none text-blue-600" aria-hidden="true">play_arrow</span>
           </template>
         </i18n-t>
       </div>
@@ -341,14 +349,17 @@
                 </button>
                 <button
                   v-if="isSelectedEditable"
-                  class="h-8 px-2.5 flex items-center gap-1 text-sm rounded border border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-40"
+                  class="h-8 px-2.5 flex items-center gap-1 text-sm rounded border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+                  :class="isSelectedPreset ? '' : 'border-red-300 text-red-600 hover:bg-red-50'"
                   :disabled="detailLoading || deleting"
-                  data-testid="skill-delete-btn"
-                  :title="t('pluginManageSkills.deleteProjectSkill')"
+                  :data-testid="isSelectedPreset ? 'skill-unstar-btn' : 'skill-delete-btn'"
+                  :title="isSelectedPreset ? t('pluginManageSkills.unstarPresetSkill') : t('pluginManageSkills.deleteProjectSkill')"
                   @click="deleteSkill"
                 >
-                  <span class="material-icons text-sm">delete</span>
-                  {{ t("pluginManageSkills.btnDelete") }}
+                  <span class="material-icons text-sm" :class="isSelectedPreset ? 'text-amber-500' : ''">{{
+                    isSelectedPreset ? "star_border" : "delete"
+                  }}</span>
+                  {{ isSelectedPreset ? t("pluginManageSkills.btnUnstar") : t("pluginManageSkills.btnDelete") }}
                 </button>
                 <button
                   class="h-8 px-2.5 flex items-center gap-1 text-sm rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40"
@@ -512,6 +523,7 @@ import {
   pickInitialSelection,
   type SkillSectionKey,
 } from "./categories";
+import { isPresetActivation } from "./presetDetection";
 
 const { t } = useI18n();
 
@@ -631,6 +643,21 @@ const catalogPresets = ref<CatalogEntry[]>([]);
 const catalogExternal = ref<CatalogEntry[]>([]);
 const catalogRepos = ref<ExternalRepo[]>([]);
 const catalogError = ref<string | null>(null);
+
+// True when the selected active skill has a matching entry in the
+// preset catalog — meaning a "delete" from `.claude/skills/<slug>/`
+// is recoverable, because the launcher re-syncs the catalog copy
+// under `data/skills/catalog/preset/<slug>/` on every boot
+// (see server/workspace/skills-preset.ts). We expose this case as
+// "Unstar" with a non-destructive confirm message; the underlying
+// DELETE endpoint is identical.
+//
+// Catalog membership (not the `mc-` slug prefix) is the
+// authoritative signal: the writer pipeline does not reserve the
+// `mc-` namespace, so a hand-rolled project skill named `mc-foo`
+// without a catalog entry must still surface the destructive Delete
+// copy. See isPresetActivation tests in test/plugins/manageSkills/.
+const isSelectedPreset = computed(() => isPresetActivation(detail.value?.name, catalogPresets.value));
 // Per-repo collapse set (repoId ∈ set ⇒ collapsed). shallowRef: the
 // Set is replaced wholesale on toggle.
 const repoCollapsed = shallowRef<Set<string>>(loadRepoCollapsed());
@@ -1107,10 +1134,14 @@ function runSkill(): void {
 // in server/skills/writer.ts. The button is hidden in the template
 // when source !== "project". A native confirm() is enough for phase 1
 // since the action is reversible by re-saving via the conversation.
+// For preset (mc-*) entries the same endpoint is invoked, but the
+// confirm copy reflects that the catalog copy survives — see
+// `isSelectedPreset` above and `syncPresetSkills` in skills-preset.ts.
 async function deleteSkill(): Promise<void> {
   if (!detail.value || detail.value.source !== "project") return;
   const { name } = detail.value;
-  if (!window.confirm(t("pluginManageSkills.confirmDelete", { name }))) {
+  const confirmKey = isSelectedPreset.value ? "pluginManageSkills.confirmUnstar" : "pluginManageSkills.confirmDelete";
+  if (!window.confirm(t(confirmKey, { name }))) {
     return;
   }
   deleting.value = true;

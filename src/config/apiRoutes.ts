@@ -229,6 +229,8 @@ const HOST_API_ROUTES = {
     items: "/api/collections/:slug/items",
     /** PUT → upsert; DELETE → remove */
     item: "/api/collections/:slug/items/:itemId",
+    /** POST → assemble a schema-declared action's seed prompt → { prompt, role } */
+    itemAction: "/api/collections/:slug/items/:itemId/actions/:actionId",
   },
 
   // `scheduler` group migrated to META — see `src/plugins/scheduler/calendarMeta.ts`.

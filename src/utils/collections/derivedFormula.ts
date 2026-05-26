@@ -1,5 +1,5 @@
 // Tiny expression evaluator for the `derived` field type on
-// schema-driven collections (see plans/feat-mc-invoice.md).
+// schema-driven collections (see plans/done/feat-mc-invoice.md).
 //
 // Grammar (recursive-descent, no precedence climbing — five
 // non-terminals total):

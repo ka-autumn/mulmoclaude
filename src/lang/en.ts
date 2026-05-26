@@ -1118,6 +1118,7 @@ const enMessages = {
   },
   pluginManageSkills: {
     deleteProjectSkill: "Delete this project-scope skill",
+    unstarPresetSkill: "Unstar this preset — moves it back to the catalog",
     heading: "Skills",
     previewCount: "{count} skill | {count} skills",
     previewMore: "+{count} more",
@@ -1134,16 +1135,20 @@ const enMessages = {
     emptyBody: "(empty body)",
     btnEdit: "Edit",
     btnDelete: "Delete",
+    btnUnstar: "Unstar",
     btnRun: "Run",
     errListFailed: "Failed to load skills: {error}",
     errDetailFailed: "Failed to load skill: {error}",
     errSaveFailed: "Save failed: {error}",
     errDeleteFailed: "Failed to delete",
     confirmDelete: 'Delete skill "{name}"? This removes ~/mulmoclaude/.claude/skills/{name}/SKILL.md.',
+    confirmUnstar: 'Move "{name}" back to the catalog? It will stop loading into the prompt, but the catalog copy stays — you can re-star it any time.',
     sectionActive: "Active",
     sectionCatalog: "Catalog",
-    sectionLegend:
-      "Active: loaded into the prompt ({system} System = mc- bundled · {project} Project = editable · {user} User = ~/.claude/skills/). Catalog: browse, ★ star or ▶ run once without bloating the prompt.",
+    sectionLegendActive:
+      "Skills Claude can use right now. Claude calls them automatically in the flow of a conversation, or you can invoke one by typing its name. {system} System (mc- bundled) / {project} Project (editable, this workspace only) / {user} User (skills in ~/.claude/skills/).",
+    sectionLegendCatalog:
+      "Catalog: skills that become Active when you mark them with {star}. Removing {star} from an Active skill sends it back to Catalog — Claude stops using it (the skill is not deleted). {runOnce} runs the skill once without adding it.",
     catalogEmpty: "No preset skills available.",
     catalogPresetHeading: "Presets",
     catalogStar: "Star",
@@ -1319,6 +1324,7 @@ const enMessages = {
     backToIndex: "Back to collections",
     indexEmpty: "No collections installed. Star a skill that ships a schema from the Skills page to see it here.",
     editItem: "Edit",
+    openItem: "Open {id}",
     confirmDelete: "Delete this item? This cannot be undone.",
     itemsEmpty: "No items yet. Click + to add one.",
     notFound: "Collection not found",
@@ -1329,6 +1335,8 @@ const enMessages = {
     removeRow: "Remove row",
     noRows: "No rows yet",
     tableSummary: "{count} items",
+    embedMissing: "No “{id}” record found in {collection}.",
+    embedCreate: "Set it up",
     source: {
       user: "User",
       project: "Project",

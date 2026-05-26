@@ -414,6 +414,26 @@ describe("classifyWorkspacePath", () => {
       const result = classifyWorkspacePath("data/wiki/pages/foo.md?bar=1#baz");
       assert.deepEqual(result, { kind: "wiki", slug: "foo" });
     });
+
+    it("preserves ?selected= query on a spa-route (collections deep link)", () => {
+      const result = classifyWorkspacePath("/collections/mc-invoice?selected=INV-2026-0001");
+      assert.deepEqual(result, { kind: "spa-route", path: "/collections/mc-invoice?selected=INV-2026-0001" });
+    });
+
+    it("preserves the query but drops the fragment on a spa-route", () => {
+      const result = classifyWorkspacePath("/collections/mc-clients?selected=acme#row");
+      assert.deepEqual(result, { kind: "spa-route", path: "/collections/mc-clients?selected=acme" });
+    });
+
+    it("a spa-route with no query stays query-free", () => {
+      const result = classifyWorkspacePath("/collections/mc-invoice");
+      assert.deepEqual(result, { kind: "spa-route", path: "/collections/mc-invoice" });
+    });
+
+    it("ignores a '?' that lives inside the fragment on a spa-route", () => {
+      const result = classifyWorkspacePath("/collections/mc-invoice#frag?notquery");
+      assert.deepEqual(result, { kind: "spa-route", path: "/collections/mc-invoice" });
+    });
   });
 });
 

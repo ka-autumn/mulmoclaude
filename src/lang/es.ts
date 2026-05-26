@@ -1131,6 +1131,7 @@ const esMessages = {
   },
   pluginManageSkills: {
     deleteProjectSkill: "Eliminar esta skill de proyecto",
+    unstarPresetSkill: "Quitar la estrella de este preset — vuelve al catálogo",
     heading: "Skills",
     previewCount: "{count} skill | {count} skills",
     previewMore: "+{count} más",
@@ -1147,16 +1148,21 @@ const esMessages = {
     emptyBody: "(cuerpo vacío)",
     btnEdit: "Editar",
     btnDelete: "Eliminar",
+    btnUnstar: "Quitar estrella",
     btnRun: "Ejecutar",
     errListFailed: "Error al cargar las skills: {error}",
     errDetailFailed: "Error al cargar la skill: {error}",
     errSaveFailed: "Error al guardar: {error}",
     errDeleteFailed: "Error al eliminar",
     confirmDelete: '¿Eliminar la skill "{name}"? Esto borrará ~/mulmoclaude/.claude/skills/{name}/SKILL.md.',
+    confirmUnstar:
+      '¿Devolver "{name}" al catálogo? Dejará de cargarse en el prompt, pero la copia del catálogo permanece — puedes volver a destacarla cuando quieras.',
     sectionActive: "Activas",
     sectionCatalog: "Catálogo",
-    sectionLegend:
-      "Activas: cargadas en el prompt ({system} Sistema = incluidas mc- · {project} Proyecto = editables · {user} Usuario = ~/.claude/skills/). Catálogo: explora, ★destaca o ▶ejecuta una vez sin inflar el prompt.",
+    sectionLegendActive:
+      "Skills que Claude puede usar ahora mismo. Claude las usa automáticamente en el flujo de la conversación, o puedes invocar una escribiendo su nombre. {system} Sistema (mc- incluida) / {project} Proyecto (editable, solo en este workspace) / {user} Usuario (skills en ~/.claude/skills/).",
+    sectionLegendCatalog:
+      "Catálogo: skills que pasan a Activas al marcarlas con {star}. Quitar {star} desde Activas devuelve la skill al Catálogo — Claude deja de usarla (la skill no se elimina). {runOnce} ejecuta la skill una sola vez sin añadirla.",
     catalogEmpty: "No hay skills de preajuste disponibles.",
     catalogPresetHeading: "Preajustes",
     catalogStar: "Destacar",
@@ -1332,6 +1338,7 @@ const esMessages = {
     backToIndex: "Volver a colecciones",
     indexEmpty: "No hay colecciones instaladas. Marca con estrella una skill que incluya un schema desde la página Skills para verla aquí.",
     editItem: "Editar",
+    openItem: "Abrir {id}",
     confirmDelete: "¿Eliminar este elemento? Esta acción no se puede deshacer.",
     itemsEmpty: "Aún no hay elementos. Pulsa + para añadir uno.",
     notFound: "Colección no encontrada",
@@ -1342,6 +1349,8 @@ const esMessages = {
     removeRow: "Quitar fila",
     noRows: "Aún no hay filas",
     tableSummary: "{count} elementos",
+    embedMissing: "No se encontró el registro «{id}» en {collection}.",
+    embedCreate: "Configurarlo",
     source: {
       user: "Usuario",
       project: "Proyecto",

@@ -1,0 +1,48 @@
+{
+  "title": "Business Profile",
+  "icon": "badge",
+  "dataPath": "data/profile/items",
+  "primaryKey": "id",
+  "singleton": "me",
+  "fields": {
+    "id": {
+      "type": "string",
+      "label": "ID",
+      "primary": true,
+      "required": true
+    },
+    "companyName": {
+      "type": "string",
+      "label": "Company / legal name",
+      "required": true
+    },
+    "taxRegistrationId": {
+      "type": "string",
+      "label": "Tax registration ID (VAT / EIN / T-number)"
+    },
+    "email": {
+      "type": "email",
+      "label": "Email"
+    },
+    "phone": {
+      "type": "string",
+      "label": "Phone"
+    },
+    "address": {
+      "type": "text",
+      "label": "Address"
+    },
+    "paymentDetails": {
+      "type": "markdown",
+      "label": "Payment details (bank / wire / PayPal)"
+    },
+    "defaultBookId": {
+      "type": "string",
+      "label": "Default accounting book ID"
+    },
+    "notes": {
+      "type": "markdown",
+      "label": "Notes"
+    }
+  }
+}

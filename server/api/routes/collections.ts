@@ -10,12 +10,17 @@
 
 import { Router, Request, Response } from "express";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
+import { actionVisible } from "../../../src/utils/collections/actionVisible.js";
 import {
   discoverCollections,
   generateItemId,
   deleteItem,
   listItems,
   loadCollection,
+  readItem,
+  readSkillTemplate,
+  buildActionSeedPrompt,
+  resolveCreateItemId,
   toDetail,
   toSummary,
   writeItem,
@@ -44,6 +49,13 @@ interface ItemMutationResponse {
 interface DeleteResponse {
   deleted: true;
   itemId: string;
+}
+
+interface ActionSeedResponse {
+  /** Assembled seed prompt the client feeds to a new chat. */
+  prompt: string;
+  /** Role id the new chat should run in (from the action). */
+  role: string;
 }
 
 router.get(API_ROUTES.collections.list, async (_req: Request, res: Response<CollectionsListResponse>) => {
@@ -87,11 +99,14 @@ router.post(API_ROUTES.collections.items, async (req: Request<{ slug: string }>,
     badRequest(res, "request body must be a JSON object");
     return;
   }
-  // Honour the schema's primaryKey: if the record carries it, use that
-  // value as the item id; otherwise generate one. The body always wins
-  // over a generated id so Claude-derived semantic slugs stick.
-  const primaryRaw = record[collection.schema.primaryKey];
-  const itemId = typeof primaryRaw === "string" && primaryRaw.length > 0 ? primaryRaw : generateItemId();
+  // Resolve the item id: a singleton collection pins EVERY create to
+  // its fixed id (so the "at most one record" contract holds against
+  // direct API calls / scripts / concurrent clients — not just the UI,
+  // which merely hides Add; with the id pinned, a second create targets
+  // the same file and hits the refuseOverwrite conflict below). For a
+  // normal collection the body's primaryKey value wins, else a
+  // generated id (Codex P1 on #1510).
+  const itemId = resolveCreateItemId(collection.schema, record) ?? generateItemId();
   const recordWithId: CollectionItem = { ...record, [collection.schema.primaryKey]: itemId };
   try {
     const result = await writeItem(collection.dataDir, itemId, recordWithId, { refuseOverwrite: true });
@@ -126,10 +141,17 @@ router.put(API_ROUTES.collections.item, async (req: Request<{ slug: string; item
     badRequest(res, "request body must be a JSON object");
     return;
   }
+  // Singleton enforcement: only the fixed id is writable, so a PUT to
+  // any other id can't smuggle in a second record (Codex P1 on #1510).
+  const { singleton, primaryKey } = collection.schema;
+  if (singleton && req.params.itemId !== singleton) {
+    badRequest(res, `collection '${collection.slug}' is a singleton; the only valid item id is '${singleton}'`);
+    return;
+  }
   // PUT pins the primaryKey to the URL itemId — disregard any
   // mismatched primary-key value in the body so the file's id and its
   // record id never drift.
-  const recordWithId: CollectionItem = { ...record, [collection.schema.primaryKey]: req.params.itemId };
+  const recordWithId: CollectionItem = { ...record, [primaryKey]: req.params.itemId };
   try {
     const result = await writeItem(collection.dataDir, req.params.itemId, recordWithId);
     if (result.kind === "invalid-id") {
@@ -178,6 +200,53 @@ router.delete(API_ROUTES.collections.item, async (req: Request<{ slug: string; i
     res.json({ deleted: true, itemId: result.itemId });
   } catch (err) {
     log.warn("collections", "item delete failed", { slug: collection.slug, itemId: req.params.itemId, error: errorMessage(err) });
+    serverError(res, errorMessage(err));
+  }
+});
+
+// Assemble a schema-declared action's seed prompt for one record. The
+// route is fully generic — it reads the record + the action's template
+// from the skill dir and returns the seed + the role to run it in; the
+// client starts the chat. No domain (invoice / PDF / role) literals.
+router.post(API_ROUTES.collections.itemAction, async (req: Request<{ slug: string; itemId: string; actionId: string }>, res: Response<ActionSeedResponse>) => {
+  const collection = await loadCollection(req.params.slug);
+  if (!collection) {
+    notFound(res, `collection '${req.params.slug}' not found`);
+    return;
+  }
+  const action = collection.schema.actions?.find((entry) => entry.id === req.params.actionId);
+  if (!action) {
+    notFound(res, `action '${req.params.actionId}' not found on collection '${collection.slug}'`);
+    return;
+  }
+  try {
+    const record = await readItem(collection.dataDir, req.params.itemId);
+    if (!record) {
+      notFound(res, `item '${req.params.itemId}' not found`);
+      return;
+    }
+    // Enforce the action's `when` predicate server-side: the client
+    // hides out-of-state buttons, but a stale or crafted request could
+    // still target one (e.g. seed a payment journal for a non-paid
+    // invoice). The visibility rule is the authorization rule.
+    if (!actionVisible(action, record)) {
+      conflict(res, `action '${action.id}' is not available for item '${req.params.itemId}' in its current state`);
+      return;
+    }
+    const template = await readSkillTemplate(collection.skillDir, action.template);
+    if (template === null) {
+      serverError(res, `template '${action.template}' for action '${action.id}' could not be read`);
+      return;
+    }
+    log.info("collections", "action seed built", { slug: collection.slug, itemId: req.params.itemId, actionId: action.id });
+    res.json({ prompt: buildActionSeedPrompt(record, template), role: action.role });
+  } catch (err) {
+    log.warn("collections", "action seed failed", {
+      slug: collection.slug,
+      itemId: req.params.itemId,
+      actionId: req.params.actionId,
+      error: errorMessage(err),
+    });
     serverError(res, errorMessage(err));
   }
 });

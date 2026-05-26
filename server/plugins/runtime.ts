@@ -355,7 +355,7 @@ export interface MakePluginRuntimeDeps {
 export function makePluginRuntime(deps: MakePluginRuntimeDeps): MulmoclaudeRuntime {
   const { pkgName, pubsub, locale, taskManager } = deps;
   const seg = sanitisePackageNameForFs(pkgName);
-  const dataRoot = pkgName === "@mulmoclaude/client-plugin" ? WORKSPACE_PATHS.clients : path.join(WORKSPACE_PATHS.pluginsData, seg);
+  const dataRoot = path.join(WORKSPACE_PATHS.pluginsData, seg);
   const configRoot = path.join(WORKSPACE_PATHS.pluginsConfig, seg);
   const scopedFetch = makeScopedFetch(pkgName);
 

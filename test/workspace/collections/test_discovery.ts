@@ -362,6 +362,71 @@ describe("discoverCollections — field-type support", () => {
     const collections = await listCollections();
     assert.equal(collections.length, 0);
   });
+
+  // ─── embed (feat-collections-embed PR) ───
+
+  it("accepts `embed` with a valid `to` and non-empty `id`", async () => {
+    writeSkill("test-embed", {
+      title: "Invoice-like",
+      icon: "receipt",
+      dataPath: "data/embed/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        issuer: { type: "embed", to: "mc-profile", id: "me", label: "From (issuer)" },
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 1);
+    assert.equal(collections[0]?.schema.fields.issuer?.type, "embed");
+    assert.equal(collections[0]?.schema.fields.issuer?.to, "mc-profile");
+    assert.equal(collections[0]?.schema.fields.issuer?.id, "me");
+  });
+
+  it("rejects `embed` with no `to`", async () => {
+    writeSkill("test-embed-no-to", {
+      title: "Bad Embed",
+      icon: "warning",
+      dataPath: "data/embednoto/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        issuer: { type: "embed", id: "me", label: "Issuer" },
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 0, "embed without `to` must be skipped");
+  });
+
+  it("rejects `embed` with no `id`", async () => {
+    writeSkill("test-embed-no-id", {
+      title: "Bad Embed",
+      icon: "warning",
+      dataPath: "data/embednoid/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        issuer: { type: "embed", to: "mc-profile", label: "Issuer" },
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 0, "embed without `id` must be skipped");
+  });
+
+  it("rejects `embed` whose `to` contains path traversal", async () => {
+    writeSkill("test-embed-traversal", {
+      title: "Traversal Embed",
+      icon: "warning",
+      dataPath: "data/embedtrav/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        issuer: { type: "embed", to: "../escape", id: "me", label: "Issuer" },
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 0);
+  });
 });
 
 describe("discoverCollections — structural validation", () => {
@@ -419,6 +484,156 @@ describe("discoverCollections — structural validation", () => {
     writeSkill("test-no-schema", null);
     const collections = await listCollections();
     assert.equal(collections.length, 0);
+  });
+});
+
+describe("discoverCollections — singleton", () => {
+  it("accepts a schema declaring a `singleton` id", async () => {
+    writeSkill("test-singleton", {
+      title: "Profile-like",
+      icon: "badge",
+      dataPath: "data/singleton/items",
+      primaryKey: "id",
+      singleton: "me",
+      fields: { id: { type: "string", label: "ID", primary: true, required: true } },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 1);
+    assert.equal(collections[0]?.schema.singleton, "me");
+  });
+
+  it("rejects a `singleton` containing a path separator", async () => {
+    writeSkill("test-singleton-bad", {
+      title: "Bad Singleton",
+      icon: "warning",
+      dataPath: "data/singletonbad/items",
+      primaryKey: "id",
+      singleton: "../escape",
+      fields: { id: { type: "string", label: "ID", primary: true, required: true } },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 0);
+  });
+});
+
+describe("discoverCollections — actions", () => {
+  const fields = { id: { type: "string", label: "ID", primary: true, required: true } };
+
+  it("accepts a schema with a valid chat action", async () => {
+    writeSkill("test-actions", {
+      title: "Invoice-like",
+      icon: "receipt",
+      dataPath: "data/actions/items",
+      primaryKey: "id",
+      fields,
+      actions: [{ id: "pdf", label: "Generate PDF", icon: "picture_as_pdf", kind: "chat", role: "accounting", template: "templates/invoice.md" }],
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 1);
+    assert.equal(collections[0]?.schema.actions?.[0]?.id, "pdf");
+    assert.equal(collections[0]?.schema.actions?.[0]?.role, "accounting");
+    assert.equal(collections[0]?.schema.actions?.[0]?.template, "templates/invoice.md");
+  });
+
+  it("rejects an action missing required fields (role)", async () => {
+    writeSkill("test-actions-no-role", {
+      title: "X",
+      icon: "warning",
+      dataPath: "data/actnorole/items",
+      primaryKey: "id",
+      fields,
+      actions: [{ id: "pdf", label: "Generate PDF", kind: "chat", template: "templates/invoice.md" }],
+    });
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects an unknown action kind", async () => {
+    writeSkill("test-actions-bad-kind", {
+      title: "X",
+      icon: "warning",
+      dataPath: "data/actkind/items",
+      primaryKey: "id",
+      fields,
+      actions: [{ id: "pdf", label: "PDF", kind: "mutate", role: "accounting", template: "templates/invoice.md" }],
+    });
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects an action template with path traversal", async () => {
+    writeSkill("test-actions-traversal", {
+      title: "X",
+      icon: "warning",
+      dataPath: "data/acttrav/items",
+      primaryKey: "id",
+      fields,
+      actions: [{ id: "pdf", label: "PDF", kind: "chat", role: "accounting", template: "../../etc/passwd" }],
+    });
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects duplicate action ids", async () => {
+    writeSkill("test-actions-dup", {
+      title: "X",
+      icon: "warning",
+      dataPath: "data/actdup/items",
+      primaryKey: "id",
+      fields,
+      actions: [
+        { id: "pdf", label: "A", kind: "chat", role: "accounting", template: "a.md" },
+        { id: "pdf", label: "B", kind: "chat", role: "accounting", template: "b.md" },
+      ],
+    });
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("accepts an action with a valid `when` predicate", async () => {
+    writeSkill("test-actions-when", {
+      title: "X",
+      icon: "receipt",
+      dataPath: "data/actwhen/items",
+      primaryKey: "id",
+      fields,
+      actions: [{ id: "sale", label: "Record sale", kind: "chat", role: "accounting", template: "s.md", when: { field: "status", in: ["sent", "paid"] } }],
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 1);
+    assert.deepEqual(collections[0]?.schema.actions?.[0]?.when, { field: "status", in: ["sent", "paid"] });
+  });
+
+  it("rejects a `when` missing `field`", async () => {
+    writeSkill("test-actions-when-nofield", {
+      title: "X",
+      icon: "warning",
+      dataPath: "data/actwhennf/items",
+      primaryKey: "id",
+      fields,
+      actions: [{ id: "sale", label: "Record sale", kind: "chat", role: "accounting", template: "s.md", when: { in: ["sent"] } }],
+    });
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects a `when` whose `in` is empty", async () => {
+    writeSkill("test-actions-when-emptyin", {
+      title: "X",
+      icon: "warning",
+      dataPath: "data/actwhenei/items",
+      primaryKey: "id",
+      fields,
+      actions: [{ id: "sale", label: "Record sale", kind: "chat", role: "accounting", template: "s.md", when: { field: "status", in: [] } }],
+    });
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects a `when` whose `in` is not an array", async () => {
+    writeSkill("test-actions-when-notarray", {
+      title: "X",
+      icon: "warning",
+      dataPath: "data/actwhenna/items",
+      primaryKey: "id",
+      fields,
+      actions: [{ id: "sale", label: "Record sale", kind: "chat", role: "accounting", template: "s.md", when: { field: "status", in: "sent" } }],
+    });
+    assert.equal((await listCollections()).length, 0);
   });
 });
 

@@ -74,13 +74,13 @@ or unlink. Preserve fields you weren't asked to change.
 When you reference a specific worklog entry in your reply, link to the
 collection view — NOT the raw JSON file path:
 
-- Do: `[2026-05-24 Acme](/collections/mc-worklog?highlight=2026-05-24-acme-corp-a1b2)`
+- Do: `[2026-05-24 Acme](/collections/mc-worklog?selected=2026-05-24-acme-corp-a1b2)`
 - Don't: `[…](data/worklog/items/2026-05-24-acme-corp-a1b2.json)` — that opens
   the raw file in the Files view instead of the rendered table.
 
-Always include the `?highlight=<id>` query. Today it just opens the table; a
-later host update will use it to scroll to and highlight the matching row, and
-existing links will start working automatically.
+Always include the `?selected=<id>` query: it opens that entry directly in the
+read-only detail view. Omit it (link to plain `/collections/mc-worklog`) only
+for a general, non-specific reference to the whole list.
 
 ## When to ask vs. when to act
 

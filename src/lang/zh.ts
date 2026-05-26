@@ -1109,6 +1109,7 @@ const zhMessages = {
   },
   pluginManageSkills: {
     deleteProjectSkill: "删除此项目级技能",
+    unstarPresetSkill: "取消收藏此预设 — 将移回目录",
     heading: "技能",
     previewCount: "{count} 个技能",
     previewMore: "+还有 {count} 个",
@@ -1125,16 +1126,20 @@ const zhMessages = {
     emptyBody: "(正文为空)",
     btnEdit: "编辑",
     btnDelete: "删除",
+    btnUnstar: "取消收藏",
     btnRun: "运行",
     errListFailed: "加载技能列表失败: {error}",
     errDetailFailed: "加载技能详情失败: {error}",
     errSaveFailed: "保存失败: {error}",
     errDeleteFailed: "删除失败",
     confirmDelete: '要删除技能 "{name}" 吗?将会移除 ~/mulmoclaude/.claude/skills/{name}/SKILL.md。',
+    confirmUnstar: '将 "{name}" 移回目录? 它将不再被载入提示词,但目录中的副本会保留 — 你可以随时重新收藏它。',
     sectionActive: "活动",
     sectionCatalog: "目录",
-    sectionLegend:
-      "活动: 已载入提示词 ({system} 系统 = mc- 随附 · {project} 项目 = 可编辑 · {user} 用户 = ~/.claude/skills/)。目录: 浏览、★收藏或▶运行一次而不会撑大提示词。",
+    sectionLegendActive:
+      "Claude 现在可以使用的技能。在对话过程中 Claude 会自动调用，你也可以输入技能名来调用。{system} 系统(自带 mc-) / {project} 项目(可编辑，仅此工作区) / {user} 用户(~/.claude/skills/ 中的技能)。",
+    sectionLegendCatalog:
+      "目录: 标记 {star} 后会成为活动的技能。从活动中取消 {star} 会回到目录 — Claude 将不再使用 (技能不会被删除)。{runOnce} 不加入活动，只运行一次。",
     catalogEmpty: "没有可用的预设技能。",
     catalogPresetHeading: "预设",
     catalogStar: "收藏",
@@ -1309,6 +1314,7 @@ const zhMessages = {
     backToIndex: "返回集合列表",
     indexEmpty: "尚未安装任何集合。在「技能」页面对带有 schema 的技能加星即可在此显示。",
     editItem: "编辑",
+    openItem: "打开 {id}",
     confirmDelete: "删除此项？此操作无法撤销。",
     itemsEmpty: "暂无项目。点击 + 添加一个。",
     notFound: "未找到集合",
@@ -1319,6 +1325,8 @@ const zhMessages = {
     removeRow: "删除行",
     noRows: "暂无行",
     tableSummary: "{count} 项",
+    embedMissing: "在 {collection} 中找不到「{id}」记录。",
+    embedCreate: "去设置",
     source: {
       user: "用户",
       project: "项目",

@@ -103,8 +103,6 @@ export const ROLES: Role[] = [
       TOOL_NAMES.manageBookmarks,
       TOOL_NAMES.manageTodoList,
       TOOL_NAMES.manageSpotify,
-      TOOL_NAMES.manageWorklog,
-      TOOL_NAMES.manageClient,
     ],
     queries: [
       "Show me my calendar",
@@ -138,8 +136,6 @@ export const ROLES: Role[] = [
       TOOL_NAMES.readXPost,
       TOOL_NAMES.searchX,
       TOOL_NAMES.notify,
-      TOOL_NAMES.manageWorklog,
-      TOOL_NAMES.manageClient,
     ],
     queries: [
       "Show me the discount cash flow analysis of monthly income of $10,000 for two years. Make it possible to change the discount rate and monthly income.",
@@ -290,9 +286,6 @@ export const ROLES: Role[] = [
       'When the user asks to compare a metric over time — "chart my quarterly revenue", "show net income month-over-month", "plot the cash balance by month" — call `getTimeSeries` with the right `metric` (revenue / expense / netIncome / accountBalance), `granularity` (month / quarter / year), and `from`/`to`. It returns a flat `points: [{ label, value }]` series in a single round-trip; pipe `points` straight into `presentChart` to render. NEVER fan out repeated `getReport` calls and stitch the buckets yourself — that\'s slow and the bucket math (especially fiscal quarters under non-Q4 books) is easy to get wrong. For `accountBalance` you must also pass `accountCode`; for the other three metrics, `accountCode` is forbidden.',
     availablePlugins: [
       TOOL_NAMES.manageAccounting,
-      TOOL_NAMES.manageWorklog,
-      TOOL_NAMES.manageClient,
-      TOOL_NAMES.manageInvoice,
       TOOL_NAMES.presentForm,
       TOOL_NAMES.presentDocument,
       TOOL_NAMES.presentSpreadsheet,
@@ -367,11 +360,11 @@ export const ROLES: Role[] = [
   // mc-invoice) are NOT gated by a special role. Once starred via
   // `/skills`, Claude Code's skill discovery surfaces them in every
   // role's system prompt and each SKILL.md is self-contained
-  // (conventions, "don't write derived fields", file paths). In
-  // roles that ALSO have the legacy manageInvoice / manageClient /
-  // manageWorklog MCP tools (Accounting), Claude may still pick the
-  // dedicated tool over the skill; that's expected during the
-  // transition period while both paths coexist.
+  // (conventions, "don't write derived fields", file paths).
+  //
+  // The legacy worklog / client / invoice plugins (manageWorklog /
+  // manageClient / manageInvoice) have been removed entirely — the
+  // `mc-*` collection skills fully replace them.
   {
     id: "debug",
     name: "Debug",
@@ -405,8 +398,6 @@ export const ROLES: Role[] = [
       TOOL_NAMES.manageBookmarks,
       TOOL_NAMES.manageTodoList,
       TOOL_NAMES.manageSpotify,
-      TOOL_NAMES.manageWorklog,
-      TOOL_NAMES.manageClient,
       // manageRecipes removed (#1286) — recipe-book-plugin no longer
       // in PRESET_PLUGINS; recipes drive via the `mc-cooking-coach`
       // preset skill.

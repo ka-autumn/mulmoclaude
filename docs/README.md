@@ -35,6 +35,7 @@ Guides for using MulmoClaude. No programming knowledge required.
 
 | Document                                                          | Language | Description                                                                                                        |
 | ----------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------ |
+| [Collections — an AI-native database](collections-architecture.md) | English  | `schema.json` as a DSL defining a whole app (data model + relations + UI + actions); zero domain-specific host code; the host/LLM validation boundary |
 | [Memory](memory.md)                                               | English  | Topic-based memory store under `conversations/memory/` — schema, agent read/write contract, atomic→topic migration |
 | [Bridge Session Design](bridge-session-design.md)                 | English  | Session identification, caching, and multi-user scaling plan                                                       |
 | [Image-path Routing — Research](image-path-routing.md)            | English  | Read-only audit of how the LLM's image references become browser-loadable URLs                                     |

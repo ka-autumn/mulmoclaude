@@ -35,6 +35,20 @@ const refMessage = {
   path: ["to"],
 };
 
+// `embed` pulls a fixed record from another collection into the
+// read-only detail view. It must declare a valid `to` slug (same
+// path-traversal guard as `ref`) AND a non-empty `id` naming the
+// fixed record's primary key (e.g. `me` for the singleton profile).
+const embedRefine = (spec: { type: string; to?: string; id?: string }): boolean => {
+  if (spec.type !== "embed") return true;
+  if (typeof spec.to !== "string" || safeSlugName(spec.to) === null) return false;
+  return typeof spec.id === "string" && spec.id.trim().length > 0;
+};
+const embedMessage = {
+  message: "fields with type 'embed' must declare a `to` (valid collection slug) and a non-empty `id` (the fixed record's primary key)",
+  path: ["id"],
+};
+
 const enumRefine = (spec: { type: string; values?: readonly string[] }): boolean =>
   spec.type !== "enum" || (Array.isArray(spec.values) && spec.values.length > 0 && spec.values.every((value) => typeof value === "string" && value.length > 0));
 const enumMessage = {
@@ -65,11 +79,12 @@ const SubFieldSpecSchema = z
 
 const FieldSpecSchema = z
   .object({
-    type: z.enum(["string", "text", "email", "number", "date", "boolean", "markdown", "ref", "money", "enum", "table", "derived"]),
+    type: z.enum(["string", "text", "email", "number", "date", "boolean", "markdown", "ref", "money", "enum", "table", "derived", "embed"]),
     label: z.string().min(1),
     primary: z.boolean().optional(),
     required: z.boolean().optional(),
     to: z.string().min(1).optional(),
+    id: z.string().trim().min(1).optional(),
     currency: z.string().trim().min(1).optional(),
     values: z.array(z.string().trim().min(1)).min(1).optional(),
     of: z.record(z.string(), SubFieldSpecSchema).optional(),
@@ -82,6 +97,7 @@ const FieldSpecSchema = z
   })
   .refine(refRefine, refMessage)
   .refine(enumRefine, enumMessage)
+  .refine(embedRefine, embedMessage)
   .refine((spec) => spec.type !== "table" || (spec.of !== undefined && Object.keys(spec.of).length > 0), {
     message: "fields with type 'table' must declare a non-empty `of` (sub-schema for each row)",
     path: ["of"],
@@ -91,13 +107,65 @@ const FieldSpecSchema = z
     path: ["formula"],
   });
 
-const CollectionSchemaZ = z.object({
-  title: z.string().min(1),
-  icon: z.string().min(1),
-  dataPath: z.string().min(1),
-  primaryKey: z.string().min(1),
-  fields: z.record(z.string(), FieldSpecSchema),
+// An action's `template` becomes a file read under the skill dir, so
+// reject traversal up front: each `/`-separated segment must be a plain
+// safe name, no `..`, no backslash, not absolute. The reader's realpath
+// containment is the hard guarantee; this fails a bad schema fast.
+function isSafeTemplatePath(value: string): boolean {
+  if (value.length === 0 || value.includes("\\") || value.startsWith("/")) return false;
+  return value.split("/").every((seg) => seg.length > 0 && seg !== "." && seg !== ".." && /^[A-Za-z0-9._-]+$/.test(seg));
+}
+
+// Optional visibility predicate: the action button shows only when the
+// open record's `field` (stringified) is one of `in`. Domain-free —
+// `field` is any non-empty key, `in` a non-empty array of non-empty
+// values; the host never interprets the meaning.
+const ActionWhenSchema = z.object({
+  field: z.string().trim().min(1),
+  in: z.array(z.string().trim().min(1)).min(1),
 });
+
+// A schema-declared record action. Domain-free: the host validates the
+// shape; the meaning (which role, which template) is data.
+const ActionSpecSchema = z.object({
+  id: z.string().trim().min(1),
+  label: z.string().trim().min(1),
+  icon: z.string().trim().min(1).optional(),
+  kind: z.enum(["chat"]),
+  role: z.string().trim().min(1),
+  template: z.string().trim().min(1).refine(isSafeTemplatePath, "must be a safe skill-relative path (no `..`, no leading `/`, no backslash)"),
+  when: ActionWhenSchema.optional(),
+});
+
+const CollectionSchemaZ = z
+  .object({
+    title: z.string().min(1),
+    icon: z.string().min(1),
+    dataPath: z.string().min(1),
+    primaryKey: z.string().min(1),
+    // When set, the collection holds at most one record whose primary
+    // key is this exact value (e.g. `me` for the business profile).
+    // The host fixes the create form's primary key to it and hides the
+    // Add button once the record exists.
+    singleton: z.string().trim().min(1).optional(),
+    fields: z.record(z.string(), FieldSpecSchema),
+    actions: z.array(ActionSpecSchema).optional(),
+  })
+  // The singleton value becomes a record id (and thus a `<id>.json`
+  // filename), so it must satisfy the SAME `safeSlugName` rule the
+  // write path enforces — otherwise the create form would lock the
+  // primary key to a value the POST route then rejects as an invalid
+  // item id, making the collection impossible to initialize (Codex P1).
+  .refine((schema) => schema.singleton === undefined || safeSlugName(schema.singleton) !== null, {
+    message: "schema `singleton` must be a valid item id (alphanumeric / hyphen / underscore, no path separators)",
+    path: ["singleton"],
+  })
+  // Action ids must be unique so the dispatch route resolves
+  // unambiguously.
+  .refine((schema) => schema.actions === undefined || new Set(schema.actions.map((action) => action.id)).size === schema.actions.length, {
+    message: "schema `actions` must have unique `id`s",
+    path: ["actions"],
+  });
 
 interface LoadedCollection {
   slug: string;
@@ -107,6 +175,10 @@ interface LoadedCollection {
    *  workspace). May not exist yet — the data folder is created on
    *  first write. */
   dataDir: string;
+  /** Absolute path to the skill directory this collection was loaded
+   *  from (`<skillsRoot>/<slug>/`). Action templates are read from
+   *  here, path-safely. */
+  skillDir: string;
 }
 
 async function loadOneCollection(skillsRoot: string, slug: string, source: CollectionSource, workspaceRoot: string): Promise<LoadedCollection | null> {
@@ -164,7 +236,7 @@ async function loadOneCollection(skillsRoot: string, slug: string, source: Colle
     return null;
   }
 
-  return { slug: safeName, source, schema, dataDir };
+  return { slug: safeName, source, schema, dataDir, skillDir: path.join(skillsRoot, safeName) };
 }
 
 async function collectFromDir(skillsRoot: string, source: CollectionSource, workspaceRoot: string): Promise<LoadedCollection[]> {

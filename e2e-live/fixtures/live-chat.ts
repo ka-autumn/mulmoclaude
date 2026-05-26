@@ -3,7 +3,7 @@
 // install any API mocks — the real Claude API runs end-to-end. Use
 // these helpers from specs in `e2e-live/tests/`.
 
-import { copyFile, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, lstat, mkdir, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -241,6 +241,171 @@ export async function removeProjectSkill(slug: string): Promise<void> {
   const stagingDir = resolveWorkspacePath(`data/skills/${slug}`);
   await rm(canonicalDir, { recursive: true, force: true });
   await rm(stagingDir, { recursive: true, force: true });
+}
+
+/**
+ * Seed a project-skill slot whose entry is a symlink pointing at a
+ * non-existent path. The discovery loop in
+ * `server/workspace/skills/discovery.ts:collectSkillsFromDir` calls
+ * `stat()` (not `lstat`) on every entry so a real symlink is
+ * transparently followed; when the target is missing `stat()` throws
+ * ENOENT and the entry is skipped. L-30 (B-08) drives that branch
+ * end-to-end to prove a dangling symlink (e.g. a host-relative
+ * `~/ss/llm/skills/...` link that disappears inside the sandbox)
+ * cannot crash discovery for the sibling skills sitting alongside it.
+ *
+ * Caller picks `target` (no implicit `/tmp` use) so the test can
+ * choose a path that's guaranteed missing even with parallel runs
+ * (e.g. nonce-stamped under `os.tmpdir()`). Slug must satisfy
+ * `isValidSlug` for the same reasons as {@link placeProjectSkill}.
+ */
+export async function placeBrokenSymlinkSkill(slug: string, target: string): Promise<void> {
+  assertValidSkillSlug(slug);
+  const linkPath = resolveWorkspacePath(`.claude/skills/${slug}`);
+  await mkdir(path.dirname(linkPath), { recursive: true });
+  await symlink(target, linkPath);
+}
+
+/**
+ * Best-effort delete for {@link placeBrokenSymlinkSkill}. Uses `lstat`
+ * to confirm the slot is still a symlink before `rm`-ing it — guards
+ * against an unlikely race where a parallel run replaced the link with
+ * a real dir we shouldn't touch. Silent no-op when the slot is gone.
+ */
+export async function removeBrokenSymlinkSkill(slug: string): Promise<void> {
+  assertValidSkillSlug(slug);
+  const linkPath = resolveWorkspacePath(`.claude/skills/${slug}`);
+  try {
+    const stat = await lstat(linkPath);
+    if (!stat.isSymbolicLink()) return;
+  } catch (err) {
+    if (isErrorWithCode(err) && err.code === "ENOENT") return;
+    throw err;
+  }
+  await rm(linkPath, { force: true });
+}
+
+/**
+ * Server-side slug rule for an Encore obligation id (mirrors the
+ * `KEBAB` regex in `src/types/encore-dsl/schema.ts`). Any id flowing
+ * through {@link removeEncoreObligation} has to clear this gate
+ * before we touch the filesystem — same path-traversal defence the
+ * skill helpers use.
+ */
+const ENCORE_OBLIGATION_ID_RE = /^[a-z][a-z0-9-]*$/;
+
+/**
+ * Workspace-relative segment for `data/plugins/encore/obligations/`.
+ * Centralised so the helpers below and any future caller compose
+ * platform-portable paths via `path.join` rather than slash literals
+ * (CodeRabbit review on PR #1493 — CLAUDE.md cross-platform rule).
+ */
+const ENCORE_OBLIGATIONS_DIR = path.join("data", "plugins", "encore", "obligations");
+
+/** Workspace-relative segment for `data/plugins/encore/tickets/`. */
+const ENCORE_TICKETS_DIR = path.join("data", "plugins", "encore", "tickets");
+
+/**
+ * Best-effort fs-level delete of an Encore obligation. Removes the
+ * obligation directory at
+ * `<workspace>/data/plugins/encore/obligations/<obligationId>/`
+ * (recursive — `index.md` plus one `<cycleId>.md` per period) AND
+ * sweeps any `data/plugins/encore/tickets/*.json` whose
+ * `obligationId` field matches.
+ *
+ * Why fs-level: the encore dispatcher has no "delete obligation"
+ * verb on the wire (the user-facing path is retire-by-amend, which
+ * leaves files behind). For e2e-live teardown we want the test's
+ * seeded obligation gone from disk so the dashboard row, residual
+ * tickets, and bell entries can't bleed into the next run.
+ *
+ * Why sweep tickets here (vs. leaving them to a future encore tick):
+ * `sweepStuckTickets` in `server/encore/tick.ts:140` deliberately
+ * SKIPS tickets whose obligation directory no longer exists, and
+ * `pruneOrphanTickets` only collects them after a 30-day age
+ * threshold. So a setup that fires a `cycle-start` phase on the
+ * initial reconcile would leave the ticket behind across spec runs.
+ * Sweeping here keeps cleanup deterministic.
+ *
+ * What's NOT cleaned: host notifier bell entries (tracked by the
+ * host engine in a separate store, addressed by `notificationId`
+ * from the ticket). Tests that genuinely fire bells should clean the
+ * notifier engine explicitly; canaries that only assert View mounts
+ * should pick a firingPlan shape that does not fire on the initial
+ * reconcile (e.g. a far-future `schedule:` phase) — that is the
+ * cheaper invariant to maintain.
+ */
+export async function removeEncoreObligation(obligationId: string): Promise<void> {
+  if (!ENCORE_OBLIGATION_ID_RE.test(obligationId)) {
+    throw new Error(`removeEncoreObligation: invalid obligationId ${JSON.stringify(obligationId)} — must match ${ENCORE_OBLIGATION_ID_RE.source}`);
+  }
+  const obligationDir = resolveWorkspacePath(path.join(ENCORE_OBLIGATIONS_DIR, obligationId));
+  await rm(obligationDir, { recursive: true, force: true });
+  await sweepEncoreTicketsFor(obligationId);
+}
+
+/**
+ * Best-effort delete of every `data/plugins/encore/tickets/*.json`
+ * whose `obligationId` field matches. Called by
+ * {@link removeEncoreObligation}; not exported because the obligation
+ * dir + ticket sweep belong together — callers want
+ * "delete this obligation everywhere on disk", not "scan tickets in
+ * isolation". Per-file parse / match / delete concerns are split
+ * into the helpers below to keep this function under the 20-line cap
+ * (CodeRabbit review on PR #1493).
+ */
+async function sweepEncoreTicketsFor(obligationId: string): Promise<void> {
+  const ticketsDir = resolveWorkspacePath(ENCORE_TICKETS_DIR);
+  const entries = await listTicketEntries(ticketsDir);
+  if (entries === null) return;
+  for (const entry of entries) {
+    if (!entry.endsWith(".json")) continue;
+    const filePath = path.join(ticketsDir, entry);
+    const parsed = await readTicketJsonOrNull(filePath);
+    if (ticketMatchesObligation(parsed, obligationId)) {
+      await rm(filePath, { force: true });
+    }
+  }
+}
+
+/**
+ * Read the tickets directory. Returns `null` when the dir doesn't
+ * exist (workspace never wrote one — nothing to sweep) so the caller
+ * can early-return. Other read errors are logged and treated as
+ * empty (best-effort cleanup is the contract). Split out of
+ * {@link sweepEncoreTicketsFor} per CodeRabbit's <20-line guidance.
+ */
+async function listTicketEntries(ticketsDir: string): Promise<string[] | null> {
+  try {
+    return await readdir(ticketsDir);
+  } catch (err) {
+    if (isErrorWithCode(err) && err.code === "ENOENT") return null;
+    console.warn(`sweepEncoreTicketsFor: readdir ${ticketsDir} failed`, err);
+    return null;
+  }
+}
+
+/**
+ * Read + JSON.parse a single ticket file. Returns `null` on any
+ * read / parse error so the caller's match-and-delete loop can move
+ * on (a malformed ticket wouldn't drive any future reconcile either).
+ */
+async function readTicketJsonOrNull(filePath: string): Promise<unknown> {
+  try {
+    return JSON.parse(await readFile(filePath, "utf8"));
+  } catch (err) {
+    console.warn(`sweepEncoreTicketsFor: skipping ${filePath}`, err);
+    return null;
+  }
+}
+
+/**
+ * Predicate: is this parsed ticket pointing at the named obligation?
+ * `isRecord` filters out null / array / primitive payloads so the
+ * `.obligationId` access is type-safe.
+ */
+function ticketMatchesObligation(parsed: unknown, obligationId: string): boolean {
+  return isRecord(parsed) && parsed.obligationId === obligationId;
 }
 
 /**
@@ -1352,6 +1517,47 @@ export async function getMcpToolsList(page: Page): Promise<McpToolSnapshot[]> {
   if (!probe.ok) throw new Error(`getMcpToolsList: ${probe.reason}`);
   if (!Array.isArray(probe.body)) throw new Error(`getMcpToolsList: ${API_ROUTES.mcpTools.list} returned non-array payload`);
   return probe.body.map((row, idx) => parseMcpToolRow(row, idx));
+}
+
+/**
+ * One row in the `/api/skills` listing. Specs only need the name to
+ * test for presence / absence (L-30 dangling-symlink resilience uses
+ * this), so the helper keeps the parsed shape minimal — `description`
+ * and `source` come back as `string | null` rather than the strict
+ * server type so a future schema add-on doesn't bite the spec.
+ */
+export interface SkillListEntry {
+  name: string;
+}
+
+/**
+ * Fetch the server's view of `/api/skills` directly, bypassing the
+ * SPA's `/skills` listing route. Used by L-30 (B-08 discovery
+ * resilience) to pin the server contract before falling through to
+ * the UI assertion — proves the discovery loop itself surfaced the
+ * sibling and skipped the dangling slot, independent of any rendering
+ * idiosyncrasies in `manageSkills/View.vue`.
+ */
+export async function listSkillsViaApi(page: Page): Promise<SkillListEntry[]> {
+  const probe = await fetchAuthedJsonViaPage(page, API_ROUTES.skills.list.url);
+  if (!probe.ok) throw new Error(`listSkillsViaApi: ${probe.reason}`);
+  if (!isRecord(probe.body)) throw new Error(`listSkillsViaApi: unexpected payload ${JSON.stringify(probe.body)}`);
+  const { skills } = probe.body;
+  if (!Array.isArray(skills)) throw new Error(`listSkillsViaApi: skills field is not an array (got ${JSON.stringify(skills)})`);
+  return skills.map((row, idx) => parseSkillListRow(row, idx));
+}
+
+/**
+ * Pure parser for one `/api/skills` row. Exported so unit tests can
+ * exercise the validation contract directly (CodeRabbit iter-1 review
+ * — keeps "pure logic in exported helpers for testability" per
+ * CLAUDE.md, without routing through Playwright / page plumbing).
+ */
+export function parseSkillListRow(row: unknown, idx: number): SkillListEntry {
+  if (!isRecord(row)) throw new Error(`skillsList[${idx}] is not an object`);
+  const { name } = row;
+  if (typeof name !== "string") throw new Error(`skillsList[${idx}].name is not a string`);
+  return { name };
 }
 
 function parseMcpToolRow(row: unknown, idx: number): McpToolSnapshot {

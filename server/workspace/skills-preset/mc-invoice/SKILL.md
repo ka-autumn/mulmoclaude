@@ -27,6 +27,11 @@ The schema declares these fields (read `schema.json` for the authoritative
 types):
 
 - `id` — string, **primary key** (the filename, no extension)
+- `issuer` — **display-only**; the host embeds the user's own business
+  profile (the `me` record from the `mc-profile` collection) as the
+  "bill-from" block in the read-only invoice view. You do **not** write this
+  field — it carries no stored value. If the user hasn't set up their profile,
+  the invoice view shows a "set it up" prompt; point them at `mc-profile`.
 - `clientId` — ref → `mc-clients`, **required**
 - `issueDate` — ISO date `YYYY-MM-DD`, **required**
 - `dueDate` — ISO date (optional)
@@ -112,15 +117,36 @@ remove the file.
 When you reference a specific invoice in your reply, link to the collection
 view — NOT the raw JSON file path:
 
-- Do: `[INV-2026-0002](/collections/mc-invoice?highlight=INV-2026-0002)`
+- Do: `[INV-2026-0002](/collections/mc-invoice?selected=INV-2026-0002)`
 - Don't: `[INV-2026-0002](data/invoice/items/INV-2026-0002.json)` — that opens
   the raw file in the Files view instead of the rendered table.
 
-Always include the `?highlight=<id>` query. Today it just opens the table; a
-later host update will use it to scroll to and highlight the matching row, and
-existing links will start working automatically. The "see the list at
-/collections/mc-invoice" pointer is also fine for a general (non-specific)
-reference.
+Always include the `?selected=<id>` query: it opens that invoice directly in
+the read-only detail view. Omit it (link to plain `/collections/mc-invoice`)
+only for a general, non-specific reference to the whole list.
+
+## Host actions (detail-view buttons)
+
+The invoice detail view shows schema-declared action buttons. Each opens a
+*new* chat in the `accounting` role seeded with a template + the invoice data —
+you don't trigger them yourself; point the user at the button if they ask.
+
+- **Generate PDF** (always shown) — `templates/invoice.md` renders the printable
+  document to the canvas via `presentDocument`.
+- **Record sale** (status `sent` / `paid`) — `templates/journal-sale.md` posts
+  the receivable journal (Dr A/R, Cr Revenue, Cr output-tax).
+- **Record payment** (status `paid`) — `templates/journal-payment.md` posts the
+  cash receipt (Dr Cash/Checking, Cr A/R).
+- **Record void** (status `void`) — `templates/journal-void.md` voids the
+  entries posted for this invoice.
+
+### Bookkeeping: the memo is the join key
+
+The journal actions have no shared id store, so every entry they post carries
+the invoice `id` in its memo (e.g. `INV-2026-0001 sale`). The payment and void
+templates locate prior entries by searching memos for that id. The book they
+post into is the issuer's `defaultBookId` (from `mc-profile`), or resolved at
+posting time when that is unset.
 
 ## When to ask vs. when to act
 

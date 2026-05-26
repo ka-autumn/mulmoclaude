@@ -1123,6 +1123,7 @@ const ptBRMessages = {
   },
   pluginManageSkills: {
     deleteProjectSkill: "Excluir esta skill de projeto",
+    unstarPresetSkill: "Remover favorito deste preset — volta ao catálogo",
     heading: "Skills",
     previewCount: "{count} skill | {count} skills",
     previewMore: "+{count} mais",
@@ -1136,16 +1137,21 @@ const ptBRMessages = {
     emptyBody: "(corpo vazio)",
     btnEdit: "Editar",
     btnDelete: "Excluir",
+    btnUnstar: "Remover favorito",
     btnRun: "Executar",
     errListFailed: "Falha ao carregar skills: {error}",
     errDetailFailed: "Falha ao carregar a skill: {error}",
     errSaveFailed: "Falha ao salvar: {error}",
     errDeleteFailed: "Falha ao excluir",
     confirmDelete: 'Excluir a skill "{name}"? Isso remove ~/mulmoclaude/.claude/skills/{name}/SKILL.md.',
+    confirmUnstar:
+      'Mover "{name}" de volta ao catálogo? Ela deixará de ser carregada no prompt, mas a cópia do catálogo permanece — você pode favoritá-la novamente quando quiser.',
     sectionActive: "Ativas",
     sectionCatalog: "Catálogo",
-    sectionLegend:
-      "Ativas: carregadas no prompt ({system} Sistema = inclusas mc- · {project} Projeto = editáveis · {user} Usuário = ~/.claude/skills/). Catálogo: explore, ★favorite ou ▶execute uma vez sem inflar o prompt.",
+    sectionLegendActive:
+      "Skills que o Claude pode usar agora. O Claude as usa automaticamente no fluxo da conversa, ou você pode invocar uma digitando seu nome. {system} Sistema (mc- inclusa) / {project} Projeto (editável, somente neste workspace) / {user} Usuário (skills em ~/.claude/skills/).",
+    sectionLegendCatalog:
+      "Catálogo: skills que passam a ser Ativas ao marcar com {star}. Remover {star} de Ativas devolve a skill ao Catálogo — o Claude deixa de usá-la (a skill não é excluída). {runOnce} executa a skill uma única vez sem adicioná-la.",
     catalogEmpty: "Nenhuma skill de preset disponível.",
     catalogPresetHeading: "Presets",
     catalogStar: "Favoritar",
@@ -1321,6 +1327,7 @@ const ptBRMessages = {
     backToIndex: "Voltar para coleções",
     indexEmpty: "Nenhuma coleção instalada. Marque com estrela uma skill que inclua um schema na página Skills para vê-la aqui.",
     editItem: "Editar",
+    openItem: "Abrir {id}",
     confirmDelete: "Excluir este item? Esta ação não pode ser desfeita.",
     itemsEmpty: "Ainda não há itens. Clique em + para adicionar um.",
     notFound: "Coleção não encontrada",
@@ -1331,6 +1338,8 @@ const ptBRMessages = {
     removeRow: "Remover linha",
     noRows: "Ainda não há linhas",
     tableSummary: "{count} itens",
+    embedMissing: "Nenhum registro '{id}' encontrado em {collection}.",
+    embedCreate: "Configurar",
     source: {
       user: "Usuário",
       project: "Projeto",

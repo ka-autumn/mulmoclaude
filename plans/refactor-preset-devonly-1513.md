@@ -2,17 +2,21 @@
 
 ## Problem
 
-`server/plugins/preset-list.ts` declares 7 preset plugins. Only `todo-plugin` and
-`spotify-plugin` are intended for npm publish; the other 5 are either being
-migrated to `mc-*` preset skills or are dev-only. On `npx mulmoclaude@latest`
-the missing 5 currently produce `log.warn` lines (`preset package not
-resolvable`) that scare users for what is actually expected behaviour.
+`server/plugins/preset-list.ts` declares preset plugins, but only `todo-plugin`
+and `spotify-plugin` are intended for npm publish; the rest (`debug`, `edgar`)
+are dev-only. On `npx mulmoclaude@latest` the missing ones currently produce
+`log.warn` lines (`preset package not resolvable`) that scare users for what
+is actually expected behaviour.
+
+(While this PR was in flight, `main` 089e52a6 deleted the
+worklog / client / invoice legacy plugins entirely — they are now fully
+replaced by mc-* schema-driven collection skills. The preset list after that
+merge has exactly 4 entries: todo, spotify, debug, edgar.)
 
 ## Approach
 
 1. Add `devOnly?: boolean` to `PresetPlugin` (`preset-list.ts`).
-2. Mark `worklog`, `client`, `invoice`, `debug`, `edgar` plugins as
-   `devOnly: true` with a one-line rationale each.
+2. Mark `debug` and `edgar` as `devOnly: true` with a one-line rationale each.
 3. In `preset-loader.ts:loadOnePreset`, when `resolvePresetRoot` returns null:
    - if `entry.devOnly`: `log.debug` only (silent in production).
    - else: keep the existing `log.warn`.
@@ -21,7 +25,7 @@ resolvable`) that scare users for what is actually expected behaviour.
    decision point. Adjust the caller in `loadPresetPlugins`.
 5. Extend `test/plugins/test_preset_loader.ts`:
    - Assert that exactly two entries (`todo`, `spotify`) have
-     `devOnly === undefined`/`false`; the other five have `devOnly === true`.
+     `devOnly === undefined`/`false`; the others have `devOnly === true`.
      This catches a future drift where someone adds an entry without thinking
      about the publish boundary.
 6. No frontend / no UI change. No new i18n.
