@@ -31,7 +31,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { PRESET_PLUGINS } from "./preset-list.js";
+import { PRESET_PLUGINS, type PresetPlugin } from "./preset-list.js";
 import { loadPluginFromCacheDir, type LoaderDeps, type RuntimePlugin } from "./runtime-loader.js";
 import { log } from "../system/logger/index.js";
 
@@ -71,10 +71,17 @@ function resolvePresetRoot(packageName: string): string | null {
   }
 }
 
-async function loadOnePreset(packageName: string, deps: LoaderDeps = {}): Promise<RuntimePlugin | null> {
+async function loadOnePreset(entry: PresetPlugin, deps: LoaderDeps = {}): Promise<RuntimePlugin | null> {
+  const { packageName, devOnly } = entry;
   const cachePath = resolvePresetRoot(packageName);
   if (!cachePath) {
-    log.warn(LOG_PREFIX, "preset package not resolvable — run `yarn install`?", { packageName });
+    // dev-only entries are knowingly absent from the published tarball;
+    // surfacing them as warn would mislead `npx mulmoclaude` users.
+    if (devOnly) {
+      log.debug(LOG_PREFIX, "dev-only preset not present (expected on a published install)", { packageName });
+    } else {
+      log.warn(LOG_PREFIX, "preset package not resolvable — run `yarn install`?", { packageName });
+    }
     return null;
   }
   const pkgJsonPath = path.join(cachePath, "package.json");
@@ -104,7 +111,7 @@ export async function loadPresetPlugins(deps: LoaderDeps = {}): Promise<RuntimeP
   if (PRESET_PLUGINS.length === 0) return [];
   const loaded: RuntimePlugin[] = [];
   for (const entry of PRESET_PLUGINS) {
-    const plugin = await loadOnePreset(entry.packageName, deps);
+    const plugin = await loadOnePreset(entry, deps);
     if (plugin) loaded.push(plugin);
   }
   log.info(LOG_PREFIX, "loaded", { requested: PRESET_PLUGINS.length, succeeded: loaded.length });
