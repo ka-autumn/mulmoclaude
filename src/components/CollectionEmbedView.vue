@@ -26,6 +26,7 @@
         <div class="text-xs text-slate-700 font-medium break-words" :data-testid="`collections-embed-${fieldKey}-${row.key}`">
           <template v-if="row.type === 'boolean'">
             <span v-if="row.value === true" class="material-icons text-emerald-600 text-sm align-middle">check_circle</span>
+            <!-- eslint-disable-next-line @intlify/vue-i18n/no-raw-text -- bare "—" empty-value glyph, same treatment as the other read-only detail branches. -->
             <span v-else class="text-slate-300">—</span>
           </template>
           <p v-else-if="row.type === 'markdown'" class="whitespace-pre-wrap font-normal text-slate-600">{{ row.display }}</p>
@@ -41,7 +42,7 @@
     <div class="flex items-start gap-3">
       <span class="material-icons text-red-500 text-lg mt-0.5">error_outline</span>
       <div class="flex-1 min-w-0">
-        <p class="text-xs font-semibold text-red-800 uppercase tracking-wider mb-1">Embedded Reference Missing</p>
+        <p class="text-xs font-semibold text-red-800 uppercase tracking-wider mb-1">{{ t("collectionsView.embedMissingTitle") }}</p>
         <p class="text-xs text-red-600" :data-testid="`collections-embed-missing-${fieldKey}`">
           {{ t("collectionsView.embedMissing", { collection: view.targetSlug, id: view.recordId }) }}
         </p>

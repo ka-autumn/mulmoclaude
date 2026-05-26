@@ -10,19 +10,9 @@
         <div class="absolute -left-10 -bottom-10 h-44 w-44 rounded-full bg-violet-500/15 blur-3xl pointer-events-none"></div>
 
         <div class="relative z-10">
-          <span
-            class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 mb-4 uppercase tracking-wider"
-          >
-            <span class="h-1.5 w-1.5 rounded-full bg-indigo-400 animate-pulse"></span>
-            AI-Native Databases
-          </span>
           <h1 class="text-2xl md:text-3xl font-bold text-white tracking-tight leading-tight">
             {{ t("collectionsView.title") }}
           </h1>
-          <p class="text-sm text-slate-300 mt-2 max-w-xl leading-relaxed">
-            Browse and manage your workspace's structured JSON data collections. Instantly discovered, schema-validated, and powered by Claude's
-            natural-language actions.
-          </p>
         </div>
       </div>
 
@@ -39,16 +29,20 @@
       <div v-else-if="collections.length === 0" class="rounded-xl border border-slate-200 bg-white px-6 py-12 text-center text-sm text-slate-500 shadow-sm">
         <span class="material-icons text-4xl text-slate-300 mb-2">dashboard_customize</span>
         <p class="font-medium text-slate-700">{{ t("collectionsView.indexEmpty") }}</p>
-        <p class="text-xs text-slate-400 mt-1">Add schemas to your skill directories to get started.</p>
       </div>
 
       <div v-else class="grid gap-4 sm:grid-cols-2">
         <div
           v-for="collection in collections"
           :key="collection.slug"
-          class="group relative rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:border-indigo-300 transition-all duration-300 cursor-pointer flex items-center gap-4 focus-within:ring-2 focus-within:ring-indigo-500/20"
+          class="group relative rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:border-indigo-300 transition-all duration-300 cursor-pointer flex items-center gap-4 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+          role="button"
+          tabindex="0"
+          :aria-label="t('collectionsView.openCollection', { title: collection.title })"
           :data-testid="`collections-index-card-${collection.slug}`"
           @click="openCollection(collection.slug)"
+          @keydown.enter.self="openCollection(collection.slug)"
+          @keydown.space.self.prevent="openCollection(collection.slug)"
         >
           <!-- Left border color line showing source -->
           <div

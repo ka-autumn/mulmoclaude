@@ -56,6 +56,27 @@ const enumMessage = {
   path: ["values"],
 };
 
+// A field that renders as money must declare where its currency comes
+// from — otherwise the formatter silently falls back to USD and
+// mislabels non-USD amounts. Two ways to satisfy it: a literal
+// `currency` (fixed for every record) or a `currencyField` naming a
+// sibling record field that holds the ISO code (per-record, e.g. an
+// invoice's `currency` enum). At least one is required. Covers `money`
+// fields and `derived` fields displayed as money (subtotal / tax /
+// total). Sub-fields can't be `derived`, so there it's just money.
+const currencyRefine = (spec: { type: string; display?: string; currency?: string; currencyField?: string }): boolean => {
+  const rendersMoney = spec.type === "money" || (spec.type === "derived" && spec.display === "money");
+  if (!rendersMoney) return true;
+  const hasLiteral = typeof spec.currency === "string" && spec.currency.trim().length > 0;
+  const hasPointer = typeof spec.currencyField === "string" && spec.currencyField.trim().length > 0;
+  return hasLiteral || hasPointer;
+};
+const currencyMessage = {
+  message:
+    "fields that render as money (type 'money', or 'derived' with display 'money') must declare either a literal `currency` (ISO 4217 code, e.g. 'USD', 'JPY') or a `currencyField` naming the record field that holds the code",
+  path: ["currency"],
+};
+
 // Sub-fields inside a `table.of` map: the regular field types
 // minus `table` (no nested tables) and `derived` (no computed
 // columns inside a table — would need the evaluator to walk the
@@ -72,10 +93,12 @@ const SubFieldSpecSchema = z
     // like missing data. Applied consistently to every "non-empty
     // string" slot in the schema (CodeRabbit PR #1497).
     currency: z.string().trim().min(1).optional(),
+    currencyField: z.string().trim().min(1).optional(),
     values: z.array(z.string().trim().min(1)).min(1).optional(),
   })
   .refine(refRefine, refMessage)
-  .refine(enumRefine, enumMessage);
+  .refine(enumRefine, enumMessage)
+  .refine(currencyRefine, currencyMessage);
 
 const FieldSpecSchema = z
   .object({
@@ -86,6 +109,7 @@ const FieldSpecSchema = z
     to: z.string().min(1).optional(),
     id: z.string().trim().min(1).optional(),
     currency: z.string().trim().min(1).optional(),
+    currencyField: z.string().trim().min(1).optional(),
     values: z.array(z.string().trim().min(1)).min(1).optional(),
     of: z.record(z.string(), SubFieldSpecSchema).optional(),
     formula: z.string().trim().min(1).optional(),
@@ -98,6 +122,7 @@ const FieldSpecSchema = z
   .refine(refRefine, refMessage)
   .refine(enumRefine, enumMessage)
   .refine(embedRefine, embedMessage)
+  .refine(currencyRefine, currencyMessage)
   .refine((spec) => spec.type !== "table" || (spec.of !== undefined && Object.keys(spec.of).length > 0), {
     message: "fields with type 'table' must declare a non-empty `of` (sub-schema for each row)",
     path: ["of"],

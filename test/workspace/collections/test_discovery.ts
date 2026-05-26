@@ -170,7 +170,7 @@ describe("discoverCollections — field-type support", () => {
 
   // ─── money / enum / table / derived (feat-mc-invoice PR) ───
 
-  it("accepts a schema using `money` with and without an explicit currency", async () => {
+  it("accepts a schema using `money` with an explicit currency", async () => {
     writeSkill("test-money", {
       title: "Money",
       icon: "payments",
@@ -179,13 +179,63 @@ describe("discoverCollections — field-type support", () => {
       fields: {
         id: { type: "string", label: "ID", primary: true, required: true },
         rateUsd: { type: "money", currency: "USD", label: "Rate USD" },
-        rateDefault: { type: "money", label: "Rate default" },
+        rateJpy: { type: "money", currency: "JPY", label: "Rate JPY" },
       },
     });
     const collections = await listCollections();
     assert.equal(collections.length, 1);
     assert.equal(collections[0]?.schema.fields.rateUsd?.currency, "USD");
-    assert.equal(collections[0]?.schema.fields.rateDefault?.currency, undefined);
+    assert.equal(collections[0]?.schema.fields.rateJpy?.currency, "JPY");
+  });
+
+  it("rejects `money` with neither `currency` nor `currencyField`", async () => {
+    writeSkill("test-money-no-currency", {
+      title: "Money",
+      icon: "payments",
+      dataPath: "data/moneynocur/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        rate: { type: "money", label: "Rate" }, // no `currency` and no `currencyField`
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 0, "money field with no currency source must be skipped");
+  });
+
+  it("accepts `money` with a `currencyField` and no literal `currency`", async () => {
+    writeSkill("test-money-currencyfield", {
+      title: "Money",
+      icon: "payments",
+      dataPath: "data/moneycurfield/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        currency: { type: "enum", values: ["USD", "JPY"], label: "Currency", required: true },
+        rate: { type: "money", currencyField: "currency", label: "Rate" },
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 1);
+    assert.equal(collections[0]?.schema.fields.rate?.currencyField, "currency");
+    assert.equal(collections[0]?.schema.fields.rate?.currency, undefined);
+  });
+
+  it("accepts `derived` displayed as money with a `currencyField`", async () => {
+    writeSkill("test-derived-currencyfield", {
+      title: "Derived Currency Field",
+      icon: "calculate",
+      dataPath: "data/derivedcurfield/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        currency: { type: "enum", values: ["USD", "JPY"], label: "Currency", required: true },
+        total: { type: "derived", label: "Total", formula: "1 + 1", display: "money", currencyField: "currency" },
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 1);
+    assert.equal(collections[0]?.schema.fields.total?.currencyField, "currency");
   });
 
   it("rejects `money` with an empty `currency` string", async () => {
@@ -272,6 +322,52 @@ describe("discoverCollections — field-type support", () => {
     assert.equal(collections.length, 1);
     assert.equal(collections[0]?.schema.fields.lineItems?.type, "table");
     assert.equal(collections[0]?.schema.fields.lineItems?.of?.quantity?.type, "number");
+  });
+
+  it("rejects a `table` whose money sub-field has no currency source", async () => {
+    writeSkill("test-table-money-no-currency", {
+      title: "Bad Table Money",
+      icon: "warning",
+      dataPath: "data/tabmoneynocur/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        lineItems: {
+          type: "table",
+          label: "Line items",
+          of: {
+            description: { type: "string", label: "Description", required: true },
+            rate: { type: "money", label: "Rate", required: true }, // no `currency` and no `currencyField`
+          },
+        },
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 0, "table money sub-field with no currency source must be skipped");
+  });
+
+  it("accepts a `table` money sub-field that uses `currencyField`", async () => {
+    writeSkill("test-table-money-currencyfield", {
+      title: "Invoice-like",
+      icon: "receipt",
+      dataPath: "data/tabmoneycurfield/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        currency: { type: "enum", values: ["USD", "JPY"], label: "Currency", required: true },
+        lineItems: {
+          type: "table",
+          label: "Line items",
+          of: {
+            description: { type: "string", label: "Description", required: true },
+            rate: { type: "money", currencyField: "currency", label: "Rate", required: true },
+          },
+        },
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 1);
+    assert.equal(collections[0]?.schema.fields.lineItems?.of?.rate?.currencyField, "currency");
   });
 
   it("rejects `table` with no `of`", async () => {
@@ -361,6 +457,37 @@ describe("discoverCollections — field-type support", () => {
     });
     const collections = await listCollections();
     assert.equal(collections.length, 0);
+  });
+
+  it("rejects `derived` displayed as money but with no `currency`", async () => {
+    writeSkill("test-derived-money-no-currency", {
+      title: "Bad Derived Money",
+      icon: "warning",
+      dataPath: "data/derivedmoneynocur/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        total: { type: "derived", label: "Total", formula: "1 + 1", display: "money" }, // missing `currency`
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 0, "derived field displayed as money without `currency` must be skipped");
+  });
+
+  it("accepts `derived` with a non-money display and no `currency`", async () => {
+    writeSkill("test-derived-number", {
+      title: "Derived Number",
+      icon: "calculate",
+      dataPath: "data/derivednum/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        count: { type: "derived", label: "Count", formula: "1 + 1", display: "number" },
+      },
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 1, "a derived field not displayed as money needs no currency");
+    assert.equal(collections[0]?.schema.fields.count?.display, "number");
   });
 
   // ─── embed (feat-collections-embed PR) ───
