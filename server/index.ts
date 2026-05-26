@@ -735,7 +735,7 @@ if (env.isProduction) {
   // from source (no prepare-dist copy step) and point the env at
   // `<repo-root>/dist/client/`. See server/utils/clientDir.ts for
   // the unit-tested resolver.
-  const clientDir = resolveClientDir(__dirname, process.env.MULMOCLAUDE_CLIENT_DIR);
+  const clientDir = resolveClientDir(process.env.MULMOCLAUDE_CLIENT_DIR, path.join(__dirname, "../client"));
   app.use(express.static(clientDir, { index: false }));
   const indexHtmlPath = path.join(clientDir, "index.html");
   app.get("/{*splat}", (_req: Request, res: Response) => {
