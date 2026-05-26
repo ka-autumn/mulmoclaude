@@ -26,6 +26,19 @@ outside MulmoClaude — don't touch those.
 End with a one-line confirmation ("Saved as foo-skill." / "Removed foo-skill.")
 so the user can verify without scrolling.
 
+## Collections (a skill + a `schema.json`)
+
+If the user wants a small **data app** — a list/table they can view and edit
+(a swimming log, a recipe box, a client database) — that's a **collection
+skill**: a skill dir that also ships a `schema.json` (and optional
+`templates/*.md`). Author all of them under the same staging dir
+(`data/skills/<slug>/SKILL.md` + `data/skills/<slug>/schema.json` +
+`data/skills/<slug>/templates/*.md`); the same bridge hook mirrors those three
+file kinds into `.claude/skills/<slug>/` and the collection appears at
+`/collections/<slug>`. **Read `config/helps/collection-skills.md` first** — it
+is the authority on the schema DSL (field types, relations, derived fields,
+actions). Don't hand-roll a schema from memory.
+
 ## Workflow 1: save a new skill
 
 **Triggers**: "skill 化して", "save this as a skill", "make this reusable",

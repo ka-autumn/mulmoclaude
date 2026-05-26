@@ -730,6 +730,36 @@ describe("discoverCollections — actions", () => {
     assert.equal((await listCollections()).length, 0);
   });
 
+  it("rejects an action template not under templates/", async () => {
+    // The template path must live under `templates/` — this is the
+    // exact contract the skill-bridge hook mirrors, so a bare or
+    // sibling-dir path can't validate here yet fail to cross the gate
+    // (Codex review on PR #1518).
+    writeSkill("test-actions-bare-template", {
+      title: "X",
+      icon: "warning",
+      dataPath: "data/actbare/items",
+      primaryKey: "id",
+      fields,
+      actions: [{ id: "pdf", label: "PDF", kind: "chat", role: "accounting", template: "invoice.md" }],
+    });
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("accepts an action template nested under templates/", async () => {
+    writeSkill("test-actions-nested-template", {
+      title: "X",
+      icon: "receipt",
+      dataPath: "data/actnest/items",
+      primaryKey: "id",
+      fields,
+      actions: [{ id: "mail", label: "Send mail", kind: "chat", role: "accounting", template: "templates/mail/welcome.md" }],
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 1);
+    assert.equal(collections[0]?.schema.actions?.[0]?.template, "templates/mail/welcome.md");
+  });
+
   it("rejects duplicate action ids", async () => {
     writeSkill("test-actions-dup", {
       title: "X",
@@ -738,8 +768,8 @@ describe("discoverCollections — actions", () => {
       primaryKey: "id",
       fields,
       actions: [
-        { id: "pdf", label: "A", kind: "chat", role: "accounting", template: "a.md" },
-        { id: "pdf", label: "B", kind: "chat", role: "accounting", template: "b.md" },
+        { id: "pdf", label: "A", kind: "chat", role: "accounting", template: "templates/a.md" },
+        { id: "pdf", label: "B", kind: "chat", role: "accounting", template: "templates/b.md" },
       ],
     });
     assert.equal((await listCollections()).length, 0);
@@ -752,7 +782,9 @@ describe("discoverCollections — actions", () => {
       dataPath: "data/actwhen/items",
       primaryKey: "id",
       fields,
-      actions: [{ id: "sale", label: "Record sale", kind: "chat", role: "accounting", template: "s.md", when: { field: "status", in: ["sent", "paid"] } }],
+      actions: [
+        { id: "sale", label: "Record sale", kind: "chat", role: "accounting", template: "templates/s.md", when: { field: "status", in: ["sent", "paid"] } },
+      ],
     });
     const collections = await listCollections();
     assert.equal(collections.length, 1);
@@ -766,7 +798,7 @@ describe("discoverCollections — actions", () => {
       dataPath: "data/actwhennf/items",
       primaryKey: "id",
       fields,
-      actions: [{ id: "sale", label: "Record sale", kind: "chat", role: "accounting", template: "s.md", when: { in: ["sent"] } }],
+      actions: [{ id: "sale", label: "Record sale", kind: "chat", role: "accounting", template: "templates/s.md", when: { in: ["sent"] } }],
     });
     assert.equal((await listCollections()).length, 0);
   });
@@ -778,7 +810,7 @@ describe("discoverCollections — actions", () => {
       dataPath: "data/actwhenei/items",
       primaryKey: "id",
       fields,
-      actions: [{ id: "sale", label: "Record sale", kind: "chat", role: "accounting", template: "s.md", when: { field: "status", in: [] } }],
+      actions: [{ id: "sale", label: "Record sale", kind: "chat", role: "accounting", template: "templates/s.md", when: { field: "status", in: [] } }],
     });
     assert.equal((await listCollections()).length, 0);
   });
@@ -790,7 +822,7 @@ describe("discoverCollections — actions", () => {
       dataPath: "data/actwhenna/items",
       primaryKey: "id",
       fields,
-      actions: [{ id: "sale", label: "Record sale", kind: "chat", role: "accounting", template: "s.md", when: { field: "status", in: "sent" } }],
+      actions: [{ id: "sale", label: "Record sale", kind: "chat", role: "accounting", template: "templates/s.md", when: { field: "status", in: "sent" } }],
     });
     assert.equal((await listCollections()).length, 0);
   });

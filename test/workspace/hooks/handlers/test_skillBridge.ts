@@ -1,7 +1,8 @@
 // Unit tests for the skill-bridge handler. The handler mirrors
-// edits + deletes from `data/skills/<slug>/SKILL.md` into
-// `.claude/skills/<slug>/SKILL.md`. We verify the path math and
-// the regex gating directly, plus a smoke test of the mirror
+// edits + deletes from `data/skills/<slug>/` into
+// `.claude/skills/<slug>/` — but only for an allowlist of files
+// (SKILL.md, schema.json, templates/*.md). We verify the path math
+// and the regex gating directly, plus a smoke test of the mirror
 // copy / delete against a real tmp workspace.
 
 import { describe, it } from "node:test";
@@ -11,11 +12,12 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
+  bridgeTargetFromDataPath,
+  claudeSkillDir,
   claudeSkillFilePath,
   dataSkillDir,
   dataSkillFilePath,
   handleSkillBridge,
-  slugFromDataPath,
   slugFromRmCommand,
 } from "../../../../server/workspace/hooks/handlers/skillBridge.js";
 
@@ -25,27 +27,72 @@ function setWorkspace(root: string): void {
   process.env.CLAUDE_PROJECT_DIR = root;
 }
 
-describe("slugFromDataPath", () => {
-  it("matches data/skills/<slug>/SKILL.md and returns the slug", () => {
+describe("bridgeTargetFromDataPath", () => {
+  it("matches data/skills/<slug>/SKILL.md", () => {
     setWorkspace("/ws");
-    assert.equal(slugFromDataPath("/ws/data/skills/nazonazo/SKILL.md"), "nazonazo");
-    assert.equal(slugFromDataPath("/ws/data/skills/my-skill/SKILL.md"), "my-skill");
+    assert.deepEqual(bridgeTargetFromDataPath("/ws/data/skills/nazonazo/SKILL.md"), { slug: "nazonazo", relSegments: ["SKILL.md"] });
+    assert.deepEqual(bridgeTargetFromDataPath("/ws/data/skills/my-skill/SKILL.md"), { slug: "my-skill", relSegments: ["SKILL.md"] });
+  });
+
+  it("matches data/skills/<slug>/schema.json (collection definition)", () => {
+    // A collection skill ships a schema.json next to SKILL.md;
+    // without it crossing the gate the collection never registers.
+    setWorkspace("/ws");
+    assert.deepEqual(bridgeTargetFromDataPath("/ws/data/skills/swimming/schema.json"), { slug: "swimming", relSegments: ["schema.json"] });
+  });
+
+  it("matches any safe action-template path under templates/ (matches the schema validator)", () => {
+    // Action templates referenced by a schema's `actions` must cross.
+    // The accepted set is exactly what `isSafeActionTemplatePath`
+    // allows (the same predicate discovery validates against): a safe
+    // path under `templates/`, nesting + any extension permitted — so
+    // a valid schema can never reference a template the bridge drops.
+    setWorkspace("/ws");
+    assert.deepEqual(bridgeTargetFromDataPath("/ws/data/skills/invoice/templates/journal-sale.md"), {
+      slug: "invoice",
+      relSegments: ["templates", "journal-sale.md"],
+    });
+    assert.deepEqual(
+      bridgeTargetFromDataPath("/ws/data/skills/invoice/templates/mail/welcome.md"),
+      {
+        slug: "invoice",
+        relSegments: ["templates", "mail", "welcome.md"],
+      },
+      "nested template path",
+    );
+    assert.deepEqual(
+      bridgeTargetFromDataPath("/ws/data/skills/foo/templates/report.txt"),
+      {
+        slug: "foo",
+        relSegments: ["templates", "report.txt"],
+      },
+      "non-.md extension allowed",
+    );
   });
 
   it("rejects non-staging paths", () => {
     setWorkspace("/ws");
-    assert.equal(slugFromDataPath("/ws/data/wiki/foo.md"), null);
-    assert.equal(slugFromDataPath("/ws/.claude/skills/foo/SKILL.md"), null);
-    assert.equal(slugFromDataPath("/elsewhere/data/skills/foo/SKILL.md"), null);
+    assert.equal(bridgeTargetFromDataPath("/ws/data/wiki/foo.md"), null);
+    assert.equal(bridgeTargetFromDataPath("/ws/.claude/skills/foo/SKILL.md"), null);
+    assert.equal(bridgeTargetFromDataPath("/elsewhere/data/skills/foo/SKILL.md"), null);
   });
 
-  it("rejects sibling files in the staging skill dir", () => {
-    // Only SKILL.md crosses over — assets and notes stay
-    // staging-side. The agent writing `data/skills/foo/README.md`
-    // by mistake should be a no-op, not a mis-mirror.
+  it("rejects non-allowlisted sibling files in the staging skill dir", () => {
+    // Only SKILL.md / schema.json / templates/*.md cross over —
+    // READMEs, assets, and arbitrary files stay staging-side. The
+    // agent writing `data/skills/foo/README.md` by mistake should
+    // be a no-op, not a mis-mirror.
     setWorkspace("/ws");
-    assert.equal(slugFromDataPath("/ws/data/skills/foo/README.md"), null);
-    assert.equal(slugFromDataPath("/ws/data/skills/foo/assets/img.png"), null);
+    assert.equal(bridgeTargetFromDataPath("/ws/data/skills/foo/README.md"), null);
+    assert.equal(bridgeTargetFromDataPath("/ws/data/skills/foo/notes.json"), null);
+    assert.equal(bridgeTargetFromDataPath("/ws/data/skills/foo/assets/img.png"), null);
+  });
+
+  it("rejects template-like paths that aren't under templates/ or that traverse", () => {
+    setWorkspace("/ws");
+    assert.equal(bridgeTargetFromDataPath("/ws/data/skills/foo/assets/x.md"), null, "non-templates subdir rejected");
+    assert.equal(bridgeTargetFromDataPath("/ws/data/skills/foo/prompts/x.md"), null, "must be under templates/, not a sibling dir");
+    assert.equal(bridgeTargetFromDataPath("/ws/data/skills/foo/templates/../escape.md"), null, "traversal rejected");
   });
 
   it("rejects flat <slug>.md (the old layout)", () => {
@@ -54,15 +101,15 @@ describe("slugFromDataPath", () => {
     // form is no longer recognised. Document the change here so
     // a partial revert can't silently re-introduce it.
     setWorkspace("/ws");
-    assert.equal(slugFromDataPath("/ws/data/skills/foo.md"), null);
+    assert.equal(bridgeTargetFromDataPath("/ws/data/skills/foo.md"), null);
   });
 
   it("rejects invalid slugs", () => {
     setWorkspace("/ws");
-    assert.equal(slugFromDataPath("/ws/data/skills/Foo/SKILL.md"), null, "uppercase rejected");
-    assert.equal(slugFromDataPath("/ws/data/skills/foo_bar/SKILL.md"), null, "underscore rejected");
-    assert.equal(slugFromDataPath("/ws/data/skills/-foo/SKILL.md"), null, "leading hyphen rejected");
-    assert.equal(slugFromDataPath("/ws/data/skills/foo--bar/SKILL.md"), null, "double hyphen rejected");
+    assert.equal(bridgeTargetFromDataPath("/ws/data/skills/Foo/SKILL.md"), null, "uppercase rejected");
+    assert.equal(bridgeTargetFromDataPath("/ws/data/skills/foo_bar/SKILL.md"), null, "underscore rejected");
+    assert.equal(bridgeTargetFromDataPath("/ws/data/skills/-foo/SKILL.md"), null, "leading hyphen rejected");
+    assert.equal(bridgeTargetFromDataPath("/ws/data/skills/foo--bar/SKILL.md"), null, "double hyphen rejected");
   });
 });
 
@@ -122,11 +169,71 @@ describe("handleSkillBridge — mirror copy", () => {
     await rm(root, { recursive: true, force: true });
   });
 
+  it("copies schema.json to .claude/skills/<slug>/schema.json on Write", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "skill-bridge-schema-"));
+    setWorkspace(root);
+    await mkdir(dataSkillDir("swimming"), { recursive: true });
+    const schemaPath = path.join(dataSkillDir("swimming"), "schema.json");
+    const content = '{\n  "title": "Swimming Log",\n  "primaryKey": "id",\n  "fields": {}\n}\n';
+    await writeFile(schemaPath, content, "utf-8");
+
+    await handleSkillBridge({
+      tool_name: "Write",
+      tool_input: { file_path: schemaPath },
+    });
+
+    const mirrored = await readFile(path.join(claudeSkillDir("swimming"), "schema.json"), "utf-8");
+    assert.equal(mirrored, content);
+
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it("copies templates/<name>.md into .claude/skills/<slug>/templates/ (creates the subdir)", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "skill-bridge-template-"));
+    setWorkspace(root);
+    await mkdir(path.join(dataSkillDir("invoice"), "templates"), { recursive: true });
+    const tplPath = path.join(dataSkillDir("invoice"), "templates", "journal-sale.md");
+    const content = "# Record sale\n\nPost the receivable journal.\n";
+    await writeFile(tplPath, content, "utf-8");
+
+    await handleSkillBridge({
+      tool_name: "Write",
+      tool_input: { file_path: tplPath },
+    });
+
+    const mirrored = await readFile(path.join(claudeSkillDir("invoice"), "templates", "journal-sale.md"), "utf-8");
+    assert.equal(mirrored, content);
+
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it("does NOT mirror a non-allowlisted sibling (README.md)", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "skill-bridge-sibling-"));
+    setWorkspace(root);
+    await mkdir(dataSkillDir("foo"), { recursive: true });
+    const readmePath = path.join(dataSkillDir("foo"), "README.md");
+    await writeFile(readmePath, "scratch notes", "utf-8");
+
+    await handleSkillBridge({
+      tool_name: "Write",
+      tool_input: { file_path: readmePath },
+    });
+
+    // Nothing crossed — the canonical skill dir was never created.
+    assert.equal(existsSync(claudeSkillDir("foo")), false);
+
+    await rm(root, { recursive: true, force: true });
+  });
+
   it("removes .claude/skills/<slug>/ on a matching Bash rm -rf", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "skill-bridge-delete-"));
     setWorkspace(root);
-    await mkdir(path.dirname(claudeSkillFilePath("doomed")), { recursive: true });
+    await mkdir(path.join(claudeSkillDir("doomed"), "templates"), { recursive: true });
     await writeFile(claudeSkillFilePath("doomed"), "---\nname: doomed\n---", "utf-8");
+    // A collection skill: prove the whole-dir delete sweeps the
+    // schema + templates too, leaving no orphans behind.
+    await writeFile(path.join(claudeSkillDir("doomed"), "schema.json"), "{}", "utf-8");
+    await writeFile(path.join(claudeSkillDir("doomed"), "templates", "x.md"), "# x", "utf-8");
 
     await handleSkillBridge({
       tool_name: "Bash",
@@ -134,9 +241,9 @@ describe("handleSkillBridge — mirror copy", () => {
     });
 
     // Whole `.claude/skills/doomed/` is gone — not just the SKILL.md
-    // file. Skills can have sibling assets and we don't want
-    // orphans dangling.
-    assert.equal(existsSync(path.dirname(claudeSkillFilePath("doomed"))), false);
+    // file. Collections carry schema.json + templates/ and we don't
+    // want orphans dangling.
+    assert.equal(existsSync(claudeSkillDir("doomed")), false);
 
     await rm(root, { recursive: true, force: true });
   });

@@ -12,6 +12,7 @@ import { log } from "../../system/logger/index.js";
 import { workspacePath } from "../workspace.js";
 import { USER_SKILLS_DIR, projectSkillsDir } from "../skills/paths.js";
 import { SCHEMA_FILE, resolveDataDir, safeSlugName } from "./paths.js";
+import { isSafeActionTemplatePath } from "./templatePath.js";
 import type { CollectionDetail, CollectionSchema, CollectionSource, CollectionSummary } from "./types.js";
 
 // Cross-field refines, factored out so they can apply at both the
@@ -132,15 +133,6 @@ const FieldSpecSchema = z
     path: ["formula"],
   });
 
-// An action's `template` becomes a file read under the skill dir, so
-// reject traversal up front: each `/`-separated segment must be a plain
-// safe name, no `..`, no backslash, not absolute. The reader's realpath
-// containment is the hard guarantee; this fails a bad schema fast.
-function isSafeTemplatePath(value: string): boolean {
-  if (value.length === 0 || value.includes("\\") || value.startsWith("/")) return false;
-  return value.split("/").every((seg) => seg.length > 0 && seg !== "." && seg !== ".." && /^[A-Za-z0-9._-]+$/.test(seg));
-}
-
 // Optional visibility predicate: the action button shows only when the
 // open record's `field` (stringified) is one of `in`. Domain-free —
 // `field` is any non-empty key, `in` a non-empty array of non-empty
@@ -158,7 +150,11 @@ const ActionSpecSchema = z.object({
   icon: z.string().trim().min(1).optional(),
   kind: z.enum(["chat"]),
   role: z.string().trim().min(1),
-  template: z.string().trim().min(1).refine(isSafeTemplatePath, "must be a safe skill-relative path (no `..`, no leading `/`, no backslash)"),
+  template: z
+    .string()
+    .trim()
+    .min(1)
+    .refine(isSafeActionTemplatePath, "must be a safe path under `templates/` (e.g. `templates/invoice.md`; no `..`, no leading `/`, no backslash)"),
   when: ActionWhenSchema.optional(),
 });
 
