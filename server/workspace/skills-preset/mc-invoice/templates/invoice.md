@@ -87,9 +87,10 @@ Follow these steps:
    - `filenamePrefix`: the invoice `id`.
 
    This renders the invoice in the canvas where the user can review and
-   print it (browser print → PDF). **Do this** — do not just paste the
-   markdown into the chat or write a raw file; `presentDocument` is the
-   only correct way to surface the document.
+   download it as a PDF. **Do this** — do not just paste the markdown
+   into the chat or write a raw file; `presentDocument` is the only
+   correct way to surface the document.
 
 6. **Confirm** in one short sentence that the invoice is ready in the
-   canvas.
+   canvas. Do not add tips about how to export or print it — the canvas
+   already provides a PDF download.
