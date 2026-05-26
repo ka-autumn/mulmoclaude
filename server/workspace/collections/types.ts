@@ -94,11 +94,20 @@ export interface CollectionFieldSpec {
    *  when type is `embed`; ignored on every other type. */
   id?: string;
   /** When `type === "money"` (or `type === "derived"` with
-   *  `display: "money"`): ISO 4217 currency code passed to
-   *  `Intl.NumberFormat` for table display. Defaults to "USD"
-   *  client-side when omitted. The stored value is always a plain
-   *  decimal number — currency is presentation only. */
+   *  `display: "money"`): a literal ISO 4217 currency code passed to
+   *  `Intl.NumberFormat` for display — fixed for every record. The
+   *  stored value is always a plain decimal number; currency is
+   *  presentation only. Mutually substitutable with `currencyField`:
+   *  a money field must declare at least one of the two. */
   currency?: string;
+  /** When `type === "money"` (or `type === "derived"` with
+   *  `display: "money"`): the name of a sibling record field whose
+   *  value holds the ISO 4217 code, letting currency vary per record
+   *  (e.g. an invoice's `currency` enum). The renderer reads
+   *  `record[currencyField]` and falls back to the literal `currency`
+   *  (then "USD") when the field is absent or empty. Resolved against
+   *  the top-level record even for money sub-fields inside a table. */
+  currencyField?: string;
   /** When `type === "enum"`: the closed set of allowed string
    *  values. The form renders a `<select>` populated from this
    *  list; storage is a plain string. Required when type is

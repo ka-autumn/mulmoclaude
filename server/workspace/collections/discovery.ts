@@ -56,6 +56,27 @@ const enumMessage = {
   path: ["values"],
 };
 
+// A field that renders as money must declare where its currency comes
+// from — otherwise the formatter silently falls back to USD and
+// mislabels non-USD amounts. Two ways to satisfy it: a literal
+// `currency` (fixed for every record) or a `currencyField` naming a
+// sibling record field that holds the ISO code (per-record, e.g. an
+// invoice's `currency` enum). At least one is required. Covers `money`
+// fields and `derived` fields displayed as money (subtotal / tax /
+// total). Sub-fields can't be `derived`, so there it's just money.
+const currencyRefine = (spec: { type: string; display?: string; currency?: string; currencyField?: string }): boolean => {
+  const rendersMoney = spec.type === "money" || (spec.type === "derived" && spec.display === "money");
+  if (!rendersMoney) return true;
+  const hasLiteral = typeof spec.currency === "string" && spec.currency.trim().length > 0;
+  const hasPointer = typeof spec.currencyField === "string" && spec.currencyField.trim().length > 0;
+  return hasLiteral || hasPointer;
+};
+const currencyMessage = {
+  message:
+    "fields that render as money (type 'money', or 'derived' with display 'money') must declare either a literal `currency` (ISO 4217 code, e.g. 'USD', 'JPY') or a `currencyField` naming the record field that holds the code",
+  path: ["currency"],
+};
+
 // Sub-fields inside a `table.of` map: the regular field types
 // minus `table` (no nested tables) and `derived` (no computed
 // columns inside a table — would need the evaluator to walk the
@@ -72,10 +93,12 @@ const SubFieldSpecSchema = z
     // like missing data. Applied consistently to every "non-empty
     // string" slot in the schema (CodeRabbit PR #1497).
     currency: z.string().trim().min(1).optional(),
+    currencyField: z.string().trim().min(1).optional(),
     values: z.array(z.string().trim().min(1)).min(1).optional(),
   })
   .refine(refRefine, refMessage)
-  .refine(enumRefine, enumMessage);
+  .refine(enumRefine, enumMessage)
+  .refine(currencyRefine, currencyMessage);
 
 const FieldSpecSchema = z
   .object({
@@ -86,6 +109,7 @@ const FieldSpecSchema = z
     to: z.string().min(1).optional(),
     id: z.string().trim().min(1).optional(),
     currency: z.string().trim().min(1).optional(),
+    currencyField: z.string().trim().min(1).optional(),
     values: z.array(z.string().trim().min(1)).min(1).optional(),
     of: z.record(z.string(), SubFieldSpecSchema).optional(),
     formula: z.string().trim().min(1).optional(),
@@ -98,6 +122,7 @@ const FieldSpecSchema = z
   .refine(refRefine, refMessage)
   .refine(enumRefine, enumMessage)
   .refine(embedRefine, embedMessage)
+  .refine(currencyRefine, currencyMessage)
   .refine((spec) => spec.type !== "table" || (spec.of !== undefined && Object.keys(spec.of).length > 0), {
     message: "fields with type 'table' must declare a non-empty `of` (sub-schema for each row)",
     path: ["of"],
@@ -137,6 +162,34 @@ const ActionSpecSchema = z.object({
   when: ActionWhenSchema.optional(),
 });
 
+// Field types that can hold a currency code string. A `currencyField`
+// pointer must resolve to one of these — pointing at a number / boolean
+// / table would never yield a usable ISO code.
+const CODE_FIELD_TYPES = new Set(["string", "text", "enum"]);
+
+interface FieldLike {
+  type: string;
+  currencyField?: string;
+  of?: Record<string, { currencyField?: string }>;
+}
+
+// Every `currencyField` declared anywhere in the schema — top-level
+// fields and a table's `of` sub-fields. Sub-field money cells resolve
+// currency against the TOP-LEVEL record (rows carry no currency), so
+// their pointers are validated against the top-level field set too.
+function collectCurrencyFieldRefs(fields: Record<string, FieldLike>): string[] {
+  const refs: string[] = [];
+  for (const field of Object.values(fields)) {
+    if (typeof field.currencyField === "string" && field.currencyField.length > 0) refs.push(field.currencyField);
+    if (field.of) {
+      for (const sub of Object.values(field.of)) {
+        if (typeof sub.currencyField === "string" && sub.currencyField.length > 0) refs.push(sub.currencyField);
+      }
+    }
+  }
+  return refs;
+}
+
 const CollectionSchemaZ = z
   .object({
     title: z.string().min(1),
@@ -165,6 +218,15 @@ const CollectionSchemaZ = z
   .refine((schema) => schema.actions === undefined || new Set(schema.actions.map((action) => action.id)).size === schema.actions.length, {
     message: "schema `actions` must have unique `id`s",
     path: ["actions"],
+  })
+  // A `currencyField` pointer must name a real top-level field that
+  // holds a code string — a typo (`curreny`) would otherwise pass the
+  // per-field check, then silently fall back to the literal / USD at
+  // render and mislabel amounts. Checked at the schema level because a
+  // field can't see its siblings.
+  .refine((schema) => collectCurrencyFieldRefs(schema.fields).every((name) => CODE_FIELD_TYPES.has(schema.fields[name]?.type ?? "")), {
+    message: "a money field's `currencyField` must name a top-level `string`, `text`, or `enum` field that holds the currency code",
+    path: ["fields"],
   });
 
 interface LoadedCollection {

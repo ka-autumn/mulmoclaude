@@ -36,7 +36,8 @@ types):
 - `issueDate` — ISO date `YYYY-MM-DD`, **required**
 - `dueDate` — ISO date (optional)
 - `status` — enum `draft | sent | paid | void`, **required** (default to `draft` when creating)
-- `lineItems` — array of `{ description, quantity, rate }` rows
+- `currency` — enum ISO 4217 code `USD | JPY | EUR | GBP | CNY | KRW | AUD | CAD | CHF | HKD | SGD`, **required**. Governs how `rate` and the computed Subtotal / Tax / Total render — there is no separate per-amount currency, the whole invoice is in this one. Infer it from context (the client's locale, the user's `mc-profile`, or what the user states) — e.g. a Japan-based issuer billing in yen → `JPY`. When you genuinely can't tell, ask rather than defaulting to USD.
+- `lineItems` — array of `{ description, quantity, rate }` rows. `rate` is a **plain number** in the invoice's `currency` (no symbol, no code) — e.g. `20000` on a `JPY` invoice means ¥20,000.
 - `taxRate` — decimal (e.g. `0.10` for 10%)
 - `notes` — markdown
 - `subtotal`, `tax`, `total` — **computed by the host**; never write these
@@ -75,8 +76,9 @@ When the user says "invoice Acme for May consulting":
 
 **Create**: derive an `id`, build the record with the fields you have, write
 to `data/invoice/items/<id>.json` via the `Write` tool. Defaults:
-`status: "draft"`, `issueDate: <today>`. Don't write `subtotal` / `tax` /
-`total` (computed).
+`status: "draft"`, `issueDate: <today>`. Set `currency` from context (client
+locale / `mc-profile` / what the user said) — don't silently default to USD.
+Don't write `subtotal` / `tax` / `total` (computed).
 
 **Create from worklog hours** — common case. When the user says
 "invoice Acme for the work I did this month" (or "for May", or "since the
@@ -151,8 +153,9 @@ posting time when that is unset.
 ## When to ask vs. when to act
 
 If the user gives you clear info ("invoice Acme $5000 for May consulting"),
-just write the record: one line item `{ description: "May consulting",
-quantity: 1, rate: 5000 }`, status `draft`, today's `issueDate`, `dueDate`
+just write the record: one line item with `description` "May consulting",
+`quantity` 1 and `rate` 5000; `currency` `USD` (the `$` is the tell; a `¥`
+amount would be `JPY`); `status` `draft`; today's `issueDate`; `dueDate`
 empty (or 30 days out if a default is set elsewhere).
 
 Use `presentForm` only when something is ambiguous: multiple clients match

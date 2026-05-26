@@ -37,13 +37,19 @@
       "label": "Status",
       "required": true
     },
+    "currency": {
+      "type": "enum",
+      "values": ["USD", "JPY", "EUR", "GBP", "CNY", "KRW", "AUD", "CAD", "CHF", "HKD", "SGD"],
+      "label": "Currency",
+      "required": true
+    },
     "lineItems": {
       "type": "table",
       "label": "Line items",
       "of": {
         "description": { "type": "string", "label": "Description", "required": true },
         "quantity": { "type": "number", "label": "Qty", "required": true },
-        "rate": { "type": "money", "label": "Rate", "currency": "USD", "required": true }
+        "rate": { "type": "money", "label": "Rate", "currencyField": "currency", "currency": "USD", "required": true }
       }
     },
     "subtotal": {
@@ -51,6 +57,7 @@
       "label": "Subtotal",
       "formula": "sum(lineItems[].quantity * lineItems[].rate)",
       "display": "money",
+      "currencyField": "currency",
       "currency": "USD"
     },
     "taxRate": {
@@ -62,6 +69,7 @@
       "label": "Tax",
       "formula": "subtotal * taxRate",
       "display": "money",
+      "currencyField": "currency",
       "currency": "USD"
     },
     "total": {
@@ -69,6 +77,7 @@
       "label": "Total",
       "formula": "subtotal + tax",
       "display": "money",
+      "currencyField": "currency",
       "currency": "USD"
     },
     "notes": {
