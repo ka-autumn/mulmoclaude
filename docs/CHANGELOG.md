@@ -10,6 +10,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 ---
 
+## [0.6.5] - 2026-05-26
+
+Fixes a production regression where `npx mulmoclaude@latest` failed to load the ToDo and Spotify runtime plugins (e.g. "ToDo の読み込みに失敗しました" on first launch) because the published tarball did not ship them. They now travel with `mulmoclaude` as regular npm dependencies, so a fresh `npx` install boots with ToDo and Spotify available out of the box. Other runtime plugins (`debug`, `edgar`) stay dev-only by design and no longer log misleading `preset package not resolvable` warns in production.
+
+### Fixed
+- `npx mulmoclaude` no longer fails to mount ToDo / Spotify on first launch — `@mulmoclaude/todo-plugin@^0.1.0` and `@mulmoclaude/spotify-plugin@^0.1.0` are now real npm dependencies of `mulmoclaude` (#1513, #1515).
+- Preset loader downgrades the missing-package log to `debug` for entries flagged `devOnly: true`, so legitimately dev-only presets stop scaring production users (#1513).
+
+### Added
+- Two new published npm packages backing the runtime plugins:
+  - [`@mulmoclaude/todo-plugin@0.1.0`](https://www.npmjs.com/package/@mulmoclaude/todo-plugin/v/0.1.0)
+  - [`@mulmoclaude/spotify-plugin@0.1.0`](https://www.npmjs.com/package/@mulmoclaude/spotify-plugin/v/0.1.0)
+
+---
+
 ## [0.6.4] - 2026-05-20
 
 Four-day patch focused on a new **Encore** built-in (cycle-state planning + bell-reconciled todos), a **CodeMirror-based inline JSON editor** for workspace configs, **Docker-aware MCP catalog with stdio→HTTP shim** (so stdio-only MCP servers run inside the sandbox), and a **role split** that pulls personal-assistant workflows out of `General` into a dedicated `Personal` role. Plus the system-prompt build path was rearchitected (literals out to files, helps-injection deleted, topic-memory context index-only) and a handful of UI polish wins (srcset rewriter, app version in Settings, notification-history collapse, TODO kanban done-column menu).
