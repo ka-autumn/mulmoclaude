@@ -191,7 +191,9 @@ Origin badges: `system` (bg-gray) / `user` (bg-blue) / `skill` (bg-purple). Disa
 
 ## /wiki — wiki pages and lint report
 
-Two layouts share `<WikiView>`: the **index** (page list) and a **single page** body.
+`<WikiView>` shares one header tab strip — Index / Log / Lint / [wiki-tab-graph] — across
+several layouts: the **index** (page list), a **single page** body, the activity **log**, the
+**lint report**, and the **graph**.
 
 ### Index
 
@@ -223,9 +225,24 @@ Two layouts share `<WikiView>`: the **index** (page list) and a **single page** 
 │ │ ![image](relative/path)  ← rewritten to /api/files/raw    │ │
 │ │ [[wiki-link]]            ← rewritten to /wiki/pages/<slug>│ │
 │ └───────────────────────────────────────────────────────────┘ │
+│ ┌─[wiki-linked-references] (pages whose [[links]] point here)┐ │
+│ │ • [wiki-linked-reference-<slug>] → /wiki/pages/<slug>     │ │
+│ └───────────────────────────────────────────────────────────┘ │
 │ Per-page chat composer:                                       │
 │   [wiki-page-chat-input]  [wiki-page-chat-send]               │
 └───────────────────────────────────────────────────────────────┘
+```
+
+### Graph (`/wiki/graph`)
+
+```
+┌─[<WikiView> action="graph"]───────────────────────────────────┐
+│ [wiki-graph]                                                   │
+│ ┌─[wiki-graph-canvas] (echarts force layout)────────────────┐ │
+│ │   (•)Title ──→ (•)Title    click node → /wiki/pages/<slug>│ │
+│ │        \         /         empty → "No links to graph yet"│ │
+│ └───────────────────────────────────────────────────────────┘ │
+└────────────────────────────────────────────────────────────────┘
 ```
 
 ### page-edit (canvas timeline only — #963)

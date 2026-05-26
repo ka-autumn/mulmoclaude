@@ -1,4 +1,5 @@
 import type { PluginEntry, PluginRegistration } from "../../tools/types";
+import type { WikiGraph } from "../../lib/wiki-page/graph";
 import { wrapWithScope } from "../scope";
 import View from "./View.vue";
 import Preview from "./Preview.vue";
@@ -36,6 +37,11 @@ export interface WikiData {
   slug?: string;
   stamp?: string;
   pagePath?: string;
+  // ── `graph` action (#wiki-backlinks-graph) ───────────────────
+  // Page→page link graph for the Graph tab and the per-page
+  // "Linked references" panel. Present only on the `graph` action
+  // response.
+  graph?: WikiGraph;
 }
 
 // View-only registry entry (Stage 3b, #963). The plugin no longer

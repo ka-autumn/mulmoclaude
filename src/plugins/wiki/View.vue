@@ -65,6 +65,17 @@
             <span class="material-icons text-sm">rule</span>
             <span>{{ t("pluginWiki.tabLint") }}</span>
           </button>
+          <button
+            :class="[
+              'h-8 px-2.5 flex items-center gap-1 border-r border-gray-200 last:border-r-0 transition-colors',
+              action === 'graph' ? 'bg-blue-50 text-blue-600 font-medium' : 'bg-white text-gray-600 hover:bg-gray-50',
+            ]"
+            data-testid="wiki-tab-graph"
+            @click="navigate('graph')"
+          >
+            <span class="material-icons text-sm">hub</span>
+            <span>{{ t("pluginWiki.tabGraph") }}</span>
+          </button>
         </div>
       </div>
     </div>
@@ -79,11 +90,28 @@
          body below so the History tab stays reachable when the
          live page is missing or empty (codex review iter-2 #946 —
          history outlives the page). -->
-    <div v-if="!content && !navError && action !== 'page' && action !== 'page-edit'" class="flex-1 flex items-center justify-center text-gray-400 text-sm">
+    <div
+      v-if="!content && !navError && action !== 'page' && action !== 'page-edit' && action !== 'graph'"
+      class="flex-1 flex items-center justify-center text-gray-400 text-sm"
+    >
       <div class="text-center space-y-2">
         <span class="material-icons text-4xl text-gray-300">menu_book</span>
         <p>{{ t("pluginWiki.empty") }}</p>
       </div>
+    </div>
+
+    <!-- Graph: force-directed map of the [[wiki-link]] network -->
+    <div v-else-if="action === 'graph'" class="flex-1 flex flex-col overflow-hidden" data-testid="wiki-graph">
+      <div v-if="graphError" class="mx-6 mt-4 rounded border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+        {{ graphError }}
+      </div>
+      <div v-else-if="!graphData || graphData.nodes.length === 0" class="flex-1 flex items-center justify-center text-gray-400 text-sm">
+        <div class="text-center space-y-2">
+          <span class="material-icons text-4xl text-gray-300">hub</span>
+          <p>{{ t("pluginWiki.graphEmpty") }}</p>
+        </div>
+      </div>
+      <WikiGraphView v-else :graph="graphData" class="flex-1" @navigate="navigatePage" />
     </div>
 
     <!-- Index: tag filter + page card list -->
@@ -260,16 +288,36 @@
               </button>
             </div>
           </div>
-          <!-- Rendered markdown body. -->
-          <WikiPageBody
-            v-else
-            :body="mdDoc.body"
-            :base-dir="WIKI_BASE_DIR"
-            class="flex-1"
-            @task-checkbox-click="onTaskCheckboxClick"
-            @wiki-link-click="navigatePage"
-            @workspace-link-click="(path) => appApi.navigateToWorkspacePath(path)"
-          />
+          <!-- Rendered markdown body + linked references panel. -->
+          <template v-else>
+            <WikiPageBody
+              :body="mdDoc.body"
+              :base-dir="WIKI_BASE_DIR"
+              class="flex-1"
+              @task-checkbox-click="onTaskCheckboxClick"
+              @wiki-link-click="navigatePage"
+              @workspace-link-click="(path) => appApi.navigateToWorkspacePath(path)"
+            />
+            <!-- Backlinks: other pages whose [[links]] point here.
+                 Surfaces the dense cross-links Claude builds during
+                 ingest (#wiki-backlinks-graph). -->
+            <section v-if="linkedReferences.length > 0" data-testid="wiki-linked-references" class="shrink-0 border-t border-gray-100 px-6 py-4">
+              <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">
+                {{ t("pluginWiki.linkedReferences") }}
+              </h3>
+              <ul class="space-y-1">
+                <li v-for="backlink in linkedReferences" :key="backlink.slug">
+                  <button
+                    class="text-sm text-blue-600 hover:underline text-left"
+                    :data-testid="`wiki-linked-reference-${backlink.slug}`"
+                    @click="navigatePage(backlink.slug)"
+                  >
+                    {{ backlink.title }}
+                  </button>
+                </li>
+              </ul>
+            </section>
+          </template>
         </div>
       </template>
 
@@ -362,12 +410,14 @@ import { WIKI_ACTION, WIKI_ROUTE_SECTION, buildWikiRouteParams, isSafeWikiSlug, 
 import FilterChip from "../../components/FilterChip.vue";
 import HistoryTab from "./history/HistoryTab.vue";
 import WikiPageBody from "./components/WikiPageBody.vue";
+import WikiGraphView from "./components/WikiGraphView.vue";
+import { incomingLinks, type WikiGraph } from "../../lib/wiki-page/graph";
 import { loadPageEdit } from "./pageEditLoader";
 
 const wikiEndpoints = pluginEndpoints<WikiEndpoints>("wiki");
 const PAGE_WIKI = pluginPageRoute("wiki");
 
-type WikiTabView = typeof WIKI_ACTION.log | typeof WIKI_ACTION.lintReport;
+type WikiTabView = typeof WIKI_ACTION.log | typeof WIKI_ACTION.lintReport | typeof WIKI_ACTION.graph;
 
 // Workspace-relative wiki dirs. Centralised so future layout shifts
 // (e.g. the prior `wiki/` → `data/wiki/` move) only need to change
@@ -416,6 +466,14 @@ const selectedTag = ref<string | null>(null);
 // watcher, callApi's `navError.value = null` would hit the TDZ on
 // direct loads of /wiki and the fetch would never run.
 const navError = ref<string | null>(null);
+
+// Page→page link graph (#wiki-backlinks-graph). Loaded lazily once
+// per browsing session and reused for both the Graph tab and the
+// per-page "Linked references" panel (the graph is global, so one
+// fetch serves every page's backlinks). Refreshed on the Graph tab
+// fetch and after a page save / restore so edited links propagate.
+const graphData = ref<WikiGraph | null>(null);
+const graphError = ref<string | null>(null);
 
 // Per-page tab state for the Content / History switcher (#763 PR
 // 3 / #944). Defaults to "content" on every page navigation
@@ -488,8 +546,11 @@ function handleRestored(): void {
     restoreToastVisible.value = false;
     restoreToastTimer = null;
   }, RESTORE_TOAST_MS);
-  // Refresh the page content so the restored body shows up.
+  // Refresh the page content so the restored body shows up. Reload
+  // the graph too — a restored version may add or drop `[[links]]`,
+  // which changes this page's "Linked references".
   void refresh();
+  void loadGraph();
 }
 
 onMounted(() => {
@@ -764,27 +825,44 @@ async function downloadPdf() {
   await rawDownloadPdf(content.value, filename, { baseDir: "data/wiki/pages", stripFrontmatter: true });
 }
 
+interface WikiResultData {
+  action?: string;
+  title?: string;
+  content?: string;
+  pageEntries?: WikiPageEntry[];
+  pageExists?: boolean;
+  graph?: WikiGraph;
+}
+
+// Graph tab response carries the link graph directly. On a page view,
+// lazily fetch the graph once so the "Linked references" panel has
+// data — the graph is global, so one fetch serves every page.
+function syncGraphFromResult(data: WikiResultData | undefined): void {
+  if (data?.graph) {
+    graphData.value = data.graph;
+    return;
+  }
+  if (action.value === WIKI_ACTION.page && pageExists.value && graphData.value === null) void loadGraph();
+}
+
+function applyWikiResult(data: WikiResultData | undefined): void {
+  action.value = data?.action ?? "index";
+  title.value = data?.title ?? "Wiki";
+  content.value = data?.content ?? "";
+  pageEntries.value = data?.pageEntries ?? [];
+  pageExists.value = data?.pageExists ?? true;
+  syncGraphFromResult(data);
+}
+
 async function callApi(body: Record<string, unknown>) {
   navError.value = null;
-  const response = await apiPost<{
-    data?: {
-      action?: string;
-      title?: string;
-      content?: string;
-      pageEntries?: WikiPageEntry[];
-      pageExists?: boolean;
-    };
-  }>(wikiEndpoints.base, body);
+  const response = await apiPost<{ data?: WikiResultData }>(wikiEndpoints.base, body);
   if (!response.ok) {
     navError.value = response.status === 0 ? response.error : `Wiki API error ${response.status}: ${response.error}`;
     return;
   }
   const result = response.data;
-  action.value = result.data?.action ?? "index";
-  title.value = result.data?.title ?? "Wiki";
-  content.value = result.data?.content ?? "";
-  pageEntries.value = result.data?.pageEntries ?? [];
-  pageExists.value = result.data?.pageExists ?? true;
+  applyWikiResult(result.data);
   if (props.selectedResult) {
     emit("updateResult", {
       ...props.selectedResult,
@@ -794,6 +872,25 @@ async function callApi(body: Record<string, unknown>) {
     });
   }
 }
+
+async function loadGraph(): Promise<void> {
+  graphError.value = null;
+  const response = await apiPost<{ data?: { graph?: WikiGraph } }>(wikiEndpoints.base, { action: WIKI_ACTION.graph });
+  if (!response.ok) {
+    graphError.value = response.status === 0 ? response.error : `Wiki graph error ${response.status}: ${response.error}`;
+    return;
+  }
+  graphData.value = response.data.data?.graph ?? { nodes: [], edges: [] };
+}
+
+// Pages that link TO the page currently being viewed. Derived from
+// the global graph + the current slug — empty until the graph loads
+// (lazily, via callApi on the first page view).
+const linkedReferences = computed(() => {
+  const slug = currentSlugReactive.value;
+  if (graphData.value === null || slug === null) return [];
+  return incomingLinks(graphData.value, slug);
+});
 
 function pushWiki(target: WikiTarget) {
   router.push({ name: PAGE_WIKI, params: buildWikiRouteParams(target) }).catch((err: unknown) => {

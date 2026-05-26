@@ -23,6 +23,7 @@ import { parseWikiLink } from "../../../src/lib/wiki-page/link.js";
 import { wikiSlugify } from "../../../src/lib/wiki-page/slug.js";
 import { type WikiPageEntry, parseIndexEntries } from "../../../src/lib/wiki-page/index-parse.js";
 import { findBrokenLinksInPage, findMissingFiles, findOrphanPages, findTagDrift, formatLintReport } from "../../../src/lib/wiki-page/lint.js";
+import { buildWikiGraph, type WikiGraph } from "../../../src/lib/wiki-page/graph.js";
 
 const router = Router();
 
@@ -170,6 +171,7 @@ interface WikiData {
   pageName?: string;
   pageExists?: boolean;
   error?: string;
+  graph?: WikiGraph;
 }
 
 interface WikiResponse {
@@ -317,6 +319,35 @@ async function collectLintIssues(): Promise<string[]> {
   return issues;
 }
 
+// Read every page + the index and build the page→page link graph
+// (#wiki-backlinks-graph). Same parallel-read shape as
+// `collectLintIssues` — the link resolution is shared with lint via
+// the pure `buildWikiGraph` helper. No cache: the `graph` action is
+// explicit (user opens the Graph tab / a page's backlinks), and a
+// page-content edit doesn't advance the pagesDir mtime that the page
+// index caches on, so a content-keyed cache would go stale silently.
+async function loadWikiGraph(): Promise<WikiGraph> {
+  const dir = pagesDir();
+  const { slugs } = await getPageIndex(dir);
+  const fileEntries = [...slugs.entries()];
+  const contents = await Promise.all(fileEntries.map(async ([, fileName]) => (await readTextSafe(path.join(dir, fileName))) ?? ""));
+  const pages = fileEntries.map(([slug], i) => ({ slug, content: contents[i] }));
+  const indexEntries = parseIndexEntries(readFileOrEmpty(indexFile()));
+  return buildWikiGraph(pages, indexEntries);
+}
+
+async function buildGraphResponse(action: string): Promise<WikiResponse> {
+  const graph = await loadWikiGraph();
+  log.info("wiki", "POST graph: ok", { nodes: graph.nodes.length, edges: graph.edges.length });
+  return {
+    data: { action, title: "Wiki Graph", content: "", graph },
+    message: `Wiki graph — ${graph.nodes.length} page(s), ${graph.edges.length} link(s)`,
+    title: "Wiki Graph",
+    instructions: "The wiki link graph is now displayed on the canvas.",
+    updating: true,
+  };
+}
+
 // Result of a save attempt — null on lookup miss so the route can
 // return 404 distinctly from a 400 / 500.
 type SaveOutcome = { ok: true; absPath: string } | { ok: false; reason: "not-found" };
@@ -411,6 +442,10 @@ router.post(API_ROUTES.wiki.base, async (req: Request<object, unknown, WikiBody>
         const response = buildLogResponse(action);
         log.info("wiki", "POST log: ok", { bytes: response.data.content.length });
         res.json(response);
+        return;
+      }
+      case "graph": {
+        res.json(await buildGraphResponse(action));
         return;
       }
       case "lint_report": {

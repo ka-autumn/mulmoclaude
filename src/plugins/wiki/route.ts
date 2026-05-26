@@ -19,6 +19,7 @@ export const WIKI_ROUTE_SECTION = {
   pages: "pages",
   log: "log",
   lintReport: "lint-report",
+  graph: "graph",
 } as const;
 
 export type WikiRouteSection = (typeof WIKI_ROUTE_SECTION)[keyof typeof WIKI_ROUTE_SECTION];
@@ -32,6 +33,7 @@ export const WIKI_ACTION = {
   page: "page",
   log: "log",
   lintReport: "lint_report",
+  graph: "graph",
   save: "save",
 } as const;
 
@@ -40,7 +42,7 @@ export type WikiAction = (typeof WIKI_ACTION)[keyof typeof WIKI_ACTION];
 // Route-level representation. `pushWiki(target)` and
 // `readWikiRouteTarget(params)` both speak this so the watcher, the
 // button handlers, and the router guard agree on the same shape.
-export type WikiTarget = { kind: "index" } | { kind: "page"; slug: string } | { kind: "log" } | { kind: "lint_report" };
+export type WikiTarget = { kind: "index" } | { kind: "page"; slug: string } | { kind: "log" } | { kind: "lint_report" } | { kind: "graph" };
 
 // Reject anything that could escape `data/wiki/pages/` or collide
 // with a different page. Vue Router decodes `%2F` back to `/` in
@@ -76,6 +78,7 @@ export function readWikiRouteTarget(params: unknown): WikiTarget | null {
   }
   if (section === WIKI_ROUTE_SECTION.log) return { kind: "log" };
   if (section === WIKI_ROUTE_SECTION.lintReport) return { kind: "lint_report" };
+  if (section === WIKI_ROUTE_SECTION.graph) return { kind: "graph" };
 
   return null;
 }
@@ -102,6 +105,8 @@ export function buildWikiRouteParams(target: WikiTarget): Record<string, string>
       return { section: WIKI_ROUTE_SECTION.log, slug: "" };
     case "lint_report":
       return { section: WIKI_ROUTE_SECTION.lintReport, slug: "" };
+    case "graph":
+      return { section: WIKI_ROUTE_SECTION.graph, slug: "" };
     default: {
       const exhaustive: never = target;
       throw new Error(`unreachable WikiTarget kind: ${JSON.stringify(exhaustive)}`);
@@ -122,6 +127,8 @@ export function wikiActionFor(target: WikiTarget): WikiAction {
       return WIKI_ACTION.log;
     case "lint_report":
       return WIKI_ACTION.lintReport;
+    case "graph":
+      return WIKI_ACTION.graph;
     default: {
       const exhaustive: never = target;
       throw new Error(`unreachable WikiTarget kind: ${JSON.stringify(exhaustive)}`);
