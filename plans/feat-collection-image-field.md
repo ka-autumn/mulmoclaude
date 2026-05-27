@@ -50,8 +50,10 @@ workspace-relative path), and gets special render treatment: an `<img>` via
   when `field.type === 'image'` and the value is a non-empty string; empty
   falls through to the `—` fallback. Add `image` to the `col-span-full` list
   so the card spans the row.
-- **List table**: render a small thumbnail for `image` cells; empty falls
-  through to `formatCell` → `—`.
+- **List table**: `image` fields are excluded from the columns (via
+  `listColumnFields`, alongside `embed`). A per-row image fetch is too
+  expensive for a collection with many records, and the image is shown in the
+  detail view anyway.
 - **Edit form**: add `image` to the scalar-`<input>` list so the path is an
   editable single-line text field (`inputTypeFor` already returns `text`,
   `scalarDraftToValue` already returns the raw string).

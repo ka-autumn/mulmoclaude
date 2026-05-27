@@ -62,11 +62,14 @@ test.describe("collection image field", () => {
     await mockContacts(page);
   });
 
-  test("list row renders an image-field value as a thumbnail", async ({ page }) => {
+  test("list table omits the image column (no per-row thumbnail)", async ({ page }) => {
     await page.goto("/collections/contacts");
-    const thumb = page.getByTestId("collections-cell-image-businessCard");
-    await expect(thumb).toBeVisible();
-    await expect(thumb).toHaveAttribute("src", EXPECTED_SRC);
+    // The collection still renders...
+    await expect(page.getByTestId("collections-row-michel-zgarka")).toBeVisible();
+    // ...but the image field is neither a column header nor a per-row cell
+    // (excluded from listColumnFields — a per-row fetch is too expensive).
+    await expect(page.locator("thead th", { hasText: "Business Card" })).toHaveCount(0);
+    await expect(page.getByTestId("collections-cell-image-businessCard")).toHaveCount(0);
   });
 
   test("detail view renders the image-field value as a larger image", async ({ page }) => {

@@ -97,7 +97,7 @@
         <table class="min-w-full text-xs">
           <thead>
             <tr class="bg-slate-50 border-b border-slate-200">
-              <th v-for="[key, field] in nonEmbedFields" :key="key" class="px-5 py-3 font-bold text-slate-500 text-left uppercase tracking-wider">
+              <th v-for="[key, field] in listColumnFields" :key="key" class="px-5 py-3 font-bold text-slate-500 text-left uppercase tracking-wider">
                 {{ field.label }}
               </th>
               <th class="px-5 py-3 font-medium w-24"></th>
@@ -116,7 +116,7 @@
               @keydown.enter.self="openView(item)"
               @keydown.space.self.prevent="openView(item)"
             >
-              <td v-for="[key, field] in nonEmbedFields" :key="key" class="px-5 py-2 text-slate-700 align-middle max-w-xs font-medium">
+              <td v-for="[key, field] in listColumnFields" :key="key" class="px-5 py-2 text-slate-700 align-middle max-w-xs font-medium">
                 <!-- Boolean state badge -->
                 <span v-if="field.type === 'boolean'" class="block">
                   <span
@@ -178,14 +178,6 @@
                   class="inline-block truncate tabular-nums font-bold text-indigo-900 bg-indigo-50/50 px-1.5 py-0.5 rounded border border-indigo-100/50"
                   >{{ derivedDisplay(field, evaluateDerivedAgainstItem(field, String(key), item), item) }}</span
                 >
-
-                <img
-                  v-else-if="field.type === 'image' && typeof item[key] === 'string' && item[key]"
-                  :src="resolveImageSrc(String(item[key]))"
-                  :alt="field.label"
-                  class="max-h-10 max-w-16 object-contain rounded border border-slate-200 bg-white"
-                  :data-testid="`collections-cell-image-${key}`"
-                />
 
                 <span v-else class="block truncate text-slate-600">{{ formatCell(item[key], field.type) }}</span>
               </td>
@@ -1142,8 +1134,12 @@ const embedViews = computed<Record<string, EmbedView>>(() => {
  *  list table only (a whole embedded record doesn't fit a table cell,
  *  and it'd be identical in every row). The detail modal and the edit
  *  form iterate the full `schema.fields` so embeds render there too. */
-const nonEmbedFields = computed<[string, FieldSpec][]>(() =>
-  collection.value ? Object.entries(collection.value.schema.fields).filter(([, field]) => field.type !== "embed") : [],
+// Fields shown as columns in the list table. Excludes `embed`
+// (display-only fixed record, no per-record value) and `image` — a
+// per-row <img> fetches one file each, too expensive for a collection
+// with many records, and the image is shown in the detail view anyway.
+const listColumnFields = computed<[string, FieldSpec][]>(() =>
+  collection.value ? Object.entries(collection.value.schema.fields).filter(([, field]) => field.type !== "embed" && field.type !== "image") : [],
 );
 
 /** True when the current collection declares `schema.singleton` —

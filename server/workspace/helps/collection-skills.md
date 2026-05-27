@@ -130,8 +130,9 @@ Every field spec needs a `type` and a `label`. Extra keys by type:
 - **`image`** — stores a **workspace-relative image path** as a plain string
   (e.g. `data/attachments/2026/05/<id>.jpg` — the exact path from an
   `[Attached file: ...]` marker when the user attaches a photo). The host
-  renders it as an `<img>` (thumbnail in the table, larger in the detail
-  view). No extra keys. Great for photos like a business card: read the
+  renders it as an `<img>` in the **detail view** (it is intentionally not a
+  list-table column — a per-row image fetch is too expensive for a large
+  collection). No extra keys. Great for photos like a business card: read the
   details off the attached image and write its path into the image field.
   Write the bare workspace-relative path — never an `/api/files/raw?...` URL.
 
