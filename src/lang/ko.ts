@@ -1325,6 +1325,9 @@ const koMessages = {
       "{allowedTools} 를 통해 Claude 에 전달할 추가 도구 이름. 한 줄에 하나씩. {claudeMcp} 로 인증을 완료한 후 Claude Code 내장 MCP 서버 (Gmail / Google 캘린더 등) 를 사용할 때 유용합니다.",
   },
   collectionsView: {
+    addCollectionLabel: "컬렉션",
+    addCollectionPrompt:
+      "새 컬렉션을 만들고 싶어요. 먼저 `config/helps/collection-skills.md`를 읽고 스키마 기반 컬렉션 규칙을 확인하세요. 그런 다음 `presentForm` 도구를 사용해(AskUserQuestion은 사용하지 말고) 어떤 데이터를 관리하고 싶은지 물어보고, 제 답변을 바탕으로 schema.json과 SKILL.md를 작성해 주세요.",
     title: "컬렉션",
     backToIndex: "컬렉션 목록으로 돌아가기",
     indexEmpty: "설치된 컬렉션이 없습니다. Skills 페이지에서 스키마를 포함한 스킬에 별표를 추가하면 여기에 표시됩니다.",

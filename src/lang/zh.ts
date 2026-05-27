@@ -1315,6 +1315,9 @@ const zhMessages = {
       "要通过 {allowedTools} 传递给 Claude 的额外工具名。每行一个。适用于在 {claudeMcp} 完成授权后,调用 Claude Code 内置的 MCP 服务器(如 Gmail / Google 日历)。",
   },
   collectionsView: {
+    addCollectionLabel: "集合",
+    addCollectionPrompt:
+      "帮我创建一个新的集合。请先阅读 `config/helps/collection-skills.md` 了解基于 schema 的集合约定。然后使用 `presentForm` 工具（不要使用 AskUserQuestion）询问我想跟踪哪种数据，并根据我的回答编写 schema.json 和 SKILL.md。",
     title: "集合",
     backToIndex: "返回集合列表",
     indexEmpty: "尚未安装任何集合。在「技能」页面对带有 schema 的技能加星即可在此显示。",

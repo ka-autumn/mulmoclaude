@@ -1333,6 +1333,9 @@ const frMessages = {
       "Noms d'outils supplémentaires à transmettre à Claude via {allowedTools}. Un par ligne. Utile pour les serveurs MCP intégrés à Claude Code comme Gmail / Google Agenda après authentification via {claudeMcp}.",
   },
   collectionsView: {
+    addCollectionLabel: "Collection",
+    addCollectionPrompt:
+      "Aide-moi à créer une nouvelle collection. Lis d'abord `config/helps/collection-skills.md` pour les conventions des collections basées sur un schéma. Utilise ensuite l'outil `presentForm` (n'utilise pas AskUserQuestion) pour me demander quel type de données je veux suivre, et crée le schema.json et le SKILL.md à partir de mes réponses.",
     title: "Collections",
     backToIndex: "Retour aux collections",
     indexEmpty: "Aucune collection installée. Mettez une étoile sur une compétence avec un schema depuis la page Skills pour la voir ici.",

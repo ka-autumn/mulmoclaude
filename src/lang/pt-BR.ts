@@ -1328,6 +1328,9 @@ const ptBRMessages = {
       "Nomes adicionais de ferramentas a serem passados ao Claude via {allowedTools}. Um por linha. Útil para servidores MCP integrados ao Claude Code como Gmail / Google Calendar após autenticar via {claudeMcp}.",
   },
   collectionsView: {
+    addCollectionLabel: "Coleção",
+    addCollectionPrompt:
+      "Ajude-me a criar uma nova coleção. Primeiro leia `config/helps/collection-skills.md` para conhecer as convenções de coleções baseadas em esquema. Depois use a ferramenta `presentForm` (não use AskUserQuestion) para perguntar que tipo de dados quero acompanhar, e crie o schema.json e o SKILL.md a partir das minhas respostas.",
     title: "Coleções",
     backToIndex: "Voltar para coleções",
     indexEmpty: "Nenhuma coleção instalada. Marque com estrela uma skill que inclua um schema na página Skills para vê-la aqui.",

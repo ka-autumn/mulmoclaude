@@ -5,6 +5,15 @@
         <h1 class="text-xl font-semibold text-slate-800">
           {{ t("collectionsView.title") }}
         </h1>
+        <button
+          type="button"
+          class="h-8 px-2.5 flex items-center gap-1 rounded bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition-colors shadow-sm"
+          data-testid="collections-add-collection"
+          @click="startCreateCollectionChat"
+        >
+          <span class="material-icons text-sm">add</span>
+          <span>{{ t("collectionsView.addCollectionLabel") }}</span>
+        </button>
       </div>
 
       <div v-if="loading" class="flex flex-col items-center justify-center py-20 text-sm text-slate-500 gap-3">
@@ -82,6 +91,8 @@ import { useRouter } from "vue-router";
 import { apiGet } from "../utils/api";
 import { API_ROUTES } from "../config/apiRoutes";
 import { PAGE_ROUTES } from "../router/pageRoutes";
+import { useAppApi } from "../composables/useAppApi";
+import { BUILTIN_ROLE_IDS } from "../config/roles";
 
 interface CollectionSummary {
   slug: string;
@@ -96,6 +107,7 @@ interface CollectionsListResponse {
 
 const { t } = useI18n();
 const router = useRouter();
+const appApi = useAppApi();
 
 const collections = ref<CollectionSummary[]>([]);
 const loading = ref(true);
@@ -115,6 +127,10 @@ async function loadCollections(): Promise<void> {
 
 function openCollection(slug: string): void {
   router.push({ name: PAGE_ROUTES.collections, params: { slug } }).catch(() => {});
+}
+
+function startCreateCollectionChat(): void {
+  appApi.startNewChat(t("collectionsView.addCollectionPrompt"), BUILTIN_ROLE_IDS.general);
 }
 
 onMounted(loadCollections);

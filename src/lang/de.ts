@@ -1344,6 +1344,9 @@ const deMessages = {
       "Zusätzliche Tool-Namen, die Claude über {allowedTools} übergeben werden sollen. Einer pro Zeile. Nützlich für in Claude Code integrierte MCP-Server wie Gmail / Google Kalender, nachdem Sie sich über {claudeMcp} authentifiziert haben.",
   },
   collectionsView: {
+    addCollectionLabel: "Sammlung",
+    addCollectionPrompt:
+      "Hilf mir, eine neue Sammlung zu erstellen. Lies zuerst `config/helps/collection-skills.md` für die Konventionen schemabasierter Sammlungen. Verwende dann das Tool `presentForm` (nutze nicht AskUserQuestion), um mich zu fragen, welche Art von Daten ich verfolgen möchte, und erstelle die schema.json und SKILL.md aus meinen Antworten.",
     title: "Sammlungen",
     backToIndex: "Zurück zu Sammlungen",
     indexEmpty: "Keine Sammlungen installiert. Markiere auf der Skills-Seite eine Skill mit Schema, um sie hier zu sehen.",

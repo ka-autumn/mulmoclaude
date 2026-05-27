@@ -1325,6 +1325,9 @@ const enMessages = {
       "Extra tool names to pass to Claude via {allowedTools}. One per line. Useful for built-in Claude Code MCP servers like Gmail / Google Calendar after you have authenticated via {claudeMcp}.",
   },
   collectionsView: {
+    addCollectionLabel: "Collection",
+    addCollectionPrompt:
+      "Help me create a new collection. First read `config/helps/collection-skills.md` for the schema-driven collection conventions. Then use the `presentForm` tool (do not use AskUserQuestion) to ask me what kind of data I want to track, and author the schema.json and SKILL.md from my answers.",
     title: "Collections",
     backToIndex: "Back to collections",
     indexEmpty: "No collections installed. Star a skill that ships a schema from the Skills page to see it here.",

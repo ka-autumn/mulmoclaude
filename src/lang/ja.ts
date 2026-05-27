@@ -1322,6 +1322,9 @@ const jaMessages = {
       "{allowedTools} を介して Claude に渡す追加ツール名。1行につき1つ。Gmail / Google Calendar などの Claude Code 組み込み MCP サーバを、{claudeMcp} で認証した後に利用する場合に便利です。",
   },
   collectionsView: {
+    addCollectionLabel: "コレクション",
+    addCollectionPrompt:
+      "新しいコレクションを作成したいです。まず `config/helps/collection-skills.md` を読んでスキーマ駆動コレクションの規約を確認してください。次に `presentForm` ツールを使って（AskUserQuestion は使わないで）どんなデータを管理したいか質問し、その回答をもとに schema.json と SKILL.md を作成してください。",
     title: "コレクション",
     backToIndex: "コレクション一覧に戻る",
     indexEmpty: "インストール済みのコレクションがありません。スキーマを含むスキルを Skills ページからスター付けすると、ここに表示されます。",
