@@ -1,19 +1,10 @@
 <template>
-  <div class="h-full overflow-y-auto bg-slate-50/50 px-6 py-8">
+  <div class="h-full overflow-y-auto bg-slate-50/50 px-6 py-6">
     <div class="max-w-4xl mx-auto">
-      <!-- Premium Hero Header -->
-      <div
-        class="relative overflow-hidden rounded-2xl bg-gradient-to-tr from-slate-900 via-indigo-950 to-slate-900 p-8 md:p-10 mb-8 shadow-xl shadow-slate-950/20 border border-slate-800/80"
-      >
-        <!-- Abstract decorative glows -->
-        <div class="absolute -right-10 -top-10 h-44 w-44 rounded-full bg-indigo-500/15 blur-3xl pointer-events-none"></div>
-        <div class="absolute -left-10 -bottom-10 h-44 w-44 rounded-full bg-violet-500/15 blur-3xl pointer-events-none"></div>
-
-        <div class="relative z-10">
-          <h1 class="text-2xl md:text-3xl font-bold text-white tracking-tight leading-tight">
-            {{ t("collectionsView.title") }}
-          </h1>
-        </div>
+      <div class="flex items-center justify-between mb-6">
+        <h1 class="text-xl font-semibold text-slate-800">
+          {{ t("collectionsView.title") }}
+        </h1>
       </div>
 
       <div v-if="loading" class="flex flex-col items-center justify-center py-20 text-sm text-slate-500 gap-3">

@@ -116,7 +116,7 @@
               @keydown.enter.self="openView(item)"
               @keydown.space.self.prevent="openView(item)"
             >
-              <td v-for="[key, field] in nonEmbedFields" :key="key" class="px-5 py-3.5 text-slate-700 align-middle max-w-xs font-medium">
+              <td v-for="[key, field] in nonEmbedFields" :key="key" class="px-5 py-2 text-slate-700 align-middle max-w-xs font-medium">
                 <!-- Boolean state badge -->
                 <span v-if="field.type === 'boolean'" class="block">
                   <span
@@ -182,7 +182,7 @@
                 <span v-else class="block truncate text-slate-600">{{ formatCell(item[key], field.type) }}</span>
               </td>
 
-              <td class="px-5 py-3.5 text-right whitespace-nowrap align-middle">
+              <td class="px-5 py-2 text-right whitespace-nowrap align-middle">
                 <div class="flex items-center justify-end gap-2">
                   <button
                     type="button"
