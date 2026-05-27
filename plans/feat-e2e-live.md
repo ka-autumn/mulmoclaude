@@ -412,6 +412,60 @@ e2e-live/
 | **L-FRESH-SANDBOX-BUILD** image 不在 → auto-build | **実装可能** (要 env 新設) | L-FRESH-BOOT の枠 + `MULMOCLAUDE_SANDBOX_IMAGE` env 新設 (階層 3)。 sandbox image を test 専用名で参照させて 「image が無い」 状態を疑似、 host の `mulmoclaude-sandbox:latest` を消さずに済む |
 | **L-FRESH-PRESET-SKILL** preset skill mirror | **実装可能** (要 infra) | L-FRESH-BOOT と同じ infra で空 workspace 起動 → preset migration 経路 (catalog → bridge mirror) を end-to-end で検証 |
 
+## 優先度方針 (2026-05-27)
+
+> **未踏領域の coverage > バグ回帰の再発検出 net**。
+
+これまでの実装順は 「壊れた時の影響が大きいバグ軸の再発防止」 を第一軸にしていたが、 happy-tour 着手時 (2026-05-27) に 「plugin の 1 ターン dispatch test が大量に欠けている」 ことが顕在化した。 バグ軸の retroactive net より、 まだ end-to-end で **一度も触られていない** 機能の 1 ターン canary を先に立てる方が ROI が高い。 理由:
+
+- 既知バグの net は unit test / mock e2e でも代替可能なケースが多い (落ちる shape が判っているので低レイヤで書ける)
+- 未踏領域は 「壊れていることに誰も気付かない」 状態が長期化しやすい (2026-05-25 報告の preset bundle 漏れがその典型)
+- 1 plugin × 1 ターン dispatch test は shape が既存 L-21 / L-21B と同型で 1 spec / 30〜60 分で書ける
+
+したがって以降の Phase 1 着手候補は **「まだ 1 ターン LLM test が無い plugin / 機能」 を最優先**、 既存バグの retroactive net は Phase 2 以降に降格する。
+
+### 未踏 plugin の 1 ターン dispatch test 棚卸し (2026-05-27)
+
+| plugin / 機能 | tool name | 1 ターン test 有無 | 備考 |
+|---|---|---|---|
+| **todo** | `manageTodoList` | ❌ | 最優先 (preset、 直近で bundle 漏れ事故あり) |
+| scheduler (calendar) | `manageCalendar` | ❌ | 日常使用頻度高 |
+| scheduler (automations) | `manageAutomations` | ❌ | 同上 |
+| markdown | `presentDocument` / `updateMarkdown` | ❌ | wiki ingest と連動 |
+| spreadsheet | `presentSpreadsheet` / `updateSpreadsheet` | ❌ | |
+| presentSVG | `presentSVG` | ❌ | |
+| presentHtml | `presentHtml` | △ | L-01 は file 配置 → 読込で LLM dispatch 経由ではない |
+| manageRoles | `manageRoles` | ❌ | |
+| manageSource | `manageSource` | ❌ | |
+| accounting | `accounting` | ❌ | |
+| spotify (preset) | `spotify` | ❌ | OAuth 必要、 後回し可 |
+| edgar (preset) | `edgar` | ❌ | 設定必要、 後回し可 |
+| news | (read-only view) | ❌ | tool dispatch 無し、 view mount は happy-tour で cover 済 |
+| presentMulmoScript | ✅ L-03 / L-04 | | |
+| chart | ✅ L-21 | | |
+| encore | ✅ L-21B | | |
+| generateImage | ✅ L-05 | | |
+| presentForm | ✅ L-18 | | |
+| skill | ✅ L-22 / L-31 / L-32 / L-33 | | |
+
+実装順は **(a) preset で日常使用される todo / scheduler 系を最優先、 (b) 表示系 (markdown / spreadsheet / SVG / presentHtml) を次、 (c) manageX 系 (roles / source) と accounting、 (d) 外部設定必要な spotify / edgar は infra が揃ってから** の順。 各 spec は L-21 shape を踏襲: 確実な prompt + tool 呼出 jsonl trace 確認 + view side-effect (file / DOM marker) 確認 + cleanup。
+
+## 実装確認の規律 (2026-05-27)
+
+> **新規 spec を追加したら必ず手元で 1 回 pass を確認してから commit する**。 LLM コスト / API call 数を理由に 「lint / typecheck / build が通ったら OK とする」 のは禁止。
+
+backstory: 2026-05-27 の happy-tour 着手で、 spec 著者 (Claude) が 「dev server が main 側だから testid が反映されてない」 「LLM コストが気になる」 を理由に実行を skip し、 lint / build のみで commit を進めた結果、 ユーザーが headed で初回実行した時に step 3 (`/api/plugins/diagnostics` payload shape ミス) + step 6 (`/todos` route が mount するコンポーネント の誤認 — `TodoExplorer.vue` vs `todo-plugin/View.vue`) の 2 件の load-bearing バグが連続で発覚した。 lint / build は **「型と構文が合っているか」 しか見ていない**、 「assertion が実際の payload / DOM と噛み合うか」 は 1 回回さないと判らない。
+
+具体規律:
+
+- MUST 新規 / 大幅改修した spec は手元で **`yarn test:e2e:live:<category>`** を 1 回 pass まで通してから commit
+- MUST dev server が別 branch (main 等) で起動している場合は worktree 側で立て直す依頼を user に出す。 「現状の dev で動かないから skip」 は NG
+- LLM コスト / API call 数は理由にしない — `/make-e2e-live` 上で skill が動いている時点で実 LLM cost は許容範囲、 ユーザーが明示的に skip を指示するまで実 LLM で回す
+- API shape を assert する場合は **必ず route handler を読んでから書く** (server/api/routes/<name>.ts)。 推測で envelope 形 (`unknown[]` vs `{ data: [...] }`) を決めない
+- route と view の関係を assert する場合は **必ず App.vue の `currentPage === 'X'` 分岐を読んでから書く** (`/todos` ↔ `TodoExplorer.vue` のような host vs plugin の取り違えを防ぐ)
+
+これは `/make-e2e-live` skill の Phase 4 「必須チェック」 セクションにも反映する (skill 側の更新は別 PR で良い、 plan 側に source-of-truth を残す)。
+
 ## 実装順 (2026-05-23 時点)
 
 未実装シナリオ + 反映候補 PR を **重要度 (= 必要度) ベース** で並べた次に着手するロードマップ。 同重要度内では infra 依存が少ない順 (= 早く 1 PR で完結する順) で配置するが、 「楽な順」 ではなく 「壊れた時の影響が大きい順」 が第一軸。
