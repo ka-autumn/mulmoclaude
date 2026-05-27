@@ -1,5 +1,5 @@
 <template>
-  <div class="h-full bg-white flex flex-col">
+  <div class="h-full bg-white flex flex-col" data-testid="roles-view-root">
     <div class="flex items-center justify-between gap-2 px-3 py-2 border-b border-gray-100">
       <h2 class="text-lg font-semibold text-gray-800">{{ t("pluginManageRoles.heading") }}</h2>
       <div class="flex items-center gap-2">

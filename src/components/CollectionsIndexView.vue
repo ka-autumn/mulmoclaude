@@ -1,5 +1,5 @@
 <template>
-  <div class="h-full overflow-y-auto bg-slate-50/50 px-6 py-8">
+  <div class="h-full overflow-y-auto bg-slate-50/50 px-6 py-8" data-testid="collections-view-root">
     <div class="max-w-4xl mx-auto">
       <!-- Premium Hero Header -->
       <div

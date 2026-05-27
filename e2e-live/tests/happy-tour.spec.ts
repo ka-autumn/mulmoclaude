@@ -156,7 +156,50 @@ test.describe("happy-tour (capability sweep)", () => {
       await expect(page.getByTestId("sources-view-root"), "sources view root must render under /sources").toBeVisible({ timeout: VIEW_MOUNT_TIMEOUT_MS });
     });
 
-    // Step 12 from the plan ("NotificationBell に startup-time WARN が無い")
+    // Steps 12-16 sweep the remaining launcher-exposed routes
+    // (automations / news / roles / encore / collections). Same
+    // shallow "view-root visible, no error banner" shape as 6-11
+    // — happy-tour intentionally stays a wide-but-thin canary so
+    // per-feature regressions land in their own L-XX specs.
+    await test.step("12. /automations が mount", async () => {
+      await page.goto("/automations");
+      // SchedulerView is shared between /calendar and /automations
+      // (force-tab branches the inner content); the route-specific
+      // failure mode happy-tour is catching here is "the route
+      // resolves AND the underlying view mounts at all", not the
+      // tab-switch internals (those are scheduler-spec territory).
+      await expect(page.getByTestId("scheduler-view-root"), "scheduler view root must render under /automations").toBeVisible({
+        timeout: VIEW_MOUNT_TIMEOUT_MS,
+      });
+      await expect(page.getByTestId("scheduler-api-error"), "scheduler-api-error banner must NOT appear on a fresh /automations visit").toHaveCount(0);
+    });
+
+    await test.step("13. /news が mount", async () => {
+      await page.goto("/news");
+      await expect(page.getByTestId("news-view"), "news view must render under /news").toBeVisible({ timeout: VIEW_MOUNT_TIMEOUT_MS });
+    });
+
+    await test.step("14. /roles が mount", async () => {
+      await page.goto("/roles");
+      await expect(page.getByTestId("roles-view-root"), "roles view root must render under /roles").toBeVisible({ timeout: VIEW_MOUNT_TIMEOUT_MS });
+    });
+
+    await test.step("15. /encore が mount", async () => {
+      await page.goto("/encore");
+      // EncoreDashboard is the default branch when no `pendingId`
+      // query param is present — that's the canonical /encore
+      // landing surface a normal user hits.
+      await expect(page.getByTestId("encore-dashboard"), "encore dashboard must render under /encore").toBeVisible({ timeout: VIEW_MOUNT_TIMEOUT_MS });
+    });
+
+    await test.step("16. /collections が mount", async () => {
+      await page.goto("/collections");
+      await expect(page.getByTestId("collections-view-root"), "collections index must render under /collections").toBeVisible({
+        timeout: VIEW_MOUNT_TIMEOUT_MS,
+      });
+    });
+
+    // The plan's NotificationBell startup-warning step
     // is covered structurally by step 3 — `/api/plugins/diagnostics`
     // is the canonical source the bell *reads from* for boot-time
     // collisions, so duplicating the check via the live notifier
