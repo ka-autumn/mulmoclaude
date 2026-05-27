@@ -32,6 +32,7 @@
         <button
           v-for="(query, queryIdx) in queries"
           :key="`${queryIdx}-${query}`"
+          type="button"
           class="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full px-4 py-2 border border-gray-300 transition-colors"
           data-testid="stack-empty-query"
           @click="sendTextMessage(query)"
