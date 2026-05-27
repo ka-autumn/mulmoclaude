@@ -18,8 +18,17 @@ Karpathy's gist). The first writes-bearing preset in the wiki triad — it
 
 Accept exactly one of:
 
-- a **workspace file path** the user attaches (`data/...`, `~/...`, an
-  absolute path under the workspace) — `Read` it once
+- a **workspace-relative file path** the user attaches — e.g.
+  `data/...`, `sources/...`, `artifacts/documents/...`. **Workspace-rooted
+  paths only.** Reject (don't `Read`):
+  - absolute paths (`/etc/...`, `/Users/...`, `/var/...`)
+  - home-relative paths (`~/...`, `~user/...`)
+  - parent-traversal segments (`../`, embedded `..` after normalising)
+  - any path whose `path.resolve` lands outside the agent's workspace root
+  Canonicalise (`realpath`-aware via Read's own checks) and verify the
+  resolved path is still inside the workspace before reading. A source
+  outside the workspace must be **copied into `data/sources/` first by
+  the user**, then re-ingested from that workspace path.
 - **pasted text** the user sends in the same message (paste an article,
   notes, an email body, etc.) — use what's in the user turn as the source
 
@@ -78,26 +87,27 @@ link is being made.
 
 ### 4. Append the log entry
 
-Append exactly one line to `data/wiki/log.md`:
+Append exactly one entry to `data/wiki/log.md`:
 
-```
+```md
 ## [YYYY-MM-DD] ingest | <title>
 - summary: pages/<slug>.md (new | updated)
 - xref: <slug-a>, <slug-b>, ...  (the pages you actually edited; may be empty)
 - source: <input descriptor — "file: <path>" or "pasted text">
 ```
 
-`log.md` is the **source of truth** for what this run did. If the run
-is interrupted halfway, the log line for the completed steps must
-already be there — write the summary page first, then xref, then log
-last so the log only mentions work that landed.
+**Write the log entry LAST**, after the summary page and every xref
+page edit has returned successfully. If the run is interrupted before
+this final step, the log will simply have no entry for this ingest,
+and the next inspection sees `data/wiki/` with new content but no
+matching log line — that's the signal of a partial / mid-flight run
+to clean up by hand or re-run.
 
-Actually: **write the log entry LAST**, after the summary page and all
-xref edits. If something fails partway, the log will simply not
-mention the partial work, and the next run / inspection sees an
-incomplete state to clean up by hand. This matches the Q2 contract:
-log = truth, partial state is OK because it's recoverable by reading
-log + diffing `data/wiki/`.
+So `log.md` is the **completion ledger**: presence ⇒ run finished;
+absence + new content in `data/wiki/` ⇒ partial state. This matches
+the Q2 contract from #1527 (independent writes, log = source of
+truth for *what completed*, partial state is recoverable by diffing
+`data/wiki/` against the log).
 
 ### 5. Provenance markers on every generated bullet
 
