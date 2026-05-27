@@ -54,7 +54,7 @@ jobs:
           - mulmo-script-edit        # L-EDIT via plugin-dispatch
           - media                    # L-01 only (L-02..L-05 need real LLM / external tools)
           - error-banner             # L-ERR: forced error event → [Error] card
-          - happy-tour               # L-HAPPY-TOUR: capability sweep (chat turn skips on E2E_LIVE_NO_LLM=1, the other 10 steps run)
+          - happy-tour               # L-HAPPY-TOUR: capability sweep (chat turn skips on E2E_LIVE_NO_LLM=1, the other 15 steps run)
 
     steps:
       - uses: actions/checkout@v6

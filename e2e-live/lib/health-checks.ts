@@ -88,27 +88,34 @@ function parsePluginRow(raw: unknown): RuntimePluginRow | null {
  * `requireDevOnly = false` lets a packaged-tarball doctor harness
  * skip the dev-only entries without forking this helper.
  */
+function collectRegisteredPluginNames(rows: readonly unknown[]): Set<string> {
+  const names = new Set<string>();
+  for (const row of rows) {
+    const parsed = parsePluginRow(row);
+    if (parsed !== null) names.add(parsed.name);
+  }
+  return names;
+}
+
+function findMissingPresets(registered: Set<string>, requireDevOnly: boolean): string[] {
+  const required = EXPECTED_PRESET_PLUGINS.filter((preset) => requireDevOnly || !preset.devOnly);
+  return required.filter((preset) => !registered.has(preset.name)).map((preset) => preset.name);
+}
+
 export function assertRuntimePluginsRegistered(body: unknown, requireDevOnly: boolean): HealthCheckResult {
   if (!isRecord(body) || !Array.isArray(body.plugins)) {
     return { ok: false, reason: `/api/plugins/runtime/list body is not { plugins: [...] }: ${JSON.stringify(body)}` };
   }
-  const registeredNames = new Set<string>();
-  for (const row of body.plugins) {
-    const parsed = parsePluginRow(row);
-    if (parsed !== null) registeredNames.add(parsed.name);
-  }
-  if (registeredNames.size === 0) {
+  const registered = collectRegisteredPluginNames(body.plugins);
+  if (registered.size === 0) {
     return { ok: false, reason: "/api/plugins/runtime/list returned zero registered plugins (preset loader dead?)" };
   }
-  const required = EXPECTED_PRESET_PLUGINS.filter((preset) => requireDevOnly || !preset.devOnly);
-  const missing = required.filter((preset) => !registeredNames.has(preset.name)).map((preset) => preset.name);
-  if (missing.length > 0) {
-    return {
-      ok: false,
-      reason: `preset plugins missing from /api/plugins/runtime/list: ${missing.join(", ")} (got: ${Array.from(registeredNames).sort().join(", ")})`,
-    };
-  }
-  return { ok: true };
+  const missing = findMissingPresets(registered, requireDevOnly);
+  if (missing.length === 0) return { ok: true };
+  return {
+    ok: false,
+    reason: `preset plugins missing from /api/plugins/runtime/list: ${missing.join(", ")} (got: ${Array.from(registered).sort().join(", ")})`,
+  };
 }
 
 /**

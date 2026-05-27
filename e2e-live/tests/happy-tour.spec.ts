@@ -32,6 +32,7 @@ import {
   startNewSession,
   waitForAssistantResponseComplete,
 } from "../fixtures/live-chat.ts";
+import type { HealthCheckResult } from "../lib/health-checks.ts";
 import { assertHealthBody, assertNoPluginDiagnostics, assertRuntimePluginsRegistered } from "../lib/health-checks.ts";
 
 // 3-minute wall-time budget per the plan ("実行時間目標: 3 分以内");
@@ -51,165 +52,62 @@ const SINGLE_WORD_PROMPT = "Reply with the single word: hellotour";
 
 test.describe.configure({ mode: "serial" });
 
+// Step 4 is asserted first because every later `fetchAuthedJsonViaPage`
+// call needs the `<meta name="mulmoclaude-auth">` token from `/` to
+// be loaded — the goto IS the precondition for steps 1-3, and the
+// sidebar testid is the cheapest "SPA mounted at all" sentinel.
+//
+// The plan's NotificationBell startup-warning step is covered
+// structurally by step 3 (`/api/plugins/diagnostics`) — the bell
+// reads its boot-collision rows from that route, so duplicating
+// the check via the live notifier ledger would be redundant AND
+// unreliable (pre-existing urgent entries from Encore / ghost-bell
+// publishers would false-positive the assertion). If a future
+// regression class needs a notifier-side canary, the L-17
+// baseline-diff shape is the right pattern, not a global filter.
+
+interface RouteSweepEntry {
+  readonly stepTitle: string;
+  readonly path: string;
+  readonly rootTestId: string;
+  /** Optional error-banner testid that must NOT appear post-mount. */
+  readonly errorBannerTestId?: string;
+}
+
+// Per-route notes:
+// - `/wiki` uses `wiki-lint-chat-button` (always-rendered header)
+//   instead of a body testid — the page body is gated on
+//   `data/wiki/index.md`, the header is unconditional.
+// - `/skills` uses `skill-section-catalog` (always-rendered accordion
+//   header) — happy-tour does NOT assert any specific preset row, L-33
+//   / L-33B already cover that.
+// - `/calendar` and `/automations` share `scheduler-view-root` —
+//   SchedulerView is mounted under both routes with a different
+//   `force-tab`. happy-tour only checks "view mounted at all";
+//   tab-switch internals are scheduler-spec territory.
+// - `/encore` uses `encore-dashboard` — the default branch when no
+//   `pendingId` query param is present (the canonical landing).
+const LAUNCHER_ROUTE_SWEEP: readonly RouteSweepEntry[] = [
+  { stepTitle: "6. /todos が mount + 読み込みエラー無し", path: "/todos", rootTestId: "todo-view-root", errorBannerTestId: "todo-api-error" },
+  { stepTitle: "7. /calendar が mount", path: "/calendar", rootTestId: "scheduler-view-root", errorBannerTestId: "scheduler-api-error" },
+  { stepTitle: "8. /wiki が mount", path: "/wiki", rootTestId: "wiki-lint-chat-button" },
+  { stepTitle: "9. /files が mount", path: "/files", rootTestId: "files-view-root" },
+  { stepTitle: "10. /skills が mount + catalog セクション visible", path: "/skills", rootTestId: "skill-section-catalog" },
+  { stepTitle: "11. /sources が mount", path: "/sources", rootTestId: "sources-view-root" },
+  { stepTitle: "12. /automations が mount", path: "/automations", rootTestId: "scheduler-view-root", errorBannerTestId: "scheduler-api-error" },
+  { stepTitle: "13. /news が mount", path: "/news", rootTestId: "news-view" },
+  { stepTitle: "14. /roles が mount", path: "/roles", rootTestId: "roles-view-root" },
+  { stepTitle: "15. /encore が mount", path: "/encore", rootTestId: "encore-dashboard" },
+  { stepTitle: "16. /collections が mount", path: "/collections", rootTestId: "collections-view-root" },
+];
+
 test.describe("happy-tour (capability sweep)", () => {
   test("L-HAPPY-TOUR: 主要 View / endpoint を 1 spec で薄く広く touch", async ({ page }) => {
     test.setTimeout(HAPPY_TOUR_TIMEOUT_MS);
-
-    // Land on `/` once up front so subsequent `fetchAuthedJsonViaPage`
-    // calls have the `<meta name="mulmoclaude-auth">` token to read.
-    // Asserting the sidebar testid here doubles as Step 4 (`/` mounts
-    // with chrome visible) — splitting it into its own `test.step`
-    // would be process theatre, the navigation IS the check.
-    await test.step("4. / が mount し sidebar が見える", async () => {
-      await page.goto("/");
-      await expect(page.getByTestId("chat-sidebar"), "sidebar must render — chrome is the canary that the SPA mounted at all").toBeVisible({
-        timeout: VIEW_MOUNT_TIMEOUT_MS,
-      });
-    });
-
-    await test.step("1. /api/health が 200 + 期待ボディを返す", async () => {
-      const probe = await fetchAuthedJsonViaPage(page, API_ROUTES.health);
-      expect(probe.ok, probe.ok ? "" : `health probe failed: ${probe.reason}`).toBe(true);
-      if (!probe.ok) throw new Error(`unreachable after expect: ${probe.reason}`);
-      const result = assertHealthBody(probe.body);
-      expect(result.ok, result.ok ? "" : result.reason).toBe(true);
-    });
-
-    await test.step("2. /api/plugins/runtime/list が preset を全件含む", async () => {
-      const probe = await fetchAuthedJsonViaPage(page, API_ROUTES.plugins.runtimeList);
-      expect(probe.ok, probe.ok ? "" : `runtime list probe failed: ${probe.reason}`).toBe(true);
-      if (!probe.ok) throw new Error(`unreachable after expect: ${probe.reason}`);
-      // `requireDevOnly: true` against `yarn dev`: all four presets
-      // resolve via yarn-workspace symlinks, so we hard-require them.
-      // CAVEAT — this catches the *shape* of the 2026-05-25 bundle
-      // drop (preset entry disappears from the runtime registry), not
-      // the published-tarball composition itself. The full tarball-
-      // mode catch requires reusing `assertRuntimePluginsRegistered`
-      // (with `requireDevOnly: false`) from a doctor CLI / pre-release
-      // smoke harness running against `npx mulmoclaude@<tarball>`;
-      // that wiring is the planned reuse target for `health-checks.ts`
-      // and is not in this PR.
-      const result = assertRuntimePluginsRegistered(probe.body, true);
-      expect(result.ok, result.ok ? "" : result.reason).toBe(true);
-    });
-
-    await test.step("3. /api/plugins/diagnostics が collision 無し", async () => {
-      const probe = await fetchAuthedJsonViaPage(page, API_ROUTES.plugins.diagnostics);
-      expect(probe.ok, probe.ok ? "" : `diagnostics probe failed: ${probe.reason}`).toBe(true);
-      if (!probe.ok) throw new Error(`unreachable after expect: ${probe.reason}`);
-      const result = assertNoPluginDiagnostics(probe.body);
-      expect(result.ok, result.ok ? "" : result.reason).toBe(true);
-    });
-
-    // Step 5 is the only LLM-bearing step. The CI no-LLM matrix
-    // entry uses `MULMOCLAUDE_FAKE_AGENT=1` which returns a stub
-    // response, so the marker echo wouldn't hold. We early-return
-    // out of the step body — `test.skip()` here would skip the
-    // *entire* happy-tour test (Playwright semantics), defeating
-    // the matrix entry that exists specifically to run the other
-    // 10 non-LLM steps under `E2E_LIVE_NO_LLM=1` (Codex iter-2).
-    await test.step("5. /chat で 1 ターン送信 → assistant 応答が返る", async () => {
-      if (NO_LLM) return;
-      await runSingleTurnSmoke(page);
-    });
-
-    await test.step("6. /todos が mount + 読み込みエラー無し", async () => {
-      await page.goto("/todos");
-      await expect(page.getByTestId("todo-view-root"), "todo view root must render — 2026-05-25 preset-drop regression net").toBeVisible({
-        timeout: VIEW_MOUNT_TIMEOUT_MS,
-      });
-      await expect(page.getByTestId("todo-api-error"), "todo-api-error banner must NOT appear on a fresh /todos visit").toHaveCount(0);
-    });
-
-    await test.step("7. /calendar が mount", async () => {
-      await page.goto("/calendar");
-      await expect(page.getByTestId("scheduler-view-root"), "scheduler view root must render under /calendar").toBeVisible({ timeout: VIEW_MOUNT_TIMEOUT_MS });
-      await expect(page.getByTestId("scheduler-api-error"), "scheduler-api-error banner must NOT appear on a fresh /calendar visit").toHaveCount(0);
-    });
-
-    await test.step("8. /wiki が mount", async () => {
-      await page.goto("/wiki");
-      // The wiki index is gated on data/wiki/index.md being readable;
-      // `wiki-lint-chat-button` lives in the always-rendered header
-      // and is the cheapest "view mounted" sentinel here.
-      await expect(page.getByTestId("wiki-lint-chat-button"), "wiki header must render under /wiki").toBeVisible({ timeout: VIEW_MOUNT_TIMEOUT_MS });
-    });
-
-    await test.step("9. /files が mount", async () => {
-      await page.goto("/files");
-      await expect(page.getByTestId("files-view-root"), "files view root must render under /files").toBeVisible({ timeout: VIEW_MOUNT_TIMEOUT_MS });
-    });
-
-    await test.step("10. /skills が mount + catalog セクション visible", async () => {
-      await page.goto("/skills");
-      // `skill-section-catalog` is the always-rendered catalog
-      // accordion header. We do NOT assert any specific preset row
-      // exists — L-33 / L-33B already cover that — happy-tour just
-      // proves the route mounts at all.
-      await expect(page.getByTestId("skill-section-catalog"), "skills view catalog section must render under /skills").toBeVisible({
-        timeout: VIEW_MOUNT_TIMEOUT_MS,
-      });
-    });
-
-    await test.step("11. /sources が mount", async () => {
-      await page.goto("/sources");
-      await expect(page.getByTestId("sources-view-root"), "sources view root must render under /sources").toBeVisible({ timeout: VIEW_MOUNT_TIMEOUT_MS });
-    });
-
-    // Steps 12-16 sweep the remaining launcher-exposed routes
-    // (automations / news / roles / encore / collections). Same
-    // shallow "view-root visible, no error banner" shape as 6-11
-    // — happy-tour intentionally stays a wide-but-thin canary so
-    // per-feature regressions land in their own L-XX specs.
-    await test.step("12. /automations が mount", async () => {
-      await page.goto("/automations");
-      // SchedulerView is shared between /calendar and /automations
-      // (force-tab branches the inner content); the route-specific
-      // failure mode happy-tour is catching here is "the route
-      // resolves AND the underlying view mounts at all", not the
-      // tab-switch internals (those are scheduler-spec territory).
-      await expect(page.getByTestId("scheduler-view-root"), "scheduler view root must render under /automations").toBeVisible({
-        timeout: VIEW_MOUNT_TIMEOUT_MS,
-      });
-      await expect(page.getByTestId("scheduler-api-error"), "scheduler-api-error banner must NOT appear on a fresh /automations visit").toHaveCount(0);
-    });
-
-    await test.step("13. /news が mount", async () => {
-      await page.goto("/news");
-      await expect(page.getByTestId("news-view"), "news view must render under /news").toBeVisible({ timeout: VIEW_MOUNT_TIMEOUT_MS });
-    });
-
-    await test.step("14. /roles が mount", async () => {
-      await page.goto("/roles");
-      await expect(page.getByTestId("roles-view-root"), "roles view root must render under /roles").toBeVisible({ timeout: VIEW_MOUNT_TIMEOUT_MS });
-    });
-
-    await test.step("15. /encore が mount", async () => {
-      await page.goto("/encore");
-      // EncoreDashboard is the default branch when no `pendingId`
-      // query param is present — that's the canonical /encore
-      // landing surface a normal user hits.
-      await expect(page.getByTestId("encore-dashboard"), "encore dashboard must render under /encore").toBeVisible({ timeout: VIEW_MOUNT_TIMEOUT_MS });
-    });
-
-    await test.step("16. /collections が mount", async () => {
-      await page.goto("/collections");
-      await expect(page.getByTestId("collections-view-root"), "collections index must render under /collections").toBeVisible({
-        timeout: VIEW_MOUNT_TIMEOUT_MS,
-      });
-    });
-
-    // The plan's NotificationBell startup-warning step
-    // is covered structurally by step 3 — `/api/plugins/diagnostics`
-    // is the canonical source the bell *reads from* for boot-time
-    // collisions, so duplicating the check via the live notifier
-    // ledger would be redundant *and* unreliable (the ledger is a
-    // shared user surface; pre-existing urgent entries from
-    // Encore / ghost-bell publishers would false-positive the
-    // assertion, and a true startup-time WARN published at non-
-    // urgent severity would be missed). If a future regression
-    // class needs a notifier-side canary, the L-17 baseline-diff
-    // shape is the right pattern, not a global severity filter.
+    await assertSpaSidebarMount(page);
+    await runHealthApiSteps(page);
+    await runChatSmokeStep(page);
+    await runLauncherRouteSweep(page);
   });
 });
 
@@ -233,5 +131,75 @@ async function runSingleTurnSmoke(page: Page): Promise<void> {
     await waitForAssistantResponseComplete(page);
   } finally {
     if (sessionIdForCleanup !== null) await deleteSession(page, sessionIdForCleanup);
+  }
+}
+
+async function assertSpaSidebarMount(page: Page): Promise<void> {
+  await test.step("4. / が mount し sidebar が見える", async () => {
+    await page.goto("/");
+    await expect(page.getByTestId("chat-sidebar"), "sidebar must render — chrome is the canary that the SPA mounted at all").toBeVisible({
+      timeout: VIEW_MOUNT_TIMEOUT_MS,
+    });
+  });
+}
+
+// `requireDevOnly: true` for step 2 against `yarn dev`: all four
+// presets resolve via yarn-workspace symlinks, so we hard-require
+// them. CAVEAT — this catches the *shape* of the 2026-05-25 bundle
+// drop (preset entry disappears from the runtime registry), not the
+// published-tarball composition itself. The full tarball-mode catch
+// requires reusing `assertRuntimePluginsRegistered` (with
+// `requireDevOnly: false`) from a doctor CLI / pre-release smoke
+// harness — that wiring is the planned reuse target for
+// `health-checks.ts` and is not in this PR.
+async function runHealthApiSteps(page: Page): Promise<void> {
+  await test.step("1. /api/health が 200 + 期待ボディを返す", async () => {
+    await assertAuthedJsonOk(page, API_ROUTES.health, assertHealthBody);
+  });
+  await test.step("2. /api/plugins/runtime/list が preset を全件含む", async () => {
+    await assertAuthedJsonOk(page, API_ROUTES.plugins.runtimeList, (body) => assertRuntimePluginsRegistered(body, true));
+  });
+  await test.step("3. /api/plugins/diagnostics が collision 無し", async () => {
+    await assertAuthedJsonOk(page, API_ROUTES.plugins.diagnostics, assertNoPluginDiagnostics);
+  });
+}
+
+async function assertAuthedJsonOk(page: Page, url: string, validator: (body: unknown) => HealthCheckResult): Promise<void> {
+  const probe = await fetchAuthedJsonViaPage(page, url);
+  expect(probe.ok, probe.ok ? "" : `${url} probe failed: ${probe.reason}`).toBe(true);
+  if (!probe.ok) throw new Error(`unreachable after expect: ${probe.reason}`);
+  const result = validator(probe.body);
+  expect(result.ok, result.ok ? "" : result.reason).toBe(true);
+}
+
+// Step 5 is the only LLM-bearing step. The CI no-LLM matrix entry
+// uses `MULMOCLAUDE_FAKE_AGENT=1` which returns a stub response, so
+// the marker echo wouldn't hold. We early-return out of the step
+// body — `test.skip()` here would skip the *entire* happy-tour test
+// (Playwright semantics), defeating the matrix entry that exists
+// specifically to run the other 15 non-LLM steps under
+// `E2E_LIVE_NO_LLM=1` (Codex iter-2).
+async function runChatSmokeStep(page: Page): Promise<void> {
+  await test.step("5. /chat で 1 ターン送信 → assistant 応答が返る", async () => {
+    if (NO_LLM) return;
+    await runSingleTurnSmoke(page);
+  });
+}
+
+async function runLauncherRouteSweep(page: Page): Promise<void> {
+  for (const entry of LAUNCHER_ROUTE_SWEEP) {
+    await test.step(entry.stepTitle, async () => {
+      await assertRouteMount(page, entry);
+    });
+  }
+}
+
+async function assertRouteMount(page: Page, entry: RouteSweepEntry): Promise<void> {
+  await page.goto(entry.path);
+  await expect(page.getByTestId(entry.rootTestId), `${entry.rootTestId} must render under ${entry.path}`).toBeVisible({
+    timeout: VIEW_MOUNT_TIMEOUT_MS,
+  });
+  if (entry.errorBannerTestId !== undefined) {
+    await expect(page.getByTestId(entry.errorBannerTestId), `${entry.errorBannerTestId} must NOT appear on a fresh ${entry.path} visit`).toHaveCount(0);
   }
 }
