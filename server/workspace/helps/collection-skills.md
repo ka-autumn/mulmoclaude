@@ -102,7 +102,7 @@ skipped, never crashes the host):
 
 `string` · `text` (multi-line) · `email` · `number` · `date` (`YYYY-MM-DD`) ·
 `boolean` · `markdown` · `money` · `enum` · `ref` · `embed` · `table` ·
-`derived`
+`derived` · `image`
 
 Every field spec needs a `type` and a `label`. Extra keys by type:
 
@@ -127,6 +127,14 @@ Every field spec needs a `type` and a `label`. Extra keys by type:
   `money` / `string` / `date`) and `currency`. **Read-only, host-computed** —
   you NEVER write derived values into the JSON; the host recomputes them on
   every render and the form refuses to persist them.
+- **`image`** — stores a **workspace-relative image path** as a plain string
+  (e.g. `data/attachments/2026/05/<id>.jpg` — the exact path from an
+  `[Attached file: ...]` marker when the user attaches a photo). The host
+  renders it as an `<img>` in the **detail view** (it is intentionally not a
+  list-table column — a per-row image fetch is too expensive for a large
+  collection). No extra keys. Great for photos like a business card: read the
+  details off the attached image and write its path into the image field.
+  Write the bare workspace-relative path — never an `/api/files/raw?...` URL.
 
 ### Derived-formula syntax
 

@@ -97,7 +97,7 @@
         <table class="min-w-full text-xs">
           <thead>
             <tr class="bg-slate-50 border-b border-slate-200">
-              <th v-for="[key, field] in nonEmbedFields" :key="key" class="px-5 py-3 font-bold text-slate-500 text-left uppercase tracking-wider">
+              <th v-for="[key, field] in listColumnFields" :key="key" class="px-5 py-3 font-bold text-slate-500 text-left uppercase tracking-wider">
                 {{ field.label }}
               </th>
               <th class="px-5 py-3 font-medium w-24"></th>
@@ -116,7 +116,7 @@
               @keydown.enter.self="openView(item)"
               @keydown.space.self.prevent="openView(item)"
             >
-              <td v-for="[key, field] in nonEmbedFields" :key="key" class="px-5 py-2 text-slate-700 align-middle max-w-xs font-medium">
+              <td v-for="[key, field] in listColumnFields" :key="key" class="px-5 py-2 text-slate-700 align-middle max-w-xs font-medium">
                 <!-- Boolean state badge -->
                 <span v-if="field.type === 'boolean'" class="block">
                   <span
@@ -417,7 +417,7 @@
 
             <!-- Scalar inputs -->
             <input
-              v-else-if="['string', 'email', 'number', 'date', 'ref'].includes(field.type)"
+              v-else-if="['string', 'email', 'number', 'date', 'ref', 'image'].includes(field.type)"
               :id="`collections-field-${key}`"
               v-model="editing.text[key]"
               :type="inputTypeFor(field.type)"
@@ -535,7 +535,7 @@
               v-for="(field, key) in collection.schema.fields"
               :key="key"
               class="flex flex-col gap-1"
-              :class="['table', 'markdown', 'embed'].includes(field.type) ? 'col-span-full' : 'col-span-1'"
+              :class="['table', 'markdown', 'embed', 'image'].includes(field.type) ? 'col-span-full' : 'col-span-1'"
             >
               <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider select-none">{{ field.label }}</div>
 
@@ -623,6 +623,15 @@
                 <!-- Embed view -->
                 <CollectionEmbedView v-else-if="field.type === 'embed' && embedViews[key]" :view="embedViews[key]" :field-key="String(key)" />
 
+                <!-- Image (workspace-relative path → <img> via auth-exempt /api/files/raw) -->
+                <img
+                  v-else-if="field.type === 'image' && typeof viewing[key] === 'string' && viewing[key]"
+                  :src="resolveImageSrc(String(viewing[key]))"
+                  :alt="field.label"
+                  class="max-h-64 max-w-full object-contain rounded-lg border border-slate-200 bg-slate-50"
+                  :data-testid="`collections-detail-image-${key}`"
+                />
+
                 <!-- Fallback text styling -->
                 <span v-else class="text-slate-800 font-semibold">{{ formatCell(viewing[key], field.type) }}</span>
               </div>
@@ -650,8 +659,9 @@ import { useConfirm } from "../composables/useConfirm";
 import { useAppApi } from "../composables/useAppApi";
 import { evaluateDerived, type FormulaContext } from "../utils/collections/derivedFormula";
 import { actionVisible } from "../utils/collections/actionVisible";
+import { resolveImageSrc } from "../utils/image/resolve";
 
-type FieldType = "string" | "text" | "email" | "number" | "date" | "boolean" | "markdown" | "ref" | "money" | "enum" | "table" | "derived" | "embed";
+type FieldType = "string" | "text" | "email" | "number" | "date" | "boolean" | "markdown" | "ref" | "money" | "enum" | "table" | "derived" | "embed" | "image";
 
 interface FieldSpec {
   type: FieldType;
@@ -1124,8 +1134,12 @@ const embedViews = computed<Record<string, EmbedView>>(() => {
  *  list table only (a whole embedded record doesn't fit a table cell,
  *  and it'd be identical in every row). The detail modal and the edit
  *  form iterate the full `schema.fields` so embeds render there too. */
-const nonEmbedFields = computed<[string, FieldSpec][]>(() =>
-  collection.value ? Object.entries(collection.value.schema.fields).filter(([, field]) => field.type !== "embed") : [],
+// Fields shown as columns in the list table. Excludes `embed`
+// (display-only fixed record, no per-record value) and `image` — a
+// per-row <img> fetches one file each, too expensive for a collection
+// with many records, and the image is shown in the detail view anyway.
+const listColumnFields = computed<[string, FieldSpec][]>(() =>
+  collection.value ? Object.entries(collection.value.schema.fields).filter(([, field]) => field.type !== "embed" && field.type !== "image") : [],
 );
 
 /** True when the current collection declares `schema.singleton` —

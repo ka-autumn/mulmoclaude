@@ -62,12 +62,14 @@ describe("discoverCollections — field-type support", () => {
         joined: { type: "date", label: "Joined" },
         active: { type: "boolean", label: "Active" },
         notes: { type: "markdown", label: "Notes" },
+        photo: { type: "image", label: "Photo" },
       },
     });
     const collections = await listCollections();
     assert.equal(collections.length, 1);
     assert.equal(collections[0]?.slug, "test-allfields");
     assert.equal(collections[0]?.schema.fields.active?.type, "boolean");
+    assert.equal(collections[0]?.schema.fields.photo?.type, "image");
   });
 
   it("accepts a schema using `ref` with a non-empty `to` (added in feat-collections-ref-field)", async () => {
