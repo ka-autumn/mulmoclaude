@@ -640,12 +640,10 @@
                   :href="String(viewing[key])"
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="inline-flex items-center gap-0.5 text-blue-600 hover:text-blue-800 font-semibold hover:underline break-all"
+                  class="text-blue-600 hover:text-blue-800 font-semibold hover:underline break-all"
                   :data-testid="`collections-detail-url-${key}`"
+                  >{{ String(viewing[key]) }}</a
                 >
-                  <span>{{ String(viewing[key]) }}</span>
-                  <span class="material-icons text-xs">launch</span>
-                </a>
 
                 <!-- Fallback text styling -->
                 <span v-else class="text-slate-800 font-semibold">{{ formatCell(viewing[key], field.type) }}</span>
