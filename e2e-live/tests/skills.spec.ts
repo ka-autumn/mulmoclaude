@@ -19,6 +19,7 @@ import {
   removeProjectSkill,
   selectRole,
   sendChatMessage,
+  setupRoleSession,
   snapshotProjectSkillSlugs,
   stagingSkillSlugFromWriteCall,
   startGuaranteedNewSession,
@@ -102,37 +103,6 @@ function defineEncoreCallTargetsDisplayName(call: ToolCallTraceRecord, displayNa
   const { dsl } = call.args;
   if (!isRecord(dsl)) return false;
   return dsl.displayName === displayName;
-}
-
-/**
- * Start a fresh General-role session, switch to the named role
- * (which spawns a second session), and push BOTH ids onto the
- * caller's cleanup array as they appear so a mid-helper throw
- * still drains the General-side session in `finally`. Returns the
- * role-switched session id (the one the spec sends prompts at).
- *
- * Extracted from L-21B to keep the test body under the 20-line cap
- * (CodeRabbit review on PR #1493). The same dance is open-coded in
- * L-21 (chart, Office role); a follow-up PR could route L-21 through
- * this helper too, but is out of scope here.
- */
-async function setupRoleSession(page: Page, roleId: string, sessionsToCleanup: string[]): Promise<string> {
-  await startNewSession(page);
-  await page.waitForURL(SESSION_URL_PATTERN);
-  const generalSessionId = getCurrentSessionId(page);
-  if (generalSessionId === null) {
-    throw new Error("setupRoleSession: getCurrentSessionId returned null after startNewSession — URL pattern likely drifted");
-  }
-  sessionsToCleanup.push(generalSessionId);
-  await selectRole(page, roleId);
-  await page.waitForURL((url) => SESSION_URL_PATTERN.test(url.pathname) && !url.pathname.endsWith(generalSessionId));
-  const roleSessionId = getCurrentSessionId(page);
-  if (roleSessionId === null) {
-    throw new Error(`setupRoleSession: getCurrentSessionId returned null after selectRole(${roleId}) — URL pattern likely drifted`);
-  }
-  sessionsToCleanup.push(roleSessionId);
-  await expect(page.getByTestId("role-selector-btn"), `role chip must reflect ${roleId} after switch`).toHaveAttribute("data-role", roleId);
-  return roleSessionId;
 }
 
 test.describe("skills (real LLM / static)", () => {

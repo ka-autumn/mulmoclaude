@@ -61,6 +61,7 @@
     "test:e2e:live:docker": "yarn ensure:playwright-browsers && cross-env E2E_LIVE_REPORT_SUBDIR=docker playwright test --config e2e-live/playwright.config.ts docker.spec.ts",
     "test:e2e:live:fresh-boot": "yarn ensure:playwright-browsers && cross-env E2E_LIVE_REPORT_SUBDIR=fresh-boot playwright test --config e2e-live/playwright.config.ts fresh-boot.spec.ts",
     "test:e2e:live:happy-tour": "yarn ensure:playwright-browsers && cross-env E2E_LIVE_REPORT_SUBDIR=happy-tour playwright test --config e2e-live/playwright.config.ts happy-tour.spec.ts",
+    "test:e2e:live:plugin-dispatch": "yarn ensure:playwright-browsers && cross-env E2E_LIVE_REPORT_SUBDIR=plugin-dispatch playwright test --config e2e-live/playwright.config.ts plugin-dispatch.spec.ts",
     "test:coverage": "tsx --test --experimental-test-coverage ./test/*/test_*.ts ./test/*/*/test_*.ts && yarn workspaces run test",
     "sandbox:remove": "docker rmi mulmoclaude-sandbox",
     "sandbox:login": "security find-generic-password -s 'Claude Code-credentials' -w > ~/.claude/.credentials.json && echo 'Credentials exported to ~/.claude/.credentials.json'",
