@@ -25,53 +25,55 @@ function buildWideTree() {
   return { dirAFiles, dirBFiles };
 }
 
+type FileNode = { name: string; path: string; type: "file"; size: number };
+
+function rootDirResponse() {
+  return {
+    name: "",
+    path: "",
+    type: "dir" as const,
+    children: [
+      { name: "dir-a", path: "dir-a", type: "dir" as const },
+      { name: "dir-b", path: "dir-b", type: "dir" as const },
+    ],
+  };
+}
+
+function dirResponse(name: string, files: FileNode[]) {
+  return { name, path: name, type: "dir" as const, children: files };
+}
+
+function emptyDirResponse(path: string) {
+  return { name: path, path, type: "dir" as const, children: [] };
+}
+
+function handleDirRoute(route: Route, dirAFiles: FileNode[], dirBFiles: FileNode[]): Promise<void> {
+  const path = new URL(route.request().url()).searchParams.get("path") ?? "";
+  if (path === "") return route.fulfill({ json: rootDirResponse() });
+  if (path === "dir-a") return route.fulfill({ json: dirResponse("dir-a", dirAFiles) });
+  if (path === "dir-b") return route.fulfill({ json: dirResponse("dir-b", dirBFiles) });
+  return route.fulfill({ json: emptyDirResponse(path) });
+}
+
+function handleContentRoute(route: Route): Promise<void> {
+  return route.fulfill({
+    json: {
+      kind: "text",
+      path: new URL(route.request().url()).searchParams.get("path") ?? "",
+      content: "stub content",
+      size: 12,
+      modifiedMs: Date.now(),
+    },
+  });
+}
+
 async function mockTree(page: Page): Promise<void> {
   const { dirAFiles, dirBFiles } = buildWideTree();
   await page.route(
     (url) => url.pathname === "/api/files/dir",
-    (route: Route) => {
-      const path = new URL(route.request().url()).searchParams.get("path") ?? "";
-      if (path === "") {
-        return route.fulfill({
-          json: {
-            name: "",
-            path: "",
-            type: "dir",
-            children: [
-              { name: "dir-a", path: "dir-a", type: "dir" },
-              { name: "dir-b", path: "dir-b", type: "dir" },
-            ],
-          },
-        });
-      }
-      if (path === "dir-a") {
-        return route.fulfill({
-          json: { name: "dir-a", path: "dir-a", type: "dir", children: dirAFiles },
-        });
-      }
-      if (path === "dir-b") {
-        return route.fulfill({
-          json: { name: "dir-b", path: "dir-b", type: "dir", children: dirBFiles },
-        });
-      }
-      return route.fulfill({
-        json: { name: path, path, type: "dir", children: [] },
-      });
-    },
+    (route: Route) => handleDirRoute(route, dirAFiles, dirBFiles),
   );
-  await page.route(
-    (url) => url.pathname === "/api/files/content",
-    (route) =>
-      route.fulfill({
-        json: {
-          kind: "text",
-          path: new URL(route.request().url()).searchParams.get("path") ?? "",
-          content: "stub content",
-          size: 12,
-          modifiedMs: Date.now(),
-        },
-      }),
-  );
+  await page.route((url) => url.pathname === "/api/files/content", handleContentRoute);
 }
 
 async function expectSelectedRowInView(page: Page): Promise<void> {

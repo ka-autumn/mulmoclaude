@@ -1,6 +1,7 @@
 <template>
   <div class="h-full flex bg-white" data-testid="files-view-root">
     <FileTreePane
+      ref="treePaneRef"
       :root-node="rootNode"
       :ref-roots="refRoots"
       :children-by-path="childrenByPath"
@@ -202,11 +203,17 @@ watch(
 // markdown link). selectFile() updates selectedPath synchronously
 // before pushing the route, so a guard on the route watcher would
 // miss in-app file→file navigation — we watch the source of truth
-// directly. Idempotent: loadDirChildren and expand() both short-circuit
-// when the cache/expand-state already has the ancestor.
-watch(selectedPath, (newPath) => {
-  if (newPath) ensureAncestorsLoaded(newPath);
-});
+// directly. `immediate: true` covers the deep-link mount case, so
+// onMounted doesn't need its own ensureAncestorsLoaded call.
+// Idempotent: loadDirChildren and expand() both short-circuit when
+// the cache/expand-state already has the ancestor.
+watch(
+  selectedPath,
+  (newPath) => {
+    if (newPath) ensureAncestorsLoaded(newPath);
+  },
+  { immediate: true },
+);
 
 // Reveal the selected file row in the tree pane. The tree grows
 // incrementally on deep-link mount: ensureAncestorsLoaded fetches the
@@ -216,13 +223,18 @@ watch(selectedPath, (newPath) => {
 // row further down, so scrollIntoView must re-run whenever the tree
 // grows, not just once on selection change. A pending-rAF guard
 // coalesces a burst of childrenByPath updates into a single scroll.
+// Scope the query to the FileTreePane's root via a template ref so
+// it survives data-testid / DOM-structure changes elsewhere in
+// FilesView.
+const treePaneRef = ref<InstanceType<typeof FileTreePane> | null>(null);
 let pendingRevealRaf = 0;
 function revealSelectedInTree(): void {
   if (!selectedPath.value) return;
   if (pendingRevealRaf !== 0) return;
   pendingRevealRaf = requestAnimationFrame(() => {
     pendingRevealRaf = 0;
-    const button = document.querySelector<HTMLElement>('[data-testid="files-view-root"] button[data-selected="true"]');
+    const paneRoot = treePaneRef.value?.$el as HTMLElement | undefined;
+    const button = paneRoot?.querySelector<HTMLElement>('button[data-selected="true"]');
     button?.scrollIntoView({ block: "nearest" });
   });
 }
@@ -242,14 +254,10 @@ onMounted(async () => {
   await loadDirChildren("");
   await loadRefRoots();
 
-  // Deep-link: if the URL has a selected path, reveal its ancestors
-  // by fetching each dir in sequence so the tree auto-expands to
-  // the selection.
-  if (selectedPath.value) {
-    await ensureAncestorsLoaded(selectedPath.value);
-    loadContent(selectedPath.value);
-    revealSelectedInTree();
-  }
+  // Deep-link content load. The ancestor expansion + scroll reveal are
+  // handled by the selectedPath watchers above (the ensureAncestorsLoaded
+  // watcher runs with immediate: true).
+  if (selectedPath.value) loadContent(selectedPath.value);
 });
 
 onUnmounted(() => {
