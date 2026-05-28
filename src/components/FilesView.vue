@@ -61,7 +61,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
 import { useRoute } from "vue-router";
 import { useI18n } from "vue-i18n";
 import FileTreePane from "./FileTreePane.vue";
@@ -197,6 +197,24 @@ watch(
   },
 );
 
+// Reveal the selected file row in the tree pane. Runs after the tree
+// has had a chance to expand ancestors and render the deepest button,
+// then on every selectedPath change (wiki link → file, back/forward).
+// rAF after nextTick = wait for Vue to flush DOM updates, then for the
+// browser to lay out the (potentially very tall) tree before scrolling.
+async function revealSelectedInTree(): Promise<void> {
+  if (!selectedPath.value) return;
+  await nextTick();
+  requestAnimationFrame(() => {
+    const button = document.querySelector<HTMLElement>('[data-testid="files-view-root"] button[data-selected="true"]');
+    button?.scrollIntoView({ block: "nearest" });
+  });
+}
+
+watch(selectedPath, () => {
+  revealSelectedInTree();
+});
+
 watch(
   () => props.refreshToken,
   () => {
@@ -215,6 +233,7 @@ onMounted(async () => {
   if (selectedPath.value) {
     await ensureAncestorsLoaded(selectedPath.value);
     loadContent(selectedPath.value);
+    revealSelectedInTree();
   }
 });
 

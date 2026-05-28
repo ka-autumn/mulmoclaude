@@ -11,10 +11,10 @@
     </button>
     <button
       v-else
-      ref="fileButtonRef"
       class="w-full flex items-center gap-1 px-2 py-1 text-left text-sm rounded transition-colors"
       :class="selectedPath === node.path ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100'"
       :data-testid="`file-tree-file-${node.name}`"
+      :data-selected="selectedPath === node.path ? 'true' : undefined"
       :title="node.path"
       @click="emit('select', node.path)"
     >
@@ -43,7 +43,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useExpandedDirs } from "../composables/useExpandedDirs";
 import { sortChildren } from "../utils/files/sortChildren";
@@ -134,22 +134,6 @@ const fileIcon = computed(() => {
 });
 
 const isRecent = computed(() => props.recentPaths.has(props.node.path));
-
-// Reveal the selected file in the scrollable tree pane. Fires both on
-// mount (deep-link case: ancestors expand asynchronously, so this node
-// can mount already-selected) and when `selectedPath` flips to this
-// node (in-app navigation like wiki → files links). `block: "nearest"`
-// avoids unnecessary scrolling when the row is already visible.
-const fileButtonRef = ref<HTMLButtonElement | null>(null);
-watch(
-  () => props.selectedPath === props.node.path && props.node.type === "file",
-  async (isSelected) => {
-    if (!isSelected) return;
-    await nextTick();
-    fileButtonRef.value?.scrollIntoView({ block: "nearest" });
-  },
-  { immediate: true },
-);
 
 // System-managed files get tinted by edit policy so the user can
 // spot them in the tree before clicking. Folders and unrecognised
