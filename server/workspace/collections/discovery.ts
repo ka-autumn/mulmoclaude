@@ -199,6 +199,13 @@ const CollectionSchemaZ = z
     singleton: z.string().trim().min(1).optional(),
     fields: z.record(z.string(), FieldSpecSchema),
     actions: z.array(ActionSpecSchema).optional(),
+    // Completion-tracking pair: when both are set, item-create fires a
+    // notification that clears once `completionField` transitions into
+    // `completionDoneValues`. The two are bound together — declaring
+    // one without the other is a misconfiguration the cross-field
+    // refine below rejects.
+    completionField: z.string().trim().min(1).optional(),
+    completionDoneValues: z.array(z.string().trim().min(1)).min(1).optional(),
   })
   // The singleton value becomes a record id (and thus a `<id>.json`
   // filename), so it must satisfy the SAME `safeSlugName` rule the
@@ -223,6 +230,21 @@ const CollectionSchemaZ = z
   .refine((schema) => collectCurrencyFieldRefs(schema.fields).every((name) => CODE_FIELD_TYPES.has(schema.fields[name]?.type ?? "")), {
     message: "a money field's `currencyField` must name a top-level `string`, `text`, or `enum` field that holds the currency code",
     path: ["fields"],
+  })
+  // Completion-tracking pair must be declared together: declaring
+  // `completionField` without `completionDoneValues` (or vice-versa)
+  // is meaningless — the host would either never fire (no done values
+  // to compare against) or never clear (no field to read). Bound
+  // together so the misconfiguration fails loudly at load time.
+  .refine((schema) => (schema.completionField === undefined) === (schema.completionDoneValues === undefined), {
+    message: "schema `completionField` and `completionDoneValues` must be declared together (both set, or both omitted)",
+    path: ["completionField"],
+  })
+  // `completionField` must name a real top-level field — a typo would
+  // silently disable the notification mechanism otherwise.
+  .refine((schema) => schema.completionField === undefined || schema.fields[schema.completionField] !== undefined, {
+    message: "schema `completionField` must name a top-level field declared in `fields`",
+    path: ["completionField"],
   });
 
 interface LoadedCollection {

@@ -97,6 +97,8 @@ skipped, never crashes the host):
 | `singleton` | Optional. When set, at most one record exists, pinned to this exact id (e.g. `me`). Host pre-fills + locks the create form and hides Add once it exists. |
 | `fields` | Ordered map of field-name → field spec. **Insertion order = column order** in the table. Required. |
 | `actions` | Optional array of per-record buttons (see below). |
+| `completionField` | Optional. Name of the field whose value marks an item as "done" — when set, item-create fires a bell notification that clears once the field reaches one of `completionDoneValues`. Must name a real field in `fields`. Paired with `completionDoneValues` (both set, or both omitted). |
+| `completionDoneValues` | Optional. Non-empty array of values that count as "done" for `completionField` (e.g. `["Done"]`, `["paid", "void"]`). Compared as strings. |
 
 ### Field types
 
@@ -224,6 +226,48 @@ journals, drafting an email) gets delegated to natural language.
   re-checks it server-side, so a button gated on `status: paid` can't be invoked
   for a draft. Omit `when` ⇒ always shown.
 - You do **not** trigger actions yourself; point the user at the button.
+
+### Completion tracking (bell notifications)
+
+Declare `completionField` + `completionDoneValues` at the top level of the
+schema to wire a record's lifecycle into the bell:
+
+```json
+{
+  "title": "Todos",
+  "icon": "check_circle",
+  "dataPath": "data/todos/items",
+  "primaryKey": "id",
+  "fields": {
+    "id":     { "type": "string", "label": "ID", "primary": true, "required": true },
+    "title":  { "type": "string", "label": "Title", "required": true },
+    "status": { "type": "enum", "values": ["Todo", "Doing", "Done"], "label": "Status", "required": true }
+  },
+  "completionField": "status",
+  "completionDoneValues": ["Done"]
+}
+```
+
+Behaviour:
+
+- **On create** the host fires a bell notification (titled `<schema.title>: <id>`,
+  click-navigates to `/collections/<slug>?selected=<id>` so the item's detail
+  opens) — unless the new record is **born done** (its `completionField` value
+  is already in `completionDoneValues`), in which case nothing fires. The entry
+  is published with `lifecycle: "action"` so it persists prominently in the
+  bell until the obligation resolves.
+- **On update** the host clears the notification when `completionField`
+  transitions **into** a done value. Un-completing (Done → Todo) does NOT
+  re-fire; firing is bound to create, by design.
+- **On delete** the host clears any matching notification so a removed record
+  can't leak a stale entry.
+
+The pair is bundled — declaring one without the other fails schema validation.
+`completionField` must name a real field; a typo is rejected at load. Works
+with any field type whose stringified value is comparable (`enum`, `string`,
+`boolean`, …) — e.g. `completionField: "status"` + `completionDoneValues:
+["paid", "void"]` on an invoice, or `completionField: "shipped"` +
+`completionDoneValues: ["true"]` on an order.
 
 ## Records — one JSON object per file
 

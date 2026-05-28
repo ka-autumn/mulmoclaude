@@ -53,6 +53,7 @@ export const NOTIFICATION_VIEWS = {
   sources: "sources",
   files: "files",
   wiki: "wiki",
+  collections: "collections",
 } as const;
 
 export type NotificationView = (typeof NOTIFICATION_VIEWS)[keyof typeof NOTIFICATION_VIEWS];
@@ -75,7 +76,8 @@ export type NotificationTarget =
   | { view: typeof NOTIFICATION_VIEWS.automations; taskId?: string }
   | { view: typeof NOTIFICATION_VIEWS.sources; slug?: string }
   | { view: typeof NOTIFICATION_VIEWS.files; path?: string }
-  | { view: typeof NOTIFICATION_VIEWS.wiki; slug?: string; anchor?: string };
+  | { view: typeof NOTIFICATION_VIEWS.wiki; slug?: string; anchor?: string }
+  | { view: typeof NOTIFICATION_VIEWS.collections; slug: string; itemId?: string };
 
 export type NotificationAction =
   | {

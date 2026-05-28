@@ -156,6 +156,15 @@ export interface CollectionSchema {
   /** Optional per-record actions rendered as buttons in the detail
    *  view (e.g. "Generate PDF"). Order = button order. */
   actions?: CollectionAction[];
+  /** Name of the field whose value marks an item as "done". When set,
+   *  a notification fires on item create (unless the item is born done)
+   *  and clears when the field's value transitions into
+   *  `completionDoneValues`. Must name a real field in `fields`. */
+  completionField?: string;
+  /** The set of values for `completionField` that count as "done"
+   *  (e.g. `["Done"]` for a todo status field, `["paid"]` for an
+   *  invoice). Non-empty. Compared as strings. */
+  completionDoneValues?: readonly string[];
 }
 
 export interface CollectionSummary {

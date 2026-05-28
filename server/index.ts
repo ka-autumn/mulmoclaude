@@ -30,6 +30,7 @@ import configRefreshRoutes from "./api/routes/config-refresh.js";
 import hookLogRoutes from "./api/routes/hookLog.js";
 import skillsRoutes from "./api/routes/skills.js";
 import collectionsRoutes from "./api/routes/collections.js";
+import { startCollectionWatchers } from "./workspace/collections/watcher.js";
 import runtimePluginRoutes from "./api/routes/runtime-plugin.js";
 import { loadRuntimePlugins } from "./plugins/runtime-loader.js";
 import { evaluateDevPluginGate, loadDevPlugins, parseDevPluginsEnv } from "./plugins/dev-loader.js";
@@ -905,6 +906,18 @@ async function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, p
   // missing one so a feature degrading is visible instead of a
   // later opaque crash. Never throws.
   await announceOptionalDeps();
+
+  // --- Collection completion watchers ---
+  // Mount `fs.watch` over every discovered collection's dataDir so
+  // schemas with `completionField` fire / clear bell notifications
+  // regardless of whether the record was written via REST or directly
+  // through the agent's Write tool. Runs a boot reconcile + sweep
+  // first to catch up changes that landed while the server was down.
+  // Errors are logged inside; fire-and-forget so a slow scan doesn't
+  // hold up the rest of boot.
+  startCollectionWatchers().catch((err: unknown) => {
+    log.warn("collections", "watcher boot failed", { error: String(err) });
+  });
 
   // --- Chat socket transport (Phase A of #268) ---
   chatService.attachSocket(httpServer);
