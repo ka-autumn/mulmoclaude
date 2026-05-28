@@ -111,7 +111,7 @@ export const ROLES: Role[] = [
       "Play some focus music on Spotify",
       "Remind me to call mom this evening",
       "Create a contacts collection with name, company, title, email, phone, notes, and a business-card image. When I attach a photo of a business card, read the details off it and add a new contact.",
-      "Create a reading-list collection with a URL field and a Read checkbox. While Read is unchecked, keep each item in the bell notifications.",
+      "Create a reading-list collection with a title, a URL field, and a Read checkbox. While Read is unchecked, keep each item in the bell notifications, labeled with its title.",
     ],
   },
   {

@@ -99,6 +99,7 @@ skipped, never crashes the host):
 | `actions` | Optional array of per-record buttons (see below). |
 | `completionField` | Optional. Name of the field whose value marks an item as "done" — when set, item-create fires a bell notification that clears once the field reaches one of `completionDoneValues`. Must name a real field in `fields`. Paired with `completionDoneValues` (both set, or both omitted). |
 | `completionDoneValues` | Optional. Non-empty array of values that count as "done" for `completionField` (e.g. `["Done"]`, `["paid", "void"]`). Compared as strings. |
+| `displayField` | Optional. Name of a field whose value is shown as the human-readable label in the completion notification's title (e.g. `Contacts: Jane Doe` instead of the opaque primaryKey). Must name a real field in `fields`. Falls back to the primaryKey value when unset or when the record's value is empty. |
 
 ### Field types
 
@@ -244,13 +245,16 @@ schema to wire a record's lifecycle into the bell:
     "status": { "type": "enum", "values": ["Todo", "Doing", "Done"], "label": "Status", "required": true }
   },
   "completionField": "status",
-  "completionDoneValues": ["Done"]
+  "completionDoneValues": ["Done"],
+  "displayField": "title"
 }
 ```
 
 Behaviour:
 
-- **On create** the host fires a bell notification (titled `<schema.title>: <id>`,
+- **On create** the host fires a bell notification (titled
+  `<schema.title>: <label>`, where `<label>` is the record's `displayField`
+  value when declared — falling back to the primaryKey `<id>` otherwise;
   click-navigates to `/collections/<slug>?selected=<id>` so the item's detail
   opens) — unless the new record is **born done** (its `completionField` value
   is already in `completionDoneValues`), in which case nothing fires. The entry
@@ -268,6 +272,11 @@ with any field type whose stringified value is comparable (`enum`, `string`,
 `boolean`, …) — e.g. `completionField: "status"` + `completionDoneValues:
 ["paid", "void"]` on an invoice, or `completionField: "shipped"` +
 `completionDoneValues: ["true"]` on an order.
+
+Set `displayField` to make the bell title readable: with `displayField:
+"title"` the notification reads `Todos: Buy milk` instead of `Todos: t-0042`.
+It must name a real field; an empty value on a given record falls back to the
+primaryKey for that record.
 
 ## Records — one JSON object per file
 

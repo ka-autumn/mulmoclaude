@@ -26,6 +26,7 @@ import {
   itemIsDone,
   reconcileAllItems,
   reconcileItem,
+  resolveDisplayLabel,
   sweepStaleActiveEntries,
 } from "../../../server/workspace/collections/notifications.js";
 import type { CollectionSchema } from "../../../server/workspace/collections/types.js";
@@ -200,6 +201,66 @@ describe("reconcileItem", () => {
     writeItem("a", { read: true });
     await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir });
     assert.equal((await activeCompletionEntries()).length, 0);
+  });
+
+  it("titles the entry with displayField value when declared", async () => {
+    const schema = buildSchema({
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        title: { type: "string", label: "Title", required: true },
+        read: { type: "boolean", label: "Read", required: true },
+      },
+      displayField: "title",
+    });
+    writeItem("a", { title: "Buy milk", read: false });
+    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir });
+    const entries = await activeCompletionEntries();
+    assert.equal(entries[0]?.title, `${schema.title}: Buy milk`);
+    // Deep-link still keys on the primaryKey, not the label.
+    assert.equal(entries[0]?.navigateTarget, `/collections/${SLUG}?selected=a`);
+  });
+
+  it("falls back to the primaryKey when displayField value is empty", async () => {
+    const schema = buildSchema({
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        title: { type: "string", label: "Title", required: true },
+        read: { type: "boolean", label: "Read", required: true },
+      },
+      displayField: "title",
+    });
+    writeItem("a", { title: "   ", read: false });
+    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir });
+    const entries = await activeCompletionEntries();
+    assert.equal(entries[0]?.title, `${schema.title}: a`);
+  });
+});
+
+describe("resolveDisplayLabel", () => {
+  it("returns the itemId when no displayField is declared", () => {
+    assert.equal(resolveDisplayLabel(buildSchema(), { id: "a", read: false }, "a"), "a");
+  });
+
+  it("returns the displayField value when present and non-empty", () => {
+    const schema = buildSchema({ displayField: "title" });
+    assert.equal(resolveDisplayLabel(schema, { id: "a", title: "Buy milk" }, "a"), "Buy milk");
+  });
+
+  it("trims the displayField value", () => {
+    const schema = buildSchema({ displayField: "title" });
+    assert.equal(resolveDisplayLabel(schema, { id: "a", title: "  Buy milk  " }, "a"), "Buy milk");
+  });
+
+  it("falls back to the itemId when the displayField value is missing or empty", () => {
+    const schema = buildSchema({ displayField: "title" });
+    assert.equal(resolveDisplayLabel(schema, { id: "a", read: false }, "a"), "a");
+    assert.equal(resolveDisplayLabel(schema, { id: "a", title: "" }, "a"), "a");
+    assert.equal(resolveDisplayLabel(schema, { id: "a", title: null }, "a"), "a");
+  });
+
+  it("stringifies a non-string displayField value", () => {
+    const schema = buildSchema({ displayField: "count" });
+    assert.equal(resolveDisplayLabel(schema, { id: "a", count: 42 }, "a"), "42");
   });
 });
 

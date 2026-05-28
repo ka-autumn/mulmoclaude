@@ -165,6 +165,13 @@ export interface CollectionSchema {
    *  (e.g. `["Done"]` for a todo status field, `["paid"]` for an
    *  invoice). Non-empty. Compared as strings. */
   completionDoneValues?: readonly string[];
+  /** Name of the field whose value is shown as the human-readable
+   *  label in a completion notification's title (e.g. a `name` field,
+   *  so the bell reads `Contacts: Jane Doe` instead of the opaque
+   *  primaryKey). Must name a real field in `fields`. When unset — or
+   *  when the record's value for it is empty — the title falls back to
+   *  the record's primaryKey value. Display-only; never stored. */
+  displayField?: string;
 }
 
 export interface CollectionSummary {
