@@ -197,11 +197,13 @@ watch(
   },
 );
 
-// Reveal the selected file row in the tree pane. Runs after the tree
-// has had a chance to expand ancestors and render the deepest button,
-// then on every selectedPath change (wiki link → file, back/forward).
-// rAF after nextTick = wait for Vue to flush DOM updates, then for the
-// browser to lay out the (potentially very tall) tree before scrolling.
+// Reveal the selected file row in the tree pane. The tree grows
+// incrementally on deep-link mount: ensureAncestorsLoaded fetches the
+// direct ancestors, but sibling dirs whose `expanded` state was
+// restored from localStorage lazy-load their children later via each
+// FileTree's own watcher. Each of those loads pushes the selected
+// row further down, so scrollIntoView must re-run whenever the tree
+// grows, not just once on selection change.
 async function revealSelectedInTree(): Promise<void> {
   if (!selectedPath.value) return;
   await nextTick();
@@ -211,9 +213,8 @@ async function revealSelectedInTree(): Promise<void> {
   });
 }
 
-watch(selectedPath, () => {
-  revealSelectedInTree();
-});
+watch(selectedPath, revealSelectedInTree);
+watch(childrenByPath, revealSelectedInTree);
 
 watch(
   () => props.refreshToken,
