@@ -84,9 +84,9 @@ async function expectSelectedRowInView(page: Page): Promise<void> {
           const selected = document.querySelector<HTMLElement>('[data-testid="files-view-root"] button[data-selected="true"]');
           const container = document.querySelector<HTMLElement>('[data-testid="files-view-root"] .overflow-y-auto');
           if (!selected || !container) return false;
-          const s = selected.getBoundingClientRect();
-          const c = container.getBoundingClientRect();
-          return s.top >= c.top && s.bottom <= c.bottom;
+          const selRect = selected.getBoundingClientRect();
+          const containerRect = container.getBoundingClientRect();
+          return selRect.top >= containerRect.top && selRect.bottom <= containerRect.bottom;
         }),
       { timeout: 5000 },
     )
