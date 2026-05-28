@@ -206,6 +206,11 @@ const CollectionSchemaZ = z
     // refine below rejects.
     completionField: z.string().trim().min(1).optional(),
     completionDoneValues: z.array(z.string().trim().min(1)).min(1).optional(),
+    // Optional human-readable label for the completion notification's
+    // title — names the field whose value reads better than the opaque
+    // primaryKey (e.g. a `name` field). Falls back to the primaryKey
+    // value at render time when unset or empty.
+    displayField: z.string().trim().min(1).optional(),
   })
   // The singleton value becomes a record id (and thus a `<id>.json`
   // filename), so it must satisfy the SAME `safeSlugName` rule the
@@ -245,6 +250,12 @@ const CollectionSchemaZ = z
   .refine((schema) => schema.completionField === undefined || schema.fields[schema.completionField] !== undefined, {
     message: "schema `completionField` must name a top-level field declared in `fields`",
     path: ["completionField"],
+  })
+  // `displayField`, like `completionField`, must name a real top-level
+  // field — a typo would silently fall back to the primaryKey forever.
+  .refine((schema) => schema.displayField === undefined || schema.fields[schema.displayField] !== undefined, {
+    message: "schema `displayField` must name a top-level field declared in `fields`",
+    path: ["displayField"],
   });
 
 interface LoadedCollection {

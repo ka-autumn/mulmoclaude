@@ -68,6 +68,19 @@ function parseCompletionLegacyId(legacyId: string): { slug: string; itemId: stri
   return { slug: body.slice(0, colon), itemId: body.slice(colon + 1) };
 }
 
+/** The human-readable label shown in a completion notification's
+ *  title. Uses the schema's `displayField` value when declared and
+ *  non-empty; otherwise falls back to the record's primaryKey
+ *  (`itemId`), preserving the historical `{title}: {id}` shape. */
+export function resolveDisplayLabel(schema: CollectionSchema, item: CollectionItem, itemId: string): string {
+  const { displayField } = schema;
+  if (!displayField) return itemId;
+  const raw = item[displayField];
+  if (raw === undefined || raw === null) return itemId;
+  const label = String(raw).trim();
+  return label.length > 0 ? label : itemId;
+}
+
 /** True iff the schema declares completion tracking AND the item's
  *  `completionField` value (stringified) is in `completionDoneValues`.
  *  Returns false when tracking is disabled. */
@@ -128,7 +141,7 @@ const ensureLocks = new Map<string, EnsureLock>();
  *  The `pluginData` shape matches what the wrapper would have built
  *  (`LegacyNotifierPluginData`), so the bell preserves icon / dedup
  *  semantics and `findActiveEntryIds` keeps working. */
-async function ensureItemNotification(slug: string, schema: CollectionSchema, itemId: string): Promise<void> {
+async function ensureItemNotification(slug: string, schema: CollectionSchema, itemId: string, displayLabel: string): Promise<void> {
   const legacyId = completionLegacyId(slug, itemId);
   // Drain any in-flight publish for this key BEFORE our check + set.
   // The drain + claim runs synchronously between the loop's
@@ -139,7 +152,7 @@ async function ensureItemNotification(slug: string, schema: CollectionSchema, it
     if (!inflight) break;
     await inflight.promise;
   }
-  const lock: EnsureLock = { promise: doEnsureItemNotification(slug, schema, itemId, legacyId) };
+  const lock: EnsureLock = { promise: doEnsureItemNotification(slug, schema, itemId, legacyId, displayLabel) };
   ensureLocks.set(legacyId, lock);
   try {
     await lock.promise;
@@ -152,7 +165,7 @@ async function ensureItemNotification(slug: string, schema: CollectionSchema, it
   }
 }
 
-async function doEnsureItemNotification(slug: string, schema: CollectionSchema, itemId: string, legacyId: string): Promise<void> {
+async function doEnsureItemNotification(slug: string, schema: CollectionSchema, itemId: string, legacyId: string, displayLabel: string): Promise<void> {
   try {
     const existing = await findActiveEntryIds(slug, itemId);
     if (existing.length > 0) return;
@@ -178,7 +191,7 @@ async function doEnsureItemNotification(slug: string, schema: CollectionSchema, 
       pluginPkg: legacyKindToPluginPkg(NOTIFICATION_KINDS.todo),
       severity: legacyPriorityToSeverity(NOTIFICATION_PRIORITIES.normal),
       lifecycle: "action",
-      title: `${schema.title}: ${itemId}`,
+      title: `${schema.title}: ${displayLabel}`,
       navigateTarget: legacyActionToNavigateTarget(action),
       pluginData,
     });
@@ -229,7 +242,7 @@ export async function reconcileItem(slug: string, schema: CollectionSchema, data
     await clearItemNotification(slug, itemId);
     return;
   }
-  await ensureItemNotification(slug, schema, itemId);
+  await ensureItemNotification(slug, schema, itemId, resolveDisplayLabel(schema, item, itemId));
 }
 
 /** Boot-time reconcile: walk every record under `dataDir` once and

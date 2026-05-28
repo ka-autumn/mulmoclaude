@@ -646,6 +646,36 @@ describe("discoverCollections — structural validation", () => {
     const collections = await listCollections();
     assert.equal(collections.length, 0);
   });
+
+  it("rejects a schema whose displayField doesn't name a declared field", async () => {
+    writeSkill("test-orphan-displayfield", {
+      title: "Orphan Display",
+      icon: "warning",
+      dataPath: "data/orphan-display/items",
+      primaryKey: "id",
+      fields: { id: { type: "string", label: "ID", primary: true } },
+      displayField: "nonexistent",
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 0);
+  });
+
+  it("accepts a schema whose displayField names a declared field", async () => {
+    writeSkill("test-valid-displayfield", {
+      title: "Valid Display",
+      icon: "check_circle",
+      dataPath: "data/valid-display/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true },
+        name: { type: "string", label: "Name" },
+      },
+      displayField: "name",
+    });
+    const collections = await listCollections();
+    assert.equal(collections.length, 1);
+    assert.equal(collections[0]?.schema.displayField, "name");
+  });
 });
 
 describe("discoverCollections — singleton", () => {
