@@ -24,7 +24,7 @@ import { mkdir } from "node:fs/promises";
 import { log } from "../../system/logger/index.js";
 import { errorMessage } from "../../utils/errors.js";
 import { ONE_SECOND_MS } from "../../utils/time.js";
-import { discoverCollections, loadCollection } from "./discovery.js";
+import { discoverCollections, loadCollection, type LoadedCollection } from "./discovery.js";
 import { reconcileAllItems, reconcileItem, sweepStaleActiveEntries } from "./notifications.js";
 
 // Collections don't get added / removed rapidly; 30 s is a comfortable
@@ -37,6 +37,13 @@ interface CollectionWatcher {
   slug: string;
   dataDir: string;
   watcher: FSWatcher;
+  /** Last-seen serialized schema for change detection. When a
+   *  rediscovery tick observes a different value, the watcher's items
+   *  are reconciled and the cache is refreshed — this catches
+   *  schema-only edits (e.g. flipping `completionField` on or off)
+   *  that don't touch any record file and would otherwise leave bell
+   *  state stale indefinitely. */
+  schemaJson: string;
 }
 
 const watchers = new Map<string, CollectionWatcher>();
@@ -90,8 +97,17 @@ export async function stopCollectionWatchers(): Promise<void> {
 /** Reconcile the watcher set against the currently-discovered
  *  collections. Adds watchers for newly-appeared slugs (including a
  *  boot reconcile of their existing items), drops watchers for slugs
- *  that no longer exist. Called once on start + every
- *  `REDISCOVERY_INTERVAL_MS`. */
+ *  that no longer exist, and re-reconciles items for collections
+ *  whose schema changed since the last tick. Called once on start +
+ *  every `REDISCOVERY_INTERVAL_MS`.
+ *
+ *  When the watcher set or any schema changed in this tick, runs
+ *  `sweepStaleActiveEntries()` at the end to drop bell entries that
+ *  no longer have a backing collection / schema / file. Without this
+ *  sweep, a collection deleted at runtime would leak its entries
+ *  until process restart, and a schema with `completionField` flipped
+ *  off would keep its old entries indefinitely — both cases the boot
+ *  sweep alone wouldn't catch. */
 async function syncWatchers(): Promise<void> {
   let collections;
   try {
@@ -101,9 +117,24 @@ async function syncWatchers(): Promise<void> {
     return;
   }
   const liveSlugs = new Set(collections.map((collection) => collection.slug));
-  // Stop watchers for vanished collections — their bell entries get
-  // dropped on the next sweep, but the immediate concern here is to
-  // free the fd and stop forwarding events for a dead slug.
+  // The three passes below are split into helpers so this function
+  // stays under the `sonarjs/cognitive-complexity` threshold; each
+  // returns a boolean for whether it mutated state, OR-ed into a
+  // single `mutated` flag that gates the end-of-tick sweep.
+  const vanishedMutated = stopVanishedWatchers(liveSlugs);
+  const schemaMutated = await reconcileChangedSchemas(collections);
+  const addedMutated = await startNewWatchers(collections);
+  // Final sweep — catches anything the per-watcher paths above
+  // couldn't reach (vanished slugs' entries, removed-completionField
+  // entries). Bounded by the active set size; only runs when this
+  // tick actually changed something.
+  if (vanishedMutated || schemaMutated || addedMutated) {
+    await sweepStaleActiveEntries();
+  }
+}
+
+function stopVanishedWatchers(liveSlugs: Set<string>): boolean {
+  let mutated = false;
   for (const slug of [...watchers.keys()]) {
     if (liveSlugs.has(slug)) continue;
     const watcher = watchers.get(slug);
@@ -115,13 +146,39 @@ async function syncWatchers(): Promise<void> {
       }
     }
     watchers.delete(slug);
+    mutated = true;
     log.info("collections", "watcher stopped", { slug });
   }
-  // Start watchers for newly-appeared collections.
+  return mutated;
+}
+
+/** Re-reconcile already-watched collections whose schema changed
+ *  since the last tick. New collections fall through to
+ *  `startNewWatchers` (whose start path calls `reconcileAllItems`
+ *  internally), so this pass only handles already-watched slugs. */
+async function reconcileChangedSchemas(collections: readonly LoadedCollection[]): Promise<boolean> {
+  let mutated = false;
+  for (const collection of collections) {
+    const existing = watchers.get(collection.slug);
+    if (!existing) continue;
+    const nextJson = JSON.stringify(collection.schema);
+    if (existing.schemaJson === nextJson) continue;
+    existing.schemaJson = nextJson;
+    log.info("collections", "watcher schema changed, re-reconciling", { slug: collection.slug });
+    await reconcileAllItems(collection.slug, collection.schema, collection.dataDir);
+    mutated = true;
+  }
+  return mutated;
+}
+
+async function startNewWatchers(collections: readonly LoadedCollection[]): Promise<boolean> {
+  let mutated = false;
   for (const collection of collections) {
     if (watchers.has(collection.slug)) continue;
     await startWatcherFor(collection.slug, collection.schema, collection.dataDir);
+    mutated = true;
   }
+  return mutated;
 }
 
 async function startWatcherFor(slug: string, schema: import("./types.js").CollectionSchema, dataDir: string): Promise<void> {
@@ -145,7 +202,7 @@ async function startWatcherFor(slug: string, schema: import("./types.js").Collec
     watcher.on("error", (err) => {
       log.warn("collections", "watcher error", { slug, error: errorMessage(err) });
     });
-    watchers.set(slug, { slug, dataDir, watcher });
+    watchers.set(slug, { slug, dataDir, watcher, schemaJson: JSON.stringify(schema) });
     log.info("collections", "watcher started", { slug, dataDir });
   } catch (err) {
     log.warn("collections", "watcher start failed", { slug, error: errorMessage(err) });
