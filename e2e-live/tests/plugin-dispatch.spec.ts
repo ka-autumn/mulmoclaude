@@ -123,43 +123,56 @@ async function expectToolDispatched(sessionId: string, toolName: string): Promis
 }
 
 /**
- * Post-cleanup-turn assertion: prove the agent actually dispatched
- * the delete branch of the same MCP tool. Without this gate a
- * cleanup turn that narrates / no-ops / silently skips delete still
- * leaves the marker behind, but the test passes — Codex iter-2 hit
- * exactly this hole. We read the jsonl again, filter for tool_calls
- * to the same MCP tool whose `args.action` equals the expected
- * delete action literal, and require >=1 such call (the add turn's
- * args.action is `add` / `createBook`, never the delete literal, so
- * the add turn cannot satisfy the assertion).
+ * Count tool_calls already recorded against this session that
+ * target the MCP-prefixed `toolName` with `args.action` equal to
+ * `expectedAction`. Used as a baseline before the cleanup turn so
+ * the post-cleanup assertion is turn-scoped: instead of "is there
+ * any delete call in session history" (which an earlier add turn
+ * could accidentally satisfy if it dispatched a delete pre-cleanup),
+ * we assert "the cleanup turn dispatched ≥1 NEW delete call".
+ * Codex iter-3 flagged this distinction.
  */
-async function expectDeleteActionDispatched(sessionId: string, toolName: string, expectedAction: string): Promise<void> {
+async function countToolActionCalls(sessionId: string, toolName: string, expectedAction: string): Promise<number> {
   const expectedName = `${MCP_PREFIX}${toolName}`;
   const calls = await readSessionToolCalls(sessionId);
-  const deleteCalls = calls.filter((call) => {
-    if (call.toolName !== expectedName) return false;
-    if (!isRecord(call.args)) return false;
-    return call.args.action === expectedAction;
-  });
+  return calls.filter((call) => call.toolName === expectedName && isRecord(call.args) && call.args.action === expectedAction).length;
+}
+
+/**
+ * Post-cleanup-turn assertion: prove the cleanup turn ITSELF (not
+ * just session history) dispatched ≥1 tool_call to the same MCP
+ * tool with `args.action` equal to the expected delete literal.
+ * Without this gate the cleanup turn could narrate / ToolSearch
+ * loop / no-op and leave the marker behind, but the test still
+ * passes — Codex iter-2 hit that hole. Iter-3 refined the gate to
+ * compare against a baseline taken BEFORE the cleanup prompt was
+ * sent, so an earlier delete dispatched in the same session cannot
+ * satisfy the assertion.
+ */
+async function expectDeleteActionDispatched(sessionId: string, toolName: string, expectedAction: string, baselineCount: number): Promise<void> {
+  const expectedName = `${MCP_PREFIX}${toolName}`;
+  const calls = await readSessionToolCalls(sessionId);
+  const sameToolCalls = calls.filter((call) => call.toolName === expectedName);
+  const totalDeleteCalls = sameToolCalls.filter((call) => isRecord(call.args) && call.args.action === expectedAction).length;
+  const newDeleteCalls = totalDeleteCalls - baselineCount;
   expect(
-    deleteCalls.length,
-    `expected at least one ${expectedName} tool_call with args.action='${expectedAction}' in the cleanup turn (saw actions: ${
-      calls
-        .filter((call) => call.toolName === expectedName)
-        .map((call) => (isRecord(call.args) ? String(call.args.action ?? "<no-action>") : "<non-object-args>"))
-        .join(", ") || "<no-matching-tool>"
-    })`,
+    newDeleteCalls,
+    `expected the cleanup turn to dispatch at least one ${expectedName} tool_call with args.action='${expectedAction}' (saw actions in session: ${
+      sameToolCalls.map((call) => (isRecord(call.args) ? String(call.args.action ?? "<no-action>") : "<non-object-args>")).join(", ") || "<no-matching-tool>"
+    }, baseline pre-cleanup=${baselineCount})`,
   ).toBeGreaterThan(0);
 }
 
 /**
  * Drive one plugin's canary: switch into the role that exposes the
  * tool, send the prompt, drain the turn, assert dispatch landed.
- * If a cleanup prompt is provided, send it as a second turn in the
- * same session and drain that turn too (best-effort — no assertion,
- * since a delete failure surfaces as leftover marker data the
- * developer will notice). The session pair is always deleted in
- * `finally`, regardless of whether either turn passed.
+ * If a cleanup prompt is provided, snapshot the existing
+ * delete-action call count, send the cleanup prompt as a second
+ * turn in the same session, drain that turn, then assert the
+ * cleanup turn dispatched at least one NEW delete-action call (so
+ * a pre-existing delete in session history cannot satisfy it).
+ * The session pair is always deleted in `finally`, regardless of
+ * whether either turn passed.
  */
 async function runDispatchCase(page: Page, kase: PluginDispatchCase): Promise<void> {
   test.setTimeout(DISPATCH_TIMEOUT_MS);
@@ -169,12 +182,11 @@ async function runDispatchCase(page: Page, kase: PluginDispatchCase): Promise<vo
     await sendChatMessage(page, kase.prompt);
     await waitForAssistantTurn(page);
     await expectToolDispatched(sessionId, kase.toolName);
-    if (kase.cleanupPrompt !== undefined) {
+    if (kase.cleanupPrompt !== undefined && kase.expectedCleanupAction !== undefined) {
+      const baselineDeleteCount = await countToolActionCalls(sessionId, kase.toolName, kase.expectedCleanupAction);
       await sendChatMessage(page, kase.cleanupPrompt);
       await waitForAssistantTurn(page);
-      if (kase.expectedCleanupAction !== undefined) {
-        await expectDeleteActionDispatched(sessionId, kase.toolName, kase.expectedCleanupAction);
-      }
+      await expectDeleteActionDispatched(sessionId, kase.toolName, kase.expectedCleanupAction, baselineDeleteCount);
     }
   } finally {
     for (const sid of sessionsToCleanup) {
