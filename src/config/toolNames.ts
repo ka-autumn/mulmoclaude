@@ -86,6 +86,7 @@ const HOST_TOOL_NAMES = {
   // preset skill which drives files directly via Read/Write/Edit.
   manageDebug: "manageDebug",
   edgar: "edgar",
+  manageEmail: "manageEmail",
 } as const;
 
 // Plugin-owned tool names auto-merged from each plugin's META.

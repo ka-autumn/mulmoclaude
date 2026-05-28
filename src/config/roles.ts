@@ -135,6 +135,9 @@ export const ROLES: Role[] = [
       TOOL_NAMES.readXPost,
       TOOL_NAMES.searchX,
       TOOL_NAMES.notify,
+      // #1542 — `@mulmoclaude/email-plugin` (devOnly preset, IMAP/SMTP).
+      // v1 dispatch returns stubs; real I/O lands in follow-up PRs.
+      TOOL_NAMES.manageEmail,
     ],
     queries: [
       "Show me the discount cash flow analysis of monthly income of $10,000 for two years. Make it possible to change the discount rate and monthly income.",
