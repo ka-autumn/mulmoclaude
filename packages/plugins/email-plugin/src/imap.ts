@@ -65,13 +65,22 @@ function makeClient(auth: ImapAuth): ImapFlow {
 // imapflow envelope addresses are `{name, address}`; render them
 // the way humans expect for the list view ("Alice <a@x.com>").
 function renderAddress(addrs: AddressObject | AddressObject[] | undefined): string {
-  if (!addrs) return "";
+  return addressList(addrs).join(", ");
+}
+
+// Structured per-address rendering. Returns one element per
+// address so a display name containing a comma (e.g.
+// `"Doe, John" <john@example.com>`) doesn't get sliced apart by
+// the caller — joining + splitting on `", "` is what the previous
+// version did and what Codex flagged. Build arrays from
+// `AddressObject.value[]` directly instead.
+export function addressList(addrs: AddressObject | AddressObject[] | undefined): string[] {
+  if (!addrs) return [];
   const arr = Array.isArray(addrs) ? addrs : [addrs];
   return arr
     .flatMap((a) => a.value)
     .map((v) => (v.name ? `${v.name} <${v.address ?? ""}>` : (v.address ?? "")))
-    .filter((s) => s.length > 0)
-    .join(", ");
+    .filter((s) => s.length > 0);
 }
 
 function renderEnvelopeAddress(arr: ReadonlyArray<{ name?: string | null; address?: string | null }> | null | undefined): string {
@@ -131,16 +140,8 @@ export async function readMessage(auth: ImapAuth, mailbox: string, uid: number):
         uid: Number(raw.uid),
         subject: parsed.subject ?? raw.envelope?.subject ?? "(no subject)",
         from: renderAddress(parsed.from),
-        to: parsed.to
-          ? renderAddress(parsed.to)
-              .split(", ")
-              .filter((s) => s.length > 0)
-          : [],
-        cc: parsed.cc
-          ? renderAddress(parsed.cc)
-              .split(", ")
-              .filter((s) => s.length > 0)
-          : [],
+        to: addressList(parsed.to),
+        cc: addressList(parsed.cc),
         date: parsed.date ? parsed.date.toISOString() : null,
         text: parsed.text ?? "",
         html: typeof parsed.html === "string" ? parsed.html : null,

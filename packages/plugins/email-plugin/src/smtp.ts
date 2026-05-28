@@ -41,11 +41,19 @@ export async function sendMail(auth: SmtpAuth, draft: SendDraft): Promise<SendRe
       text: draft.body,
       ...(draft.html ? { html: draft.html } : {}),
     });
-    return {
-      messageId: info.messageId,
-      accepted: (info.accepted ?? []).map((a) => (typeof a === "string" ? a : (a.address ?? ""))).filter((s) => s.length > 0),
-      rejected: (info.rejected ?? []).map((a) => (typeof a === "string" ? a : (a.address ?? ""))).filter((s) => s.length > 0),
-    };
+    const accepted = (info.accepted ?? []).map((a) => (typeof a === "string" ? a : (a.address ?? ""))).filter((s) => s.length > 0);
+    const rejected = (info.rejected ?? []).map((a) => (typeof a === "string" ? a : (a.address ?? ""))).filter((s) => s.length > 0);
+    // nodemailer resolves successfully when the SMTP handshake +
+    // DATA upload succeed, even if the server rejected every
+    // recipient (RCPT TO 550). Treat zero-accepted as a hard
+    // failure so the dispatcher surfaces it to the LLM as an
+    // error instead of a false-positive "sent!". Codex review
+    // caught this.
+    if (accepted.length === 0) {
+      const detail = rejected.length > 0 ? `rejected recipients: ${rejected.join(", ")}` : "no recipients accepted";
+      throw new Error(`SMTP send rejected all recipients — ${detail}`);
+    }
+    return { messageId: info.messageId, accepted, rejected };
   } finally {
     transporter.close();
   }
