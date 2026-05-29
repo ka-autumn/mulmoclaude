@@ -115,7 +115,6 @@
               <th v-for="[key, field] in listColumnFields" :key="key" class="px-5 py-3 font-bold text-slate-500 text-left uppercase tracking-wider">
                 {{ field.label }}
               </th>
-              <th class="px-5 py-3 font-medium w-24"></th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 bg-white">
@@ -211,38 +210,13 @@
                     <span v-else class="block truncate text-slate-600">{{ formatCell(item[key], field.type) }}</span>
                   </template>
                 </td>
-
-                <td class="px-5 py-2 text-right whitespace-nowrap align-middle">
-                  <div class="flex items-center justify-end gap-2">
-                    <button
-                      type="button"
-                      class="h-7 w-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 border border-transparent hover:border-indigo-100 transition-all duration-200"
-                      :title="t('collectionsView.editItem')"
-                      :aria-label="t('collectionsView.editItem')"
-                      :data-testid="`collections-edit-item-${item[collection.schema.primaryKey]}`"
-                      @click.stop="openEdit(item)"
-                    >
-                      <span class="material-icons text-base">edit</span>
-                    </button>
-                    <button
-                      type="button"
-                      class="h-7 w-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-100 transition-all duration-200"
-                      :title="t('common.remove')"
-                      :aria-label="t('common.remove')"
-                      :data-testid="`collections-delete-item-${item[collection.schema.primaryKey]}`"
-                      @click.stop="confirmDelete(item)"
-                    >
-                      <span class="material-icons text-base">delete</span>
-                    </button>
-                  </div>
-                </td>
               </tr>
 
               <!-- Inline detail / edit panel: expands directly under the open
                  row (replaces the old fixed modal). One row open at a time.
                  The create form rides the synthetic top row (isCreateRow). -->
               <tr v-if="shouldExpand(item)" :data-testid="`collections-expansion-${item[collection.schema.primaryKey]}`">
-                <td :colspan="listColumnFields.length + 1" class="p-0 border-l-2 border-indigo-300 bg-slate-50/60">
+                <td :colspan="listColumnFields.length" class="p-0 border-l-2 border-indigo-300 bg-slate-50/60">
                   <!-- Pin the panel to the View's visible width, not the
                        (possibly much wider) table width: sticky to the left
                        edge of the horizontal scroller and capped at the
@@ -263,15 +237,15 @@
                       <div class="flex items-center gap-2 mb-4">
                         <div class="flex-1 min-w-0">
                           <span class="block text-[9px] font-bold text-slate-400 uppercase tracking-wider">{{ collection.title }}</span>
-                          <h2 class="text-base font-bold text-slate-800 truncate">
-                            {{ editing && editing.mode === "create" ? t("collectionsView.createTitle") : t("collectionsView.editTitle") }}
+                          <h2 class="text-base font-bold text-slate-800 truncate" data-testid="collections-edit-title">
+                            {{ editing && editing.mode === "create" ? t("collectionsView.createTitle") : (editing?.originalId ?? "") }}
                           </h2>
                         </div>
                         <button
                           type="button"
                           class="h-8 px-2.5 rounded text-xs font-bold text-slate-500 hover:bg-slate-200/50 transition-colors"
                           data-testid="collections-editor-cancel"
-                          @click="closeEditor"
+                          @click="cancelEditor"
                         >
                           {{ t("common.cancel") }}
                         </button>
@@ -288,7 +262,7 @@
                       <div v-if="editing" class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 bg-white rounded-2xl border border-slate-200/60 p-6 shadow-sm">
                         <template v-for="(field, key) in collection.schema.fields" :key="key">
                           <div
-                            v-if="fieldVisible(field, liveRecord ?? {})"
+                            v-if="fieldVisible(field, liveRecord ?? {}) && (!field.primary || editing?.mode === 'create')"
                             class="flex flex-col gap-1.5"
                             :class="['table', 'markdown', 'embed'].includes(field.type) ? 'col-span-full' : 'col-span-1'"
                           >
@@ -532,6 +506,16 @@
 
                           <button
                             type="button"
+                            class="h-8 px-2.5 rounded border border-rose-200 bg-white text-rose-600 hover:bg-rose-50 font-bold text-xs transition-all flex items-center gap-1"
+                            data-testid="collections-detail-remove"
+                            @click="viewing && confirmDelete(viewing)"
+                          >
+                            <span class="material-icons text-sm">delete</span>
+                            <span>{{ t("common.remove") }}</span>
+                          </button>
+
+                          <button
+                            type="button"
                             class="h-8 w-8 flex items-center justify-center rounded text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
                             :aria-label="t('common.close')"
                             data-testid="collections-detail-close"
@@ -553,7 +537,7 @@
                       <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 bg-white rounded-2xl border border-slate-200/60 p-6 shadow-sm">
                         <template v-for="(field, key) in collection.schema.fields" :key="key">
                           <div
-                            v-if="fieldVisible(field, viewing ?? {})"
+                            v-if="fieldVisible(field, viewing ?? {}) && !field.primary"
                             class="flex flex-col gap-1"
                             :class="['table', 'markdown', 'embed', 'image'].includes(field.type) ? 'col-span-full' : 'col-span-1'"
                           >
@@ -1647,6 +1631,28 @@ function closeEditor(): void {
   saveError.value = null;
 }
 
+/** Cancel the editor. Edit → reopen the record's read-only detail (don't
+ *  collapse the panel); create → just close (no prior detail to show). */
+function cancelEditor(): void {
+  const draft = editing.value;
+  const returnTo = draft && draft.mode === "edit" ? draft.originalId : null;
+  closeEditor();
+  if (returnTo) {
+    const item = findItemById(returnTo);
+    if (item) showDetail(item);
+  }
+}
+
+/** Scroll a row's expansion panel into view after it opens (e.g. a newly
+ *  created record that landed off-screen). Best-effort — no-op if the
+ *  element isn't in the DOM yet. */
+function scrollRowIntoView(itemId: string): void {
+  void nextTick(() => {
+    const row = document.querySelector(`[data-testid="collections-expansion-${itemId}"]`);
+    if (row) row.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  });
+}
+
 /** Open mode (read-only detail). Toggles: clicking the already-open row
  *  collapses it. Opening a row cancels any in-progress edit (one panel
  *  open at a time). In embedded mode, report the open id so the host
@@ -1657,6 +1663,14 @@ function openView(item: CollectionItem): void {
     return;
   }
   if (editing.value) closeEditor();
+  showDetail(item);
+}
+
+/** Open the read-only detail for a record WITHOUT the click-toggle. Used
+ *  when reopening detail programmatically (after save / cancel), where
+ *  `openView`'s "click the open row to collapse" guard would otherwise
+ *  immediately close a row the embedded `viewState` sync just reopened. */
+function showDetail(item: CollectionItem): void {
   viewing.value = item;
   actionError.value = null;
   if (embedded.value && collection.value) {
@@ -1998,8 +2012,16 @@ async function saveEditor(): Promise<void> {
     saveError.value = result.error;
     return;
   }
+  const savedId = result.data.itemId;
   closeEditor();
   await loadCollection(slug);
+  // Return to the saved record's read-only detail (for create, this is the
+  // newly added row), scrolling it into view if it's off-screen.
+  const saved = findItemById(savedId);
+  if (saved) {
+    showDetail(saved);
+    scrollRowIntoView(savedId);
+  }
 }
 
 async function confirmDelete(item: CollectionItem): Promise<void> {

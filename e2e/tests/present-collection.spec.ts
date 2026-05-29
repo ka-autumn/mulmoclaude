@@ -135,3 +135,28 @@ test("Add opens the create form as a panel pinned at the top of the list", async
 
   expect(pageErrors, pageErrors.join("\n")).toHaveLength(0);
 });
+
+test("saving an edit returns to the record's detail (does not close) in the embedded card", async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (err) => pageErrors.push(`${err.message}\n${err.stack ?? ""}`));
+
+  await setup(page);
+  await page.route(
+    (url) => url.pathname === "/api/collections/watchlist/items/avatar",
+    (route) => (route.request().method() === "PUT" ? route.fulfill({ json: { itemId: "avatar", item: WATCHLIST_DETAIL.items[0] } }) : route.fallback()),
+  );
+  await page.goto(SESSION_PATH);
+
+  await expect(page.getByTestId("collections-detail")).toBeVisible({ timeout: 10_000 });
+  await page.getByTestId("collections-detail-edit").click();
+  await expect(page.getByTestId("collections-edit")).toBeVisible();
+  await page.getByTestId("collections-input-title").fill("アバター (改)");
+  await page.getByTestId("collections-editor-save").click();
+
+  // Back to the read-only detail of the same record — NOT closed.
+  await expect(page.getByTestId("collections-detail")).toBeVisible();
+  await expect(page.getByTestId("collections-detail-title")).toHaveText("avatar");
+  await expect(page.getByTestId("collections-edit")).toBeHidden();
+
+  expect(pageErrors, pageErrors.join("\n")).toHaveLength(0);
+});
