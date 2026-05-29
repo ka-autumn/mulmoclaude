@@ -303,6 +303,15 @@ export function buildCliArgs(params: CliArgsParams): string[] {
     systemPrompt,
     "--allowedTools",
     allowedTools.join(","),
+    // Route every `behavior:"ask"` permission check through our MCP
+    // handler instead of letting the headless CLI fall back to
+    // echoing the permission message as the tool result — the
+    // built-in `AskUserQuestion` tool used to leak the literal
+    // `"Answer questions?"` to the model that way and made the LLM
+    // think the user had skipped the question. See #1499 and
+    // `server/agent/mcp-tools/handlePermission.ts`.
+    "--permission-prompt-tool",
+    "mcp__mulmoclaude__handlePermission",
     "-p",
   ];
 
