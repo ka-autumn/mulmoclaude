@@ -116,6 +116,9 @@ const zhMessages = {
     copiedMarkdown: "已复制",
   },
   rightSidebar: {
+    permalink: "选中消息的固定链接",
+    copyPermalink: "复制选中消息的固定链接",
+    copiedPermalink: "已复制!",
     toggleSystemPrompt: "切换系统提示词",
     systemPrompt: "系统提示词",
     availableTools: "可用工具",

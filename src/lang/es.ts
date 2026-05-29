@@ -119,6 +119,9 @@ const esMessages = {
     copiedMarkdown: "¡Copiado!",
   },
   rightSidebar: {
+    permalink: "Enlace al mensaje seleccionado",
+    copyPermalink: "Copiar enlace al mensaje seleccionado",
+    copiedPermalink: "¡Copiado!",
     toggleSystemPrompt: "Alternar system prompt",
     systemPrompt: "System Prompt",
     availableTools: "Herramientas disponibles",

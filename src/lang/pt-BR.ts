@@ -114,6 +114,9 @@ const ptBRMessages = {
     copiedMarkdown: "Copiado!",
   },
   rightSidebar: {
+    permalink: "Link para a mensagem selecionada",
+    copyPermalink: "Copiar link para a mensagem selecionada",
+    copiedPermalink: "Copiado!",
     toggleSystemPrompt: "Alternar system prompt",
     systemPrompt: "System Prompt",
     availableTools: "Ferramentas disponíveis",

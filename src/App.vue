@@ -295,6 +295,8 @@
         :available-tools="availableTools"
         :role-prompt="sessionRole.prompt"
         :tool-descriptions="toolDescriptions"
+        :session-id="activeSession?.id ?? null"
+        :selected-result-uuid="selectedResultUuid"
       />
     </div>
 

@@ -121,6 +121,9 @@ const koMessages = {
     copiedMarkdown: "복사됨",
   },
   rightSidebar: {
+    permalink: "선택된 메시지의 고유 링크",
+    copyPermalink: "선택된 메시지의 고유 링크 복사",
+    copiedPermalink: "복사됨!",
     toggleSystemPrompt: "시스템 프롬프트 토글",
     systemPrompt: "시스템 프롬프트",
     availableTools: "사용 가능한 도구",
