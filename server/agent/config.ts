@@ -322,6 +322,15 @@ export function buildCliArgs(params: CliArgsParams): string[] {
     // intends, since mulmoclaude itself is the broker for all the
     // GUI plugin tools.
     args.push("--strict-mcp-config");
+    // Permission hook for `behavior:"ask"` checks. Gated on
+    // `mcpConfigPath` because the handler tool (`handlePermission`)
+    // lives inside our MCP server — without `--mcp-config` the CLI
+    // can't resolve `mcp__mulmoclaude__handlePermission` and refuses
+    // to start (Codex review on PR #1560). In a no-MCP session the
+    // CLI's default ask handling stays in place; AskUserQuestion's
+    // leak (#1499) only manifests once tools are wired up, so the
+    // hook is correctly tied to the MCP-config presence.
+    args.push("--permission-prompt-tool", "mcp__mulmoclaude__handlePermission");
   }
 
   if (effortLevel) {

@@ -125,7 +125,18 @@ const ALL_TOOLS: Record<string, ToolDef> = {
   ...Object.fromEntries(PLUGIN_DEFS.map((def) => [def.name, fromPackage(def, TOOL_ENDPOINTS[def.name])])),
 };
 
-let activeNames: string[] = [...PLUGIN_NAMES];
+// Host-internal MCP tools the CLI invokes directly via flags
+// (currently: `--permission-prompt-tool mcp__mulmoclaude__handlePermission`,
+// see buildCliArgs + #1499). NOT gated by `role.availablePlugins`
+// — they're infrastructure, not LLM-facing surfaces. Filtered against
+// ALL_TOOLS before use so a typo here can't crash the server.
+const ALWAYS_ON_INTERNAL_TOOL_NAMES = ["handlePermission"] as const;
+
+function expandActiveNames(base: readonly string[]): string[] {
+  return [...base, ...ALWAYS_ON_INTERNAL_TOOL_NAMES];
+}
+
+let activeNames: string[] = expandActiveNames(PLUGIN_NAMES);
 let tools: ToolDef[] = activeNames.map((name) => ALL_TOOLS[name]).filter(Boolean);
 
 // Static collision floor — both the GUI plugin set (`MCP_PLUGIN_NAMES`)
@@ -170,7 +181,7 @@ const runtimeReady: Promise<void> = (async () => {
     // intersection is now: ALL_TOOLS includes both static + runtime
     // entries, but only the names PLUGIN_NAMES authorises become live
     // tools.
-    activeNames = [...PLUGIN_NAMES];
+    activeNames = expandActiveNames(PLUGIN_NAMES);
     tools = activeNames.map((name) => ALL_TOOLS[name]).filter(Boolean);
   } catch (err) {
     process.stderr.write(`[mcp-server] runtime plugin load failed; static tools only: ${String(err)}\n`);
