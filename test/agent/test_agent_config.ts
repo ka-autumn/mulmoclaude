@@ -153,6 +153,19 @@ describe("buildCliArgs", () => {
     assert.ok(!args.includes("--mcp-config"));
   });
 
+  it("includes --permission-prompt-tool only when MCP is wired (#1499 / #1560)", async () => {
+    // The handler tool lives inside our MCP server. With no
+    // --mcp-config the CLI can't resolve it and refuses to start;
+    // gate the flag together with --mcp-config.
+    const withMcp = buildCliArgs({ systemPrompt: "x", activePlugins: ["foo"], mcpConfigPath: "/tmp/mcp.json" });
+    const withMcpIdx = withMcp.indexOf("--permission-prompt-tool");
+    assert.ok(withMcpIdx >= 0, "must pass --permission-prompt-tool when MCP is configured");
+    assert.equal(withMcp[withMcpIdx + 1], "mcp__mulmoclaude__handlePermission");
+
+    const withoutMcp = buildCliArgs({ systemPrompt: "x", activePlugins: [] });
+    assert.ok(!withoutMcp.includes("--permission-prompt-tool"), "must NOT pass --permission-prompt-tool in no-MCP sessions");
+  });
+
   it("includes --effort when effortLevel is set", async () => {
     const args = buildCliArgs({
       systemPrompt: "test",

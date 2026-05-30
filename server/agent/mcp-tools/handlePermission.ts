@@ -18,18 +18,25 @@
 //   { behavior: "deny",  message: <string> }
 //
 // Current policy:
-//   - `AskUserQuestion` is always denied with an instruction
-//     telling the LLM to use `presentForm` instead. The CLI's
-//     built-in AskUserQuestion has no UI surface in this
-//     environment — without this handler the CLI would echo
+//   - `AskUserQuestion` is denied with a presentForm-redirect
+//     message. The CLI's built-in AskUserQuestion has no UI
+//     surface here — without this handler the CLI would echo
 //     the literal permission message `"Answer questions?"`
 //     back to the LLM as the tool result, which the model
 //     misreads as "the user skipped the question". See #1499.
-//   - Every other ask-requiring tool is allowed through with
-//     the input unchanged. We already pin the agent's effective
-//     tool set via `--allowedTools`, so a permission ask that
-//     reaches this handler means the tool is on the explicit
-//     allow list and the host has no further policy to apply.
+//   - **Every other ask-mode permission check is denied** with
+//     a "no headless consent path" message. Auto-allowing them
+//     would silently bypass the per-call consent the CLI tool
+//     intentionally requested (Codex security review on PR
+//     #1560: "removes per-call consent semantics for tools
+//     that intentionally escalate to behavior:'ask'"). The
+//     deny message tells the LLM the tool needs explicit user
+//     approval that isn't available in this surface, so the
+//     model picks a non-ask alternative (Read instead of a
+//     Bash needing approval, etc.) or asks the user to redo
+//     the request more concretely. The role's `--allowedTools`
+//     remains the authoritative allow gate; this handler is
+//     ONLY for ask-mode hooks.
 
 import type { McpTool, McpToolContext } from "./index.js";
 import { log } from "../../system/logger/index.js";
@@ -46,21 +53,18 @@ const DENY_ASK_USER_QUESTION_MESSAGE =
   "Build a small form with the same prompt and choices (radio for one-of, checkbox for many-of, text/textarea for free-form) and call presentForm with it. " +
   "Do not re-call AskUserQuestion; it will be denied again.";
 
+function buildDenyGenericMessage(toolName: string): string {
+  return (
+    `The CLI built-in tool '${toolName}' asked the host for per-call user permission, but MulmoClaude runs the CLI in headless mode and has no consent prompt for it. ` +
+    `Try a non-ask alternative for the same goal (e.g. read the file with Read instead of running a Bash command that needs approval), ` +
+    `or summarise the situation to the user in plain text and let them re-issue the request with a more concrete instruction. ` +
+    `Do not retry '${toolName}' with the same arguments; the host will deny it again.`
+  );
+}
+
 interface PermissionInput {
   tool_name?: unknown;
   input?: unknown;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function buildAllowResponse(input: unknown): string {
-  // CLI expects the permission decision as a JSON string. The
-  // `updatedInput` must be the exact arg shape the original tool
-  // will be called with — leave it untouched for the
-  // pass-through case.
-  return JSON.stringify({ behavior: "allow", updatedInput: isRecord(input) ? input : {} });
 }
 
 function buildDenyResponse(message: string): string {
@@ -101,7 +105,11 @@ export const handlePermission: McpTool = {
       return buildDenyResponse(DENY_ASK_USER_QUESTION_MESSAGE);
     }
 
-    log.debug("mcp/handlePermission", "allow", { toolName });
-    return buildAllowResponse(raw.input);
+    // Deny-by-default for every other ask-mode check. Auto-allow
+    // would silently bypass the per-call consent the tool itself
+    // requested — see the policy block at the top of the file.
+    const safeName = toolName.length > 0 ? toolName : "<unknown>";
+    log.info("mcp/handlePermission", "deny ask-mode tool — no headless consent surface", { toolName: safeName });
+    return buildDenyResponse(buildDenyGenericMessage(safeName));
   },
 };

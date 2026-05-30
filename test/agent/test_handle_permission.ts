@@ -8,7 +8,9 @@
 //
 //   1. AskUserQuestion is denied with an actionable message that
 //      redirects the LLM to presentForm.
-//   2. Every other ask-mode tool is allowed with input preserved.
+//   2. Every OTHER ask-mode tool is also denied (deny-by-default
+//      after Codex review on PR #1560 — auto-allow would silently
+//      bypass the per-call consent the tool itself requested).
 //   3. The return value is a JSON string matching the CLI's
 //      `{ behavior, ... }` shape (the MCP bridge wraps it as a
 //      single text block, which the CLI then parses).
@@ -47,22 +49,37 @@ describe("handlePermission MCP tool", () => {
     }
   });
 
-  it("allows every other ask-mode tool unchanged", async () => {
+  it("deny-by-default for every other ask-mode tool (no auto-allow)", async () => {
+    // Codex security review on #1560: auto-allowing ask-mode for
+    // arbitrary tools bypasses per-call user consent. Deny by
+    // default; tools that we want unconditionally allowed should
+    // be on `--allowedTools` instead so they never escalate here.
     const input = { command: "ls", description: "list workspace" };
     const result = await handlePermission.handler({ tool_name: "Bash", input });
     const decision = parse(result);
-    assert.equal(decision.behavior, "allow");
-    if (decision.behavior === "allow") {
-      assert.deepEqual(decision.updatedInput, input);
+    assert.equal(decision.behavior, "deny");
+    if (decision.behavior === "deny") {
+      assert.match(decision.message, /Bash/);
+      // Should suggest a non-ask alternative path, not silent fail.
+      assert.match(decision.message, /alternative|presentForm|user/i);
     }
   });
 
-  it("falls back to an empty updatedInput when `input` isn't an object", async () => {
-    const result = await handlePermission.handler({ tool_name: "Read", input: "not an object" });
+  it("includes the tool name in the deny message for arbitrary unknown tools", async () => {
+    const result = await handlePermission.handler({ tool_name: "WeirdNewTool", input: {} });
     const decision = parse(result);
-    assert.equal(decision.behavior, "allow");
-    if (decision.behavior === "allow") {
-      assert.deepEqual(decision.updatedInput, {});
+    assert.equal(decision.behavior, "deny");
+    if (decision.behavior === "deny") {
+      assert.match(decision.message, /WeirdNewTool/);
+    }
+  });
+
+  it("handles missing / non-string tool_name without crashing", async () => {
+    const result = await handlePermission.handler({ tool_name: undefined as unknown, input: {} });
+    const decision = parse(result);
+    assert.equal(decision.behavior, "deny");
+    if (decision.behavior === "deny") {
+      assert.match(decision.message, /<unknown>/);
     }
   });
 
