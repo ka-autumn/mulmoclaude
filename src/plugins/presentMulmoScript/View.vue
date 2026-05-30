@@ -1303,7 +1303,7 @@ async function initializeScript() {
   // detect that here — the per-beat ↺ button is one click away and a
   // page refresh re-runs this same probe, so the user can opt back into
   // a fresh render whenever they need to.
-  const AUTO_RENDER_TYPES = ["textSlide", "markdown", "chart", "mermaid", "html_tailwind"] as const;
+  const AUTO_RENDER_TYPES = ["textSlide", "markdown", "chart", "mermaid", "html_tailwind", "slide"] as const;
   const hasCharacters = characterKeys.value.length > 0;
   beats.value.forEach((beat, index) => {
     void hydrateBeatImage(beat, index, hasCharacters, AUTO_RENDER_TYPES);

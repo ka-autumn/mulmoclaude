@@ -43,6 +43,7 @@ See [Wiki](config/helps/wiki.md) for details on how it works.
 - [Gemini API Key](config/helps/gemini.md) — why `GEMINI_API_KEY` is strongly recommended (images, audio, video) and how to get one from Google AI Studio
 - [MulmoScript](config/helps/mulmoscript.md) — format reference for authoring multimedia stories: beats, image types, speech, audio, and a minimal example
 - [Business Presentation Template](config/helps/business.md) — MulmoScript template and rules for business presentations in the Office role
+- [Presentation Deck](config/helps/presentation-deck.md) — authoring business decks two ways: structured `slide` layouts (title/stats/table/timeline/…) or animated `html_tailwind` + `animation: true`, with full worked samples
 - [Storyteller Template](config/helps/storyteller.md) — MulmoScript template and rules for character-driven narrated stories in the Storyteller role
 - [Guide & Planner Templates](config/helps/guide.md) — document structures and form-field hints per guide type for the Guide & Planner role
 - [Spreadsheet](config/helps/spreadsheet.md) — cell format, formulas, date handling, and format codes for the presentSpreadsheet plugin
