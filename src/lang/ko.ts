@@ -1344,6 +1344,8 @@ const koMessages = {
     editItem: "편집",
     openItem: "{id} 열기",
     confirmDelete: "이 항목을 삭제하시겠습니까? 되돌릴 수 없습니다.",
+    deleteCollection: "컬렉션 삭제",
+    confirmDeleteCollection: '"{title}" 컬렉션과 모든 레코드를 삭제하시겠습니까? 삭제 전에 복원 가능한 백업이 보관됩니다.',
     itemsEmpty: "아직 항목이 없습니다. + 를 눌러 추가하세요.",
     notFound: "컬렉션을 찾을 수 없습니다",
     loadFailed: "불러오기에 실패했습니다",

@@ -1341,6 +1341,8 @@ const jaMessages = {
     editItem: "編集",
     openItem: "{id} を開く",
     confirmDelete: "この項目を削除しますか？元に戻せません。",
+    deleteCollection: "コレクションを削除",
+    confirmDeleteCollection: "コレクション「{title}」とそのすべてのレコードを削除しますか？削除前に復元可能なバックアップが保存されます。",
     itemsEmpty: "まだ項目がありません。+ を押して追加してください。",
     notFound: "コレクションが見つかりません",
     loadFailed: "読み込みに失敗しました",

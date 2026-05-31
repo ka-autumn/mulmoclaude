@@ -47,6 +47,18 @@
         <span class="material-icons text-sm">add</span>
         <span>{{ t("common.add") }}</span>
       </button>
+
+      <button
+        v-if="canDeleteCollection && !embedded"
+        type="button"
+        class="h-8 w-8 flex items-center justify-center rounded border border-rose-200 bg-white text-rose-600 hover:bg-rose-50 transition-colors"
+        :title="t('collectionsView.deleteCollection')"
+        :aria-label="t('collectionsView.deleteCollection')"
+        data-testid="collections-delete"
+        @click="confirmCollectionDelete"
+      >
+        <span class="material-icons text-sm">delete_forever</span>
+      </button>
     </header>
 
     <!-- Search Toolbar -->
@@ -1383,6 +1395,16 @@ const canCreate = computed<boolean>(() => {
   return !(isSingleton.value && items.value.length > 0);
 });
 
+// A collection is deletable only when it's project-scope AND not a
+// preset (`mc-*`) — mirrors the server-side rule in
+// `deleteCollection`. User-scope skills are read-only from MulmoClaude;
+// presets re-seed on restart so deleting them is futile.
+const canDeleteCollection = computed<boolean>(() => {
+  const current = collection.value;
+  if (!current) return false;
+  return current.source === "project" && !current.slug.startsWith("mc-");
+});
+
 function inputTypeFor(type: FieldType): string {
   if (type === "email") return "email";
   if (type === "number") return "number";
@@ -2068,6 +2090,30 @@ async function confirmDelete(item: CollectionItem): Promise<void> {
     return;
   }
   await loadCollection(slug);
+}
+
+// Delete the whole collection (skill + records), not just one item.
+// The server archives a restorable copy first; on success we leave the
+// now-gone collection's route for the index.
+async function confirmCollectionDelete(): Promise<void> {
+  const current = collection.value;
+  if (!current) return;
+  // Snapshot before the await — the confirm dialog yields control and
+  // the route could change underneath us (see confirmDelete).
+  const { slug, title } = current;
+  const ok = await openConfirm({
+    message: t("collectionsView.confirmDeleteCollection", { title }),
+    confirmText: t("common.remove"),
+    cancelText: t("common.cancel"),
+    variant: "danger",
+  });
+  if (!ok) return;
+  const result = await apiDelete(detailUrl(slug));
+  if (!result.ok) {
+    loadError.value = result.error;
+    return;
+  }
+  router.push({ name: PAGE_ROUTES.collections, params: {} }).catch(() => {});
 }
 
 function goBack(): void {

@@ -1352,6 +1352,9 @@ const frMessages = {
     editItem: "Modifier",
     openItem: "Ouvrir {id}",
     confirmDelete: "Supprimer cet élément ? Cette action est irréversible.",
+    deleteCollection: "Supprimer la collection",
+    confirmDeleteCollection:
+      "Supprimer toute la collection « {title} », y compris tous ses enregistrements ? Une sauvegarde restaurable est archivée au préalable.",
     itemsEmpty: "Aucun élément pour l'instant. Cliquez sur + pour en ajouter un.",
     notFound: "Collection introuvable",
     loadFailed: "Échec du chargement",

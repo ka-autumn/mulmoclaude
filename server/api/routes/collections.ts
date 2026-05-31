@@ -14,6 +14,8 @@ import { actionVisible } from "../../../src/utils/collections/actionVisible.js";
 import {
   discoverCollections,
   generateItemId,
+  deleteCollection,
+  deleteCollectionRefusalMessage,
   deleteItem,
   listItems,
   loadCollection,
@@ -51,6 +53,14 @@ interface DeleteResponse {
   itemId: string;
 }
 
+interface DeleteCollectionResponse {
+  deleted: true;
+  slug: string;
+  /** Workspace-relative path to the backup written before removal
+   *  (e.g. `archive/2026-05-31-<uuid>`). */
+  archivePath: string;
+}
+
 interface ActionSeedResponse {
   /** Assembled seed prompt the client feeds to a new chat. */
   prompt: string;
@@ -79,6 +89,30 @@ router.get(API_ROUTES.collections.detail, async (req: Request<{ slug: string }>,
     res.json({ collection: toDetail(collection), items });
   } catch (err) {
     log.warn("collections", "detail failed", { slug: collection.slug, error: errorMessage(err) });
+    serverError(res, errorMessage(err));
+  }
+});
+
+// Delete an entire collection — the skill (staging + active mirror) AND
+// its records — after archiving a restorable copy. Only project-scope,
+// non-preset collections are deletable; see deleteCollection for the
+// scope rules and the archive layout.
+router.delete(API_ROUTES.collections.detail, async (req: Request<{ slug: string }>, res: Response<DeleteCollectionResponse>) => {
+  const collection = await loadCollection(req.params.slug);
+  if (!collection) {
+    notFound(res, `collection '${req.params.slug}' not found`);
+    return;
+  }
+  try {
+    const result = await deleteCollection(collection);
+    if (result.kind !== "ok") {
+      forbidden(res, deleteCollectionRefusalMessage(result));
+      return;
+    }
+    log.info("collections", "collection deleted", { slug: result.slug, archivePath: result.archivePath });
+    res.json({ deleted: true, slug: result.slug, archivePath: result.archivePath });
+  } catch (err) {
+    log.warn("collections", "collection delete failed", { slug: req.params.slug, error: errorMessage(err) });
     serverError(res, errorMessage(err));
   }
 });

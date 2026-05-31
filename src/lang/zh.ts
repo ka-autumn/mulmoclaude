@@ -1334,6 +1334,8 @@ const zhMessages = {
     editItem: "编辑",
     openItem: "打开 {id}",
     confirmDelete: "删除此项？此操作无法撤销。",
+    deleteCollection: "删除集合",
+    confirmDeleteCollection: "删除整个“{title}”集合及其所有记录？删除前会先归档一份可恢复的备份。",
     itemsEmpty: "暂无项目。点击 + 添加一个。",
     notFound: "未找到集合",
     loadFailed: "加载失败",

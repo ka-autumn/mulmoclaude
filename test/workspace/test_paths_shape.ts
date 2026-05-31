@@ -36,6 +36,7 @@ describe("WORKSPACE_DIRS expected keys", () => {
   const expectedKeys = [
     "accounting",
     "accountingBooks",
+    "archive",
     "attachments",
     "calendar",
     "charts",
@@ -66,6 +67,7 @@ describe("WORKSPACE_DIRS expected keys", () => {
     "searches",
     "skillsCatalog",
     "skillsCatalogPreset",
+    "skillsStaging",
     "sources",
     "spreadsheets",
     "stories",

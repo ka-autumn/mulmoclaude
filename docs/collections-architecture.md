@@ -124,7 +124,8 @@ Discover ──▶ Validate ──▶ Serve ──▶ Render ──▶ CRUD ─�
   declared field flagged `primary: true`. A bad schema is logged and skipped,
   never crashes the host (`discovery.ts:140`, `:222`).
 - **Serve** — REST surface (`server/api/routes/collections.ts`):
-  `GET /api/collections`, `GET /:slug`, `POST/PUT/DELETE /:slug/items[/:itemId]`,
+  `GET /api/collections`, `GET /:slug`, `DELETE /:slug` (delete the whole
+  collection — see below), `POST/PUT/DELETE /:slug/items[/:itemId]`,
   `POST /:slug/items/:itemId/actions/:actionId`.
 - **Render** — `/collections/:slug` mounts `<CollectionView>`
   (`src/router/index.ts:89`, `src/App.vue:230`); every field type maps to a
@@ -253,6 +254,127 @@ Star it from `/skills` and it appears at `/collections/<slug>`. Preset
 collections (the `mc-*` skills) ship under
 `server/workspace/skills-preset/` and are synced into the workspace on boot.
 
+## Deleting a collection
+
+Deletion is more involved than the opening layout diagram suggests, because
+that diagram shows a **preset** (`mc-invoice`). A collection that Claude
+authors at runtime is spread across **three** on-disk locations, not one, and
+removing the collection means removing all three.
+
+### The three locations of a user-authored collection
+
+Take a runtime-created collection with slug `restaurants`:
+
+| # | Path | Role | Written by |
+|---|---|---|---|
+| 1 | `data/skills/<slug>/` | **Staging / source of truth** — `SKILL.md` + `schema.json` + `templates/*.md` | Claude (via `mc-manage-skills`) |
+| 2 | `.claude/skills/<slug>/` | **Mirror** of #1 — the copy that discovery *and* Claude Code's slash-command resolver actually scan | the `skillBridge` hook, *not* Claude |
+| 3 | `data/<dataPath-parent>/` | **The records** — `data/<slug>/items/*.json` by convention | the REST API / Claude |
+
+Locations #1 and #2 are a **source → mirror pair**, wired by the skill-bridge
+PostToolUse hook (`server/workspace/hooks/handlers/skillBridge.ts`). The reason
+the split exists: `.claude/` is permission-gated (writes there are a
+self-modification risk, and the host GUI has no surface to answer the
+permission prompt), so Claude writes the editable copy to the ungated
+`data/skills/<slug>/` staging dir, and the hook — a plain subprocess, not a
+Claude tool call, so it is not subject to the gate — mirrors an **allowlist**
+(`SKILL.md`, `schema.json`, `templates/*` only) into `.claude/skills/<slug>/`
+(`mirrorWrite`, `skillBridge.ts:191`; `isAllowlisted`, `:138`). The collection
+appears in the UI because of #2, but #1 is the canonical copy.
+
+The same hook also mirrors **deletes**: it regex-matches a Bash
+`rm -rf data/skills/<slug>` command and runs the corresponding
+`rm -rf .claude/skills/<slug>` (`mirrorDelete`, `skillBridge.ts:205`;
+`slugFromRmCommand`, `:175`). So the canonical agent-driven delete is "remove
+staging #1, and #2 follows automatically." This is exactly what
+`mc-manage-skills`'s `SKILL.md` instructs Claude to do (`rm -rf data/skills/<slug>/`).
+
+### Why all three must go
+
+- **#1 is the source of truth — never delete only #2.** The mirror is
+  regenerated from staging on any write/edit trigger, and #1 is the copy a
+  re-activation would publish from. Leave #1 and the collection can come back;
+  remove #1 and #2 follows by the hook (or must be removed in lockstep when
+  deleting server-side, where the hook does *not* fire — it keys off agent tool
+  calls only).
+- **#3 is independent of the bridge.** The skill-bridge hook mirrors *only* the
+  skill dir (the allowlist) — it never touches records. So even the canonical
+  `rm -rf data/skills/<slug>` leaves `data/<slug>/items/*.json` orphaned on
+  disk. Removing the records is a separate, explicit step.
+
+### Backup before delete: `archive/<date>-<uuid>/`
+
+Deletion is destructive and there is no schema-versioned undo, so a
+collection-aware delete **archives a full copy before removing anything**. The
+backup goes to a fresh, collision-proof folder under the workspace root:
+
+```text
+archive/<date>-<uuid>/
+  RESTORE.md     ← LLM-readable instructions: the slug, the original dataPath,
+                   and the step-by-step restore procedure
+  skill/         ← ONE copy of the skill dir: schema.json + SKILL.md + templates/*
+  records/       ← the collection's <id>.json record files
+```
+
+- **`<date>-<uuid>`** — `<date>` (e.g. `2026-05-31`) keeps the archive
+  human-sortable; `<uuid>` (`crypto.randomUUID()`) guarantees uniqueness so two
+  deletes of the same slug on the same day never collide. (`archive/` is a new
+  `WORKSPACE_PATHS` entry — it does not exist today.)
+- **Only one skill copy is stored.** Because `.claude/skills/<slug>/` is a
+  mirror of `data/skills/<slug>/`, archiving both would be redundant. Copy from
+  the **staging dir `data/skills/<slug>/`** — it is the canonical source (the
+  superset: any non-allowlisted extras the bridge never mirrors live only
+  there). The mirror is reconstructed on restore, not archived.
+- **`records/`** is the contents of the schema's `dataPath` directory (its
+  `<id>.json` files), captured before #3 is deleted.
+
+**`RESTORE.md`** is written *for an LLM to execute*, not just for a human to
+read. It records the slug and the original `dataPath`, then the procedure:
+
+1. Recreate `data/skills/<slug>/` from `skill/` **using the Write tool** — the
+   skill-bridge hook only fires on Write/Edit, so it then mirrors those files
+   into `.claude/skills/<slug>/` and re-registers the collection. The doc
+   explicitly forbids `cp` / `mv` / shell redirects here: those land the files
+   in staging without ever triggering the mirror, leaving the collection
+   invisible (the failure mode that motivated this wording).
+2. Copy `records/` into the original `dataPath` (default `data/<slug>/items/`).
+   The records are plain data files, not bridged, so they must be `cp`-ed —
+   the Write-tool rule from step 1 is scoped to the skill files only, so the
+   (potentially many) records are copied, not Written one by one.
+3. Confirm the collection reappears at `/collections/<slug>`.
+
+Restoring the skill through the staging path with Write (not by hand-writing
+`.claude/skills/`) keeps the source → mirror invariant intact and avoids the
+`.claude/` permission gate — the same reason deletes route through
+`data/skills/` in the first place.
+
+### Two implementation cautions
+
+1. **The records path is schema-defined, not the slug.** Location #3 is the
+   parent of `schema.json`'s `dataPath`, *not* hardcoded `data/<slug>`. Runtime
+   collections follow the `data/<slug>/items` convention so `data/<slug>` holds
+   in practice — but the robust source of truth is to read `dataPath` from the
+   schema and delete its directory. Presets deliberately break the convention
+   (`mc-invoice` → `data/invoice`, not `data/mc-invoice`).
+2. **`deleteProjectSkill` is insufficient for collections.** The existing skill
+   writer (`server/workspace/skills/writer.ts:134`, behind `DELETE /api/skills/:name`)
+   only unlinks `.claude/skills/<slug>/SKILL.md` and `rmdir`s the dir *if empty*.
+   It ignores `schema.json` (so discovery still finds the collection), the
+   staging dir #1, and the records #3. A collection-aware delete cannot simply
+   reuse it. It also refuses user-scope (`~/.claude/skills/`) skills — only
+   project-scope is writable from MulmoClaude.
+
+### No boot-time resurrection (for non-preset collections)
+
+The startup sync (`syncPresetSkills` / `syncActivePresetSkills`,
+`server/workspace/skills-preset.ts`) only touches `mc-*` **preset** slugs from
+the preset source tree. It never syncs an arbitrary `data/skills/<slug>` into
+`.claude/skills/<slug>`, so removing all three dirs of a user-authored
+collection is durable across restarts. (Conversely, deleting a *preset*
+collection that is still active is futile — it re-seeds on next boot. Presets
+are factory-managed; the intended "remove" for them is to unstar from the
+catalog.)
+
 ## Source map
 
 | Concern | File |
@@ -265,6 +387,10 @@ collections (the `mc-*` skills) ship under
 | UI (table / form / detail / actions) | `src/components/CollectionView.vue` |
 | Derived-formula evaluator | `src/utils/collections/derivedFormula.ts` |
 | Action + field visibility predicate (`when`, UI + server) | `src/utils/collections/actionVisible.ts` |
+| Collection delete + archive (all three locations + RESTORE.md) | `server/workspace/collections/delete.ts` |
+| Staging → `.claude/skills` mirror bridge (create + delete) | `server/workspace/hooks/handlers/skillBridge.ts` |
+| Project-skill writer / `deleteProjectSkill` | `server/workspace/skills/writer.ts` |
+| Preset boot-sync (`mc-*` only) | `server/workspace/skills-preset.ts` |
 | Canonical example schema | `server/workspace/skills-preset/mc-invoice/schema.json` |
 
 Field-type design history and deferred-work rationale live in the shipped

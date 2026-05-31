@@ -1363,6 +1363,8 @@ const deMessages = {
     editItem: "Bearbeiten",
     openItem: "{id} öffnen",
     confirmDelete: "Diesen Eintrag löschen? Das kann nicht rückgängig gemacht werden.",
+    deleteCollection: "Sammlung löschen",
+    confirmDeleteCollection: "Die gesamte Sammlung „{title}“ einschließlich aller Datensätze löschen? Zuvor wird eine wiederherstellbare Sicherung archiviert.",
     itemsEmpty: "Noch keine Einträge. Klicke auf +, um einen hinzuzufügen.",
     notFound: "Sammlung nicht gefunden",
     loadFailed: "Laden fehlgeschlagen",

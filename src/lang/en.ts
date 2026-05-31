@@ -1344,6 +1344,8 @@ const enMessages = {
     editItem: "Edit",
     openItem: "Open {id}",
     confirmDelete: "Delete this item? This cannot be undone.",
+    deleteCollection: "Delete collection",
+    confirmDeleteCollection: 'Delete the entire "{title}" collection, including all its records? A restorable backup is archived first.',
     itemsEmpty: "No items yet. Click + to add one.",
     notFound: "Collection not found",
     loadFailed: "Failed to load",

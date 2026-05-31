@@ -1358,6 +1358,8 @@ const esMessages = {
     editItem: "Editar",
     openItem: "Abrir {id}",
     confirmDelete: "¿Eliminar este elemento? Esta acción no se puede deshacer.",
+    deleteCollection: "Eliminar colección",
+    confirmDeleteCollection: '¿Eliminar toda la colección "{title}", incluidos todos sus registros? Antes se archiva una copia de seguridad restaurable.',
     itemsEmpty: "Aún no hay elementos. Pulsa + para añadir uno.",
     notFound: "Colección no encontrada",
     loadFailed: "Error al cargar",

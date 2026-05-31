@@ -180,6 +180,18 @@ const HOST_WORKSPACE_DIRS = {
   // split keeps unused skills out of the system prompt.
   skillsCatalog: "data/skills/catalog",
   skillsCatalogPreset: "data/skills/catalog/preset",
+  // Staging root for runtime-authored skills / collections. Claude
+  // writes `data/skills/<slug>/{SKILL.md,schema.json,templates/*}` here
+  // (an ungated data dir) and the skill-bridge hook mirrors the
+  // allowlisted files into `claudeSkills`. This is the *canonical*
+  // copy — the `.claude/skills/` entry is a mirror — so a
+  // collection-delete archives from here and removes it last.
+  skillsStaging: "data/skills",
+  // Restorable backups written before a destructive delete. A
+  // collection-delete drops `archive/<date>-<uuid>/` holding one skill
+  // copy + the records + an LLM-readable RESTORE.md (see
+  // docs/collections-architecture.md "Deleting a collection").
+  archive: "archive",
   // Nested subdirs inside a top-level grouping. Kept here (rather
   // than module-local constants) when multiple modules need to
   // reference the same nested path — e.g. wiki/pages/ is used by

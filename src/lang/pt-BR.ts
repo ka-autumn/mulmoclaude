@@ -1347,6 +1347,8 @@ const ptBRMessages = {
     editItem: "Editar",
     openItem: "Abrir {id}",
     confirmDelete: "Excluir este item? Esta ação não pode ser desfeita.",
+    deleteCollection: "Excluir coleção",
+    confirmDeleteCollection: 'Excluir toda a coleção "{title}", incluindo todos os seus registros? Um backup restaurável é arquivado antes.',
     itemsEmpty: "Ainda não há itens. Clique em + para adicionar um.",
     notFound: "Coleção não encontrada",
     loadFailed: "Falha ao carregar",

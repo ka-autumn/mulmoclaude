@@ -1,4 +1,5 @@
 export { discoverCollections, loadCollection, toSummary, toDetail, type LoadedCollection } from "./discovery.js";
+export { deleteCollection, deleteCollectionRefusalMessage, type DeleteCollectionResult } from "./delete.js";
 export {
   listItems,
   readItem,
