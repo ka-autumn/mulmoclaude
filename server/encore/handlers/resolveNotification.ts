@@ -18,7 +18,8 @@ import { PLUGIN_SESSION_ORIGIN_PREFIX } from "../../../src/types/session.js";
 import { ENCORE_SEED_ROLE_ID } from "../../../src/config/roles.js";
 import { log } from "../../system/logger/index.js";
 import type { Ticket } from "../tick.js";
-import { EncoreError, type EncoreDispatchResult } from "./shared.js";
+import type { ResolveNotificationResult } from "../../../src/plugins/encore/manageEncoreDefinition.js";
+import { EncoreError } from "./shared.js";
 
 export const ResolveNotificationArgs = z.object({
   kind: z.literal("resolveNotification"),
@@ -29,7 +30,7 @@ export const ResolveNotificationArgs = z.object({
   notificationId: z.string().optional(),
 });
 
-async function handleOrphanResolve(args: z.infer<typeof ResolveNotificationArgs>): Promise<EncoreDispatchResult> {
+async function handleOrphanResolve(args: z.infer<typeof ResolveNotificationArgs>): Promise<ResolveNotificationResult> {
   // The ticket was already swept (e.g. the LLM resolved the
   // obligation in another chat before this click). Clear the bell
   // entry so it disappears.
@@ -90,7 +91,7 @@ async function seedChatForTicket(ticket: Ticket, ticketRel: string, pendingId: s
   return chatSessionId;
 }
 
-export async function handleResolveNotification(args: z.infer<typeof ResolveNotificationArgs>): Promise<EncoreDispatchResult> {
+export async function handleResolveNotification(args: z.infer<typeof ResolveNotificationArgs>): Promise<ResolveNotificationResult> {
   const ticketRel = ticketPath(args.pendingId);
   const raw = await readTextOrNull(ticketRel);
   if (raw === null) return handleOrphanResolve(args);

@@ -31,6 +31,25 @@ export const TOOL_NAME = META.toolName;
  *  dispatch endpoint. */
 export type EncoreEndpoints = { readonly [K in keyof typeof META.apiRoutes]: ResolvedRoute };
 
+/** Server response shape for the `resolveNotification` dispatch kind
+ *  (the bell-click path: EncoreRedirect.vue → handleResolveNotification).
+ *  Success seeds (or reuses) a chat and returns where to navigate; the
+ *  orphan path (the ticket was already swept) returns `orphan`/`error`/
+ *  `cleared`. Every other failure throws server-side and surfaces as an
+ *  HTTP error, so it never reaches this shape. Shared by the handler
+ *  (producer) and the Vue redirect (consumer) so the two can't drift —
+ *  the open `EncoreDispatchResult` envelope on the dispatch route can't
+ *  enforce per-kind fields on its own. */
+export type ResolveNotificationResult = {
+  ok: boolean;
+  message: string;
+  chatId?: string;
+  navigateTo?: string;
+  orphan?: boolean;
+  error?: string;
+  cleared?: boolean;
+};
+
 /** Action kinds the LLM is allowed to invoke via the `manageEncore`
  *  MCP tool. Operational only — structural (setup / amendDefinition)
  *  lives on the `defineEncore` tool. `resolveNotification` is
