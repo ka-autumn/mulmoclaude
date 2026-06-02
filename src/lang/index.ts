@@ -38,3 +38,18 @@ export const messages: Record<Locale, LocaleMessages> = {
 export function isSupportedLocale(tag: string): tag is Locale {
   return (SUPPORTED_LOCALES as readonly string[]).includes(tag);
 }
+
+// Match the full tag first (so `pt-BR` resolves exactly), then collapse
+// `ja-JP`, `ja-Hira-JP`, etc. to their primary subtag. When neither matches
+// exactly, look for a regional variant that shares the primary subtag
+// (e.g. `pt` / `pt-PT` → `pt-BR`).
+export function resolveLocale(tag: string): Locale | null {
+  if (isSupportedLocale(tag)) return tag;
+  const lower = tag.toLowerCase();
+  for (const supported of SUPPORTED_LOCALES) {
+    if (supported.toLowerCase() === lower) return supported;
+  }
+  const [primary] = lower.split("-");
+  if (isSupportedLocale(primary)) return primary;
+  return SUPPORTED_LOCALES.find((locale) => locale.toLowerCase().startsWith(`${primary}-`)) ?? null;
+}
