@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { resolveLocale } from "../../src/lang";
+import { resolveLocale } from "../../src/lang/index.js";
 
 describe("resolveLocale", () => {
   it("returns exact match for supported locale", () => {
