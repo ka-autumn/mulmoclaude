@@ -205,7 +205,7 @@
          component is lazy-loaded via defineAsyncComponent, so users
          whose scripts aren't pure decks never pay the bundle cost. -->
     <div v-if="isDeck" class="flex-1 overflow-hidden" data-testid="mulmo-script-deck-editor">
-      <MulmoScriptDeckEditor :script="deckScriptInput" @update:script="onDeckUpdate" />
+      <MulmoScriptDeckEditor :script="deckScriptInput" layout="compact" @update:script="onDeckUpdate" />
     </div>
 
     <!-- Beat list (fallback when the script has any non-slide beat) -->
