@@ -32,6 +32,7 @@ override the generic guidance above:
   are not needed (the `slide` type renders static layouts; `html_tailwind` + `animation` renders from
   your own HTML).
 - **`description`**: put a 1–2 sentence summary of the whole deck in the top-level `description` field.
+- **Visual editor**: when every beat in the resulting script is a `slide`, MulmoClaude swaps the per-beat list view for an interactive deck editor in the canvas — the user can drag, reorder, and tweak slide fields without touching JSON. You don't have to do anything to enable it; just produce a script where `beats[].image.type === "slide"` for every beat. Mixed scripts (slide + movie / textSlide / etc.) fall back to the per-beat list.
 
 ## Styling: shared vs. repeated per beat
 

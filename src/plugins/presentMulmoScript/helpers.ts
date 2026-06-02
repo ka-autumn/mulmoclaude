@@ -174,3 +174,21 @@ export async function streamMovieEvents(body: ReadableStream<Uint8Array>, handle
     }
   }
 }
+
+/** Pure check: is every beat in the script a `slide`-typed beat?
+ *  When true, the View mounts `@mulmocast/deck-web`'s
+ *  `MulmoScriptDeckEditor` instead of the per-beat list UI (#1575).
+ *  Empty / missing `beats[]` returns false — there's nothing to edit
+ *  as a deck, fall through to the existing UI which renders an empty
+ *  state. Mixed scripts (any non-`slide` beat) also return false; that
+ *  case is deferred to a future phase. */
+export function isAllSlideDeck(script: unknown): boolean {
+  if (!isRecord(script)) return false;
+  const { beats } = script;
+  if (!Array.isArray(beats) || beats.length === 0) return false;
+  return beats.every((beat) => {
+    if (!isRecord(beat)) return false;
+    const { image } = beat;
+    return isRecord(image) && image.type === "slide";
+  });
+}
