@@ -320,129 +320,6 @@ export async function removeBrokenSymlinkSkill(slug: string): Promise<void> {
 }
 
 /**
- * Server-side slug rule for an Encore obligation id (mirrors the
- * `KEBAB` regex in `src/types/encore-dsl/schema.ts`). Any id flowing
- * through {@link removeEncoreObligation} has to clear this gate
- * before we touch the filesystem — same path-traversal defence the
- * skill helpers use.
- */
-const ENCORE_OBLIGATION_ID_RE = /^[a-z][a-z0-9-]*$/;
-
-/**
- * Workspace-relative segment for `data/plugins/encore/obligations/`.
- * Centralised so the helpers below and any future caller compose
- * platform-portable paths via `path.join` rather than slash literals
- * (CodeRabbit review on PR #1493 — CLAUDE.md cross-platform rule).
- */
-const ENCORE_OBLIGATIONS_DIR = path.join("data", "plugins", "encore", "obligations");
-
-/** Workspace-relative segment for `data/plugins/encore/tickets/`. */
-const ENCORE_TICKETS_DIR = path.join("data", "plugins", "encore", "tickets");
-
-/**
- * Best-effort fs-level delete of an Encore obligation. Removes the
- * obligation directory at
- * `<workspace>/data/plugins/encore/obligations/<obligationId>/`
- * (recursive — `index.md` plus one `<cycleId>.md` per period) AND
- * sweeps any `data/plugins/encore/tickets/*.json` whose
- * `obligationId` field matches.
- *
- * Why fs-level: the encore dispatcher has no "delete obligation"
- * verb on the wire (the user-facing path is retire-by-amend, which
- * leaves files behind). For e2e-live teardown we want the test's
- * seeded obligation gone from disk so the dashboard row, residual
- * tickets, and bell entries can't bleed into the next run.
- *
- * Why sweep tickets here (vs. leaving them to a future encore tick):
- * `sweepStuckTickets` in `server/encore/tick.ts:140` deliberately
- * SKIPS tickets whose obligation directory no longer exists, and
- * `pruneOrphanTickets` only collects them after a 30-day age
- * threshold. So a setup that fires a `cycle-start` phase on the
- * initial reconcile would leave the ticket behind across spec runs.
- * Sweeping here keeps cleanup deterministic.
- *
- * What's NOT cleaned: host notifier bell entries (tracked by the
- * host engine in a separate store, addressed by `notificationId`
- * from the ticket). Tests that genuinely fire bells should clean the
- * notifier engine explicitly; canaries that only assert View mounts
- * should pick a firingPlan shape that does not fire on the initial
- * reconcile (e.g. a far-future `schedule:` phase) — that is the
- * cheaper invariant to maintain.
- */
-export async function removeEncoreObligation(obligationId: string): Promise<void> {
-  if (!ENCORE_OBLIGATION_ID_RE.test(obligationId)) {
-    throw new Error(`removeEncoreObligation: invalid obligationId ${JSON.stringify(obligationId)} — must match ${ENCORE_OBLIGATION_ID_RE.source}`);
-  }
-  const obligationDir = resolveWorkspacePath(path.join(ENCORE_OBLIGATIONS_DIR, obligationId));
-  await rm(obligationDir, { recursive: true, force: true });
-  await sweepEncoreTicketsFor(obligationId);
-}
-
-/**
- * Best-effort delete of every `data/plugins/encore/tickets/*.json`
- * whose `obligationId` field matches. Called by
- * {@link removeEncoreObligation}; not exported because the obligation
- * dir + ticket sweep belong together — callers want
- * "delete this obligation everywhere on disk", not "scan tickets in
- * isolation". Per-file parse / match / delete concerns are split
- * into the helpers below to keep this function under the 20-line cap
- * (CodeRabbit review on PR #1493).
- */
-async function sweepEncoreTicketsFor(obligationId: string): Promise<void> {
-  const ticketsDir = resolveWorkspacePath(ENCORE_TICKETS_DIR);
-  const entries = await listTicketEntries(ticketsDir);
-  if (entries === null) return;
-  for (const entry of entries) {
-    if (!entry.endsWith(".json")) continue;
-    const filePath = path.join(ticketsDir, entry);
-    const parsed = await readTicketJsonOrNull(filePath);
-    if (ticketMatchesObligation(parsed, obligationId)) {
-      await rm(filePath, { force: true });
-    }
-  }
-}
-
-/**
- * Read the tickets directory. Returns `null` when the dir doesn't
- * exist (workspace never wrote one — nothing to sweep) so the caller
- * can early-return. Other read errors are logged and treated as
- * empty (best-effort cleanup is the contract). Split out of
- * {@link sweepEncoreTicketsFor} per CodeRabbit's <20-line guidance.
- */
-async function listTicketEntries(ticketsDir: string): Promise<string[] | null> {
-  try {
-    return await readdir(ticketsDir);
-  } catch (err) {
-    if (isErrorWithCode(err) && err.code === "ENOENT") return null;
-    console.warn(`sweepEncoreTicketsFor: readdir ${ticketsDir} failed`, err);
-    return null;
-  }
-}
-
-/**
- * Read + JSON.parse a single ticket file. Returns `null` on any
- * read / parse error so the caller's match-and-delete loop can move
- * on (a malformed ticket wouldn't drive any future reconcile either).
- */
-async function readTicketJsonOrNull(filePath: string): Promise<unknown> {
-  try {
-    return JSON.parse(await readFile(filePath, "utf8"));
-  } catch (err) {
-    console.warn(`sweepEncoreTicketsFor: skipping ${filePath}`, err);
-    return null;
-  }
-}
-
-/**
- * Predicate: is this parsed ticket pointing at the named obligation?
- * `isRecord` filters out null / array / primitive payloads so the
- * `.obligationId` access is type-safe.
- */
-function ticketMatchesObligation(parsed: unknown, obligationId: string): boolean {
-  return isRecord(parsed) && parsed.obligationId === obligationId;
-}
-
-/**
  * Delete a project-scope skill via the user-facing UI flow:
  * navigate to `/skills`, click the row, click the delete button,
  * accept the native `confirm()`, and wait for the row to disappear
@@ -1727,8 +1604,8 @@ type NotifierListProbe = { ok: true; entries: NotifierEntry[] } | { ok: false; r
  * `{ action: "list" }` dispatch. L-17 calls this twice — once before
  * triggering a bridge-origin agent run, once after — to assert the
  * bell entry count is unchanged. Filtering by entry id avoids being
- * fooled by background publishers (Encore obligations, ghost-bell
- * recovery) that the dev server may emit during the test window.
+ * fooled by background publishers (ghost-bell recovery, todo
+ * action-lifecycle bells) that the dev server may emit during the test window.
  */
 export async function listNotifierEntries(page: Page): Promise<NotifierEntry[]> {
   const probe: NotifierListProbe = await page.evaluate(async (url): Promise<NotifierListProbe> => {

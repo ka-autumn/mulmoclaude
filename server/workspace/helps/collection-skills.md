@@ -359,7 +359,8 @@ when the item is marked done. The lead is applied at fire time (not stored), so
 it **composes with `spawn`**: every recurred month fires 10 days before its own
 `dueOn`, with no extra bookkeeping. It's a non-negative whole number of days and
 requires `triggerField`. This is a single earlier bell — not an escalating
-multi-stage reminder (that's Encore's job, see below).
+multi-stage reminder (info → warning → urgent), which is intentionally out of
+scope for collections.
 
 ### Recurring obligations (`spawn`)
 
@@ -414,8 +415,8 @@ How it behaves (worth understanding so it doesn't surprise you):
   advanced by `every`).
 
 This covers *periodic* obligations. It does **not** do escalating, multi-stage
-reminders over a long prep window (info → warning → urgent) — that's a
-different tool (Encore), intentionally not part of collections.
+reminders over a long prep window (info → warning → urgent) — that is
+intentionally out of scope for collections.
 
 ## Records — one JSON object per file
 

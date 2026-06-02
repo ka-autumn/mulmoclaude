@@ -16,7 +16,7 @@ In an AI-native application, the LLM is a controller too. It takes a different k
 
 But here is the more important shift. **A traditional controller belongs to one application.** Each app — your accounting app, your task manager, your calendar, your bookmark manager — has its own controller, its own UI, its own menus. The user is left to be the orchestrator: open the accounting app, find a number, open the chart app, paste it in, switch back. Most knowledge work is a juggling act *between* applications, not work *within* one.
 
-The LLM-as-controller dissolves that boundary. In MulmoClaude, the agent does not control one application — it controls a **registry of plugins** that, in any other product, would have been separate applications. When the user says "summarize last month's expenses as a pie chart," the agent reads from the accounting plugin and writes to the chart plugin in a single turn. When the user says "pull what we agreed with this vendor and turn it into a recurring obligation," the agent reads from the wiki plugin and writes to the Encore obligation engine. What used to require two apps, two contexts, and a copy-paste is now one sentence. This kind of cross-plugin orchestration is not a special case. It is the default mode of operation.
+The LLM-as-controller dissolves that boundary. In MulmoClaude, the agent does not control one application — it controls a **registry of plugins** that, in any other product, would have been separate applications. When the user says "summarize last month's expenses as a pie chart," the agent reads from the accounting plugin and writes to the chart plugin in a single turn. When the user says "pull what we agreed with this vendor and turn it into a recurring obligation," the agent reads from the wiki plugin and writes a record into a recurring-obligation collection. What used to require two apps, two contexts, and a copy-paste is now one sentence. This kind of cross-plugin orchestration is not a special case. It is the default mode of operation.
 
 This is what makes the LLM a **universal controller**, not just another controller. The unit of interaction is no longer the application. The unit is the agent, and the applications dissolve into the registry of plugins it composes across.
 
@@ -42,7 +42,7 @@ Three classes of consumer already implement against the protocol today: MulmoCla
 
 ## Three patterns, proven
 
-Architectural commitments are easy to state and hard to honor. The real test is whether the same primitives carry you through unrelated problem domains. MulmoClaude ships a registry of plugins specifically to demonstrate that they do. Three patterns emerge — two illustrated by individual plugins (accounting and Encore), and a third that emerges from putting many plugins in a registry together.
+Architectural commitments are easy to state and hard to honor. The real test is whether the same primitives carry you through unrelated problem domains. MulmoClaude ships a registry of plugins specifically to demonstrate that they do. Three patterns emerge — two illustrated by individual plugins (accounting and collections), and a third that emerges from putting many plugins in a registry together.
 
 ### Pattern A: API + UI + Agent
 
@@ -54,7 +54,7 @@ And a third capability falls out of this architecture for free. Because the agen
 
 ### Pattern B: Natural language → DSL → engine
 
-**Encore demonstrates a different pattern, and a more interesting architectural lesson** — even though its market value is comparatively small. Encore is a goal/obligation engine: define a recurring commitment in a domain-specific language, and Encore tracks cycles, missed obligations, and notifications. The Encore-DSL is the substantive thing. The LLM is the *translator*: the user describes their commitment in natural language, the agent produces Encore-DSL, and the engine executes it.
+**Collections demonstrate a different pattern, and a more interesting architectural lesson.** A collection is a small declarative schema — a domain-specific language describing a data model: its fields, the relationships between them, which value marks a record done, when to raise a reminder, and how a record recurs. Declare one, and the host renders it, validates every record against it, and runs the reconciler that fires notifications and advances recurring items. The schema is the substantive thing. The LLM is the *translator*: the user describes what they want to track in natural language, the agent produces the schema — and the records inside it — and the host executes it.
 
 This is the pattern for any application whose core is a precise, structured artifact — a query, a config, a workflow, a contract. The LLM is not the engine. The LLM is the natural-language interface to the engine. A great deal of knowledge-work software is going to look like this, because precise artifacts are how businesses actually express what they do, and natural language is how humans actually want to author them.
 
@@ -62,11 +62,11 @@ This is the pattern for any application whose core is a precise, structured arti
 
 Look at what traditional SaaS calls a "premium" or "enterprise" feature. Multi-format export. PDF and PowerPoint reports. Spreadsheet downloads. BI dashboards. Cross-app workflow automation. Each of these costs the vendor real integration work — a reporting module, a Zapier connector, an export endpoint, a partnership with a chart library. And each of these is what the vendor charges money for. On a typical SaaS pricing page, the upcharge tier is almost always the integration tier.
 
-In an AI-native architecture, these are not features. They are what happens when a universal controller composes plugins. When the user says "give me a chart of Q1 revenue by category," the agent reads from the accounting plugin and writes to the chart plugin. When the user says "export this quarter as a spreadsheet I can hand to the CPA," it reads from the accounting plugin and writes to the spreadsheet plugin. When the user says "pull what we agreed with this vendor and turn it into a recurring obligation," it reads from the wiki plugin and writes to Encore.
+In an AI-native architecture, these are not features. They are what happens when a universal controller composes plugins. When the user says "give me a chart of Q1 revenue by category," the agent reads from the accounting plugin and writes to the chart plugin. When the user says "export this quarter as a spreadsheet I can hand to the CPA," it reads from the accounting plugin and writes to the spreadsheet plugin. When the user says "pull what we agreed with this vendor and turn it into a recurring obligation," it reads from the wiki plugin and writes a record into a recurring-obligation collection.
 
 In each case the work happens in a single sentence, with no vendor contract, no integration code, no upgrade tier. Composition is first-class because plugins are MCP tools, and MCP tools compose. What used to be a premium SKU collapses into the default mode of operation.
 
-This is not a property of any individual plugin. It is a property of the registry. MulmoClaude's plugin registry today includes seven third-party runtime plugins across unrelated domains — bookmarks, SEC filings (Edgar), recipes, music (Spotify), todos, debug introspection, Encore — alongside the built-in set. They share no domain logic. They share an architecture, and they share a universal controller. **The premium tier was the integration cost; remove the integration cost and the premium tier dissolves with it.**
+This is not a property of any individual plugin. It is a property of the registry. MulmoClaude's plugin registry today includes six third-party runtime plugins across unrelated domains — bookmarks, SEC filings (Edgar), recipes, music (Spotify), todos, debug introspection — alongside the built-in set. They share no domain logic. They share an architecture, and they share a universal controller. **The premium tier was the integration cost; remove the integration cost and the premium tier dissolves with it.**
 
 ## An invitation
 

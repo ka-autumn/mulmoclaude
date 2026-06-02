@@ -19,7 +19,6 @@ export const PAGE_ROUTES = {
   sources: "sources",
   news: "news",
   debug: "debug",
-  encore: "encore",
   collections: "collections",
 } as const;
 

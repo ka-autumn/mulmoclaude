@@ -1,5 +1,5 @@
 // Locale registry shared by the frontend (vue-i18n) and the server
-// (Encore seed-prompt localization, #1545).
+// (plugin-seeded prompt localization, #1545).
 //
 // Deliberately free of any `vue-i18n` import: server code imports the
 // message dictionaries from here to localize plugin-seeded prompts, and
