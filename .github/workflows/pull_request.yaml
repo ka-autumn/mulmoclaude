@@ -52,6 +52,10 @@ jobs:
             echo "run_e2e=false" >> "$GITHUB_OUTPUT"
           fi
 
+  # ubuntu + macos lint matrix. Windows runs in a separate scheduled
+  # workflow (`.github/workflows/lint_test_windows.yaml`, #1585) so PR
+  # CI doesn't pay the Windows wall-clock cost on every push — Windows
+  # is covered daily and on every main push instead.
   lint_test:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
@@ -59,7 +63,7 @@ jobs:
       fail-fast: false
       matrix:
         node-version: [22.x, 24.x]
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest]
     steps:
     - uses: actions/checkout@v6
       with:
@@ -68,33 +72,12 @@ jobs:
       uses: actions/setup-node@v6
       with:
         node-version: ${{ matrix.node-version }}
-        # Skip setup-node's built-in yarn cache on Windows — tar
-        # extraction on NTFS is slower than a fresh install.
-        # We use actions/cache for node_modules instead.
-        cache: ${{ runner.os == 'Windows' && '' || 'yarn' }}
-    # Windows: disable Defender realtime monitoring to prevent
-    # EPERM on atomic rename (#CI)
-    - name: Disable Windows Defender realtime monitoring
-      if: runner.os == 'Windows'
-      run: Set-MpPreference -DisableRealtimeMonitoring $true
-      shell: powershell
-    # Windows: cache node_modules directly (faster than yarn cache
-    # because it skips the tar extract → yarn install file-write cycle).
-    # restore-keys lets a yarn.lock change land on a warm node_modules
-    # tree (yarn install fills in the diff) instead of a cold cache.
-    - name: Cache node_modules (Windows)
-      if: runner.os == 'Windows'
-      uses: actions/cache@v5
-      with:
-        path: node_modules
-        key: win-node-modules-${{ matrix.node-version }}-${{ hashFiles('yarn.lock') }}
-        restore-keys: |
-          win-node-modules-${{ matrix.node-version }}-
+        cache: yarn
     - run: yarn install --frozen-lockfile --network-timeout 120000
     # Cache the output of `yarn build:packages` keyed on the source
     # files it consumes. The 25 @mulmobridge/* workspaces all run tsc
-    # serially / pairwise — slowest non-install step on Windows. When
-    # no package source / tsconfig / package.json changed, skip the
+    # serially / pairwise — the slowest non-install step. When no
+    # package source / tsconfig / package.json changed, skip the
     # build step entirely. Cache key includes runner.os and node
     # version because emitted JS can differ across them.
     - name: Cache packages/dist

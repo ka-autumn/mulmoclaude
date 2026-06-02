@@ -4,6 +4,7 @@ import {
   applyMovieEvent,
   extractErrorMessage,
   getMissingCharacterKeys,
+  isAllSlideDeck,
   isSameScript,
   parseSSEEventLine,
   shouldAutoRenderBeat,
@@ -358,5 +359,50 @@ describe("isSameScript (#1074)", () => {
 
   it("returns true for two empty objects", () => {
     assert.equal(isSameScript({}, {}), true);
+  });
+});
+
+describe("isAllSlideDeck", () => {
+  it("returns true when every beat is a slide", () => {
+    const script = {
+      beats: [{ image: { type: "slide", slide: { layout: "title", title: "A" } } }, { image: { type: "slide", slide: { layout: "bigQuote", quote: "hi" } } }],
+    };
+    assert.equal(isAllSlideDeck(script), true);
+  });
+
+  it("returns false when any beat is non-slide", () => {
+    const mixed = {
+      beats: [{ image: { type: "slide", slide: { layout: "title", title: "A" } } }, { image: { type: "movie", source: { kind: "path", path: "x.mp4" } } }],
+    };
+    assert.equal(isAllSlideDeck(mixed), false);
+
+    const oneTextSlide = {
+      beats: [{ image: { type: "textSlide", slide: { title: "hello" } } }],
+    };
+    assert.equal(isAllSlideDeck(oneTextSlide), false);
+  });
+
+  it("returns false for empty / missing beats", () => {
+    assert.equal(isAllSlideDeck({ beats: [] }), false);
+    assert.equal(isAllSlideDeck({}), false);
+    assert.equal(isAllSlideDeck({ beats: undefined }), false);
+  });
+
+  it("returns false when a beat has no image", () => {
+    assert.equal(isAllSlideDeck({ beats: [{}] }), false);
+    assert.equal(isAllSlideDeck({ beats: [{ image: null }] }), false);
+  });
+
+  it("returns false for non-object inputs", () => {
+    assert.equal(isAllSlideDeck(null), false);
+    assert.equal(isAllSlideDeck(undefined), false);
+    assert.equal(isAllSlideDeck("string"), false);
+    assert.equal(isAllSlideDeck(42), false);
+    assert.equal(isAllSlideDeck([]), false);
+  });
+
+  it("returns false when beat is not an object", () => {
+    assert.equal(isAllSlideDeck({ beats: [null] }), false);
+    assert.equal(isAllSlideDeck({ beats: ["not a beat"] }), false);
   });
 });

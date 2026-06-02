@@ -248,19 +248,6 @@
             Debug plugin is not loaded. Make sure @mulmoclaude/debug-plugin is built and registered as a preset.
           </div>
           <!-- eslint-enable @intlify/vue-i18n/no-raw-text -->
-          <!-- Encore page. The View branches on `?pendingId`:
-               - With pendingId: chat-on-mount redirect (transient,
-                 ~300ms) for notification clicks — the tick publishes
-                 `/encore?pendingId=<uuid>` URLs and the View
-                 dispatches resolveNotification then full-navigates
-                 to /chat/<chatId>.
-               - Without pendingId: read-only dashboard of active
-                 obligations and their cycle history, reachable from
-                 the top-bar launcher. -->
-          <component :is="encoreViewComponent" v-else-if="currentPage === 'encore' && encoreViewComponent" />
-          <!-- eslint-disable @intlify/vue-i18n/no-raw-text -- encore chat-on-mount page is a transient redirect, not a user-facing surface. -->
-          <div v-else-if="currentPage === 'encore'" class="h-full flex items-center justify-center text-sm text-gray-500">Encore is not loaded.</div>
-          <!-- eslint-enable @intlify/vue-i18n/no-raw-text -->
         </div>
 
         <!-- Bottom bar (Stack chat only — plugin views have no
@@ -703,11 +690,6 @@ const selectedResult = computed(() => toolResults.value.find((result) => result.
 // reactive, so this computed re-evaluates when the load completes and
 // the /debug branch in the template lights up without a refresh.
 const debugViewComponent = computed(() => getPlugin("manageDebug")?.viewComponent ?? null);
-
-// Encore plugin View — built-in plugin under src/plugins/encore/.
-// Mounted at /encore — the chat-on-mount page after a notification-bell click
-// (View.vue dispatches resolveNotification on mount and redirects).
-const encoreViewComponent = computed(() => getPlugin(TOOL_NAMES.manageEncore)?.viewComponent ?? null);
 
 // Google Maps API key from `AppSettings.googleMapsApiKey`. Fetched
 // once on mount and refreshed whenever Settings reports a save.

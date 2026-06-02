@@ -2,9 +2,19 @@ import { randomUUID } from "node:crypto";
 
 import { type Locator, type Page, type Response, expect, test } from "@playwright/test";
 
+import { API_ROUTES } from "../../src/config/apiRoutes.ts";
 import { ONE_MINUTE_MS, ONE_SECOND_MS } from "../../server/utils/time.ts";
 import { isRecord } from "../../server/utils/types.ts";
-import { deleteSession, readWorkspaceFile, sendChatMessage, setupRoleSession, waitForAssistantTurn } from "../fixtures/live-chat.ts";
+import {
+  type AuthedJsonProbe,
+  deleteSession,
+  fetchAuthedJsonViaPage,
+  postAuthedJsonViaPage,
+  readWorkspaceFile,
+  sendChatMessage,
+  setupRoleSession,
+  waitForAssistantTurn,
+} from "../fixtures/live-chat.ts";
 
 // L-JOURNEY-* — "the feature actually works end-to-end via the real
 // LLM" net (plans/feat-e2e-live.md §「最優先方針 (2026-05-30)」). Two
@@ -27,9 +37,13 @@ import { deleteSession, readWorkspaceFile, sendChatMessage, setupRoleSession, wa
 // appears in the View if the LLM dispatch landed AND the View
 // rendered it, so the View assertion subsumes the dispatch check.
 //
-// Per the 2026-05-30 design principle: add is always LLM-driven
-// (calendar / todo / accounting expose a role-gated manage* tool);
-// deletes mix UI (calendar) and LLM (todo / accounting) so the suite
+// Per the 2026-05-30 design principle: add is always LLM-driven.
+// calendar / todo / accounting expose a role-gated manage* tool;
+// collections have NO manage* tool — the mc-clients preset skill
+// teaches the agent to add a client by Write-ing a workspace JSON
+// file, so the COLLECTION journey nets a path the others don't
+// (skill-driven file I/O reflected by <CollectionView>). Deletes mix
+// UI (calendar / collection) and LLM (todo / accounting) so the suite
 // canaries both teardown paths.
 //
 // Skip on E2E_LIVE_NO_LLM=1 — the fake-echo backend cannot route MCP
@@ -87,8 +101,19 @@ function makeMarker(testId: string): string {
 // for manual purge. A write-safe prune would have to round-trip each
 // plugin's own delete endpoint — disproportionate plumbing for
 // best-effort teardown, and a divergence from the suite convention.
+//
+// COLLECTION nuance: a client is a per-item file
+// (data/clients/items/<id>.json), NOT a row in a shared array, so a
+// finally prune there WOULD be race-free (an unlink can't clobber a
+// concurrent spec's other item). It still matches this session-only
+// convention for consistency: the happy-path UI delete already leaves
+// nothing, and an early-failure leak is a single nonce-named file
+// (id derived from the marker) — identifiable and greppable.
 test.describe("L-JOURNEY-* (real LLM add → View reflection → lifecycle)", () => {
-  test.skip(process.env.E2E_LIVE_NO_LLM === "1", "fake-echo backend cannot route MCP tool calls — no add would land");
+  test.skip(
+    process.env.E2E_LIVE_NO_LLM === "1",
+    "these journeys assert on a real LLM turn (MCP dispatch / skill file-write / custom-role agent run) — fake-echo can't produce them",
+  );
 
   test("L-JOURNEY-CAL: chat で予定を add → /calendar に反映 → UI から delete", async ({ page }) => {
     test.setTimeout(JOURNEY_TIMEOUT_MS);
@@ -152,6 +177,86 @@ test.describe("L-JOURNEY-* (real LLM add → View reflection → lifecycle)", ()
       await waitForAssistantTurn(page);
       await assertBookDeletedFromDb(marker);
     } finally {
+      for (const sid of sessions) await deleteSession(page, sid);
+    }
+  });
+
+  test("L-JOURNEY-COLLECTION: chat で client を add → /collections に反映 → UI から delete", async ({ page }) => {
+    test.setTimeout(JOURNEY_TIMEOUT_MS);
+    const marker = makeMarker("L-JOURNEY-COLLECTION");
+    const sessions: string[] = [];
+    try {
+      await setupRoleSession(page, "personal", sessions);
+      await sendChatMessage(page, clientAddPrompt(marker));
+      await waitForAssistantTurn(page);
+
+      await openClientsCollection(page);
+      const row = clientRowByMarker(page, marker);
+      await expect(row, "the skill-written client record must reflect as a row in the collection view").toBeVisible({ timeout: VIEW_REFLECT_TIMEOUT_MS });
+
+      await deleteClientViaUi(page, row);
+      await expect(clientRowByMarker(page, marker), "the UI delete must remove the row from the collection").toHaveCount(0, {
+        timeout: VIEW_REFLECT_TIMEOUT_MS,
+      });
+    } finally {
+      for (const sid of sessions) await deleteSession(page, sid);
+    }
+  });
+
+  test("L-JOURNEY-ROLE: custom role を作成 → selector に出て実 LLM が回る → delete で消える", async ({ page }) => {
+    test.setTimeout(JOURNEY_TIMEOUT_MS);
+    const marker = makeMarker("L-JOURNEY-ROLE");
+    const role = customRoleFixture(marker);
+    const sessions: string[] = [];
+    // Unlike the shared-array DBs the other journeys touch (calendar /
+    // todo / accounting items.json), a role is its own file
+    // (config/roles/<id>.json) keyed by an id we chose — so a leaked
+    // role both pollutes the live selector AND can be pruned race-free
+    // by id. Track create/delete so `finally` cleans up a role left by
+    // an early failure (CodeRabbit).
+    let roleCreated = false;
+    let roleDeleted = false;
+    try {
+      // Load the app first so the authed POST has the SPA's bearer-token
+      // meta tag and a same-origin base — page.evaluate(fetch) on the
+      // initial about:blank would have neither.
+      await page.goto("/");
+      await createCustomRole(page, role);
+      roleCreated = true;
+
+      // setupRoleSession switches the chat to the custom role: it
+      // clicks role-option-<id> (which throws if the new role never
+      // surfaced in the live selector) and asserts the role chip's
+      // data-role — so this one call IS the "custom role reflected in
+      // the selector AND selectable" net. Its startGuaranteedNewSession
+      // does a full page.goto("/") AFTER the create above, which
+      // re-mounts useRoles() and re-fetches the list (so the new role is
+      // in the dropdown); selectRole then auto-waits for role-option-<id>.
+      await setupRoleSession(page, role.id, sessions);
+
+      // The real LLM turn under a WORKSPACE-defined role — the coverage
+      // roles.spec.ts (built-in roles only) leaves open: a user-created
+      // role drives the agent loop end-to-end without crashing it.
+      await sendChatMessage(page, "Reply with a one-sentence greeting.");
+      await waitForAssistantTurn(page);
+
+      // Lifecycle delete via the same endpoint the /roles UI calls, then
+      // confirm against the source-of-truth role list — the selector is
+      // transient chrome, so GET /api/roles is the deterministic check
+      // (same rationale as L-JOURNEY-ACCT confirming on the DB file).
+      await deleteCustomRole(page, role.id);
+      roleDeleted = true;
+      await assertRoleAbsentFromApi(page, role.id);
+    } finally {
+      // Race-free per-file prune of a role left by an early failure: the
+      // delete is scoped to our unique id, so it can't clobber a
+      // parallel spec (unlike the shared-array DBs the other journeys
+      // deliberately leave to the session-only convention).
+      if (roleCreated && !roleDeleted && !page.isClosed()) {
+        await deleteCustomRole(page, role.id).catch((err) => {
+          console.warn(`L-JOURNEY-ROLE: best-effort role cleanup skipped for ${role.id}`, err);
+        });
+      }
       for (const sid of sessions) await deleteSession(page, sid);
     }
   });
@@ -331,5 +436,138 @@ function parseBookNamesStrict(raw: string): string[] {
       throw new Error(`${ACCOUNTING_CONFIG_REL} has an invalid books[${idx}] entry after deleteBook; expected { name: string }`);
     }
     return book.name;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// collections (presentCollection — Personal role, mc-clients preset skill)
+// ---------------------------------------------------------------------------
+
+// The mc-clients preset skill (server/workspace/skills-preset/mc-clients/)
+// is synced into every workspace on boot. Unlike the manage* plugins,
+// collections have no add tool — the skill tells the agent to derive an
+// id and Write the record to data/clients/items/<id>.json. The host's
+// <CollectionView> reads those same files, so a row appearing in the
+// view proves the skill-driven file write landed AND rendered.
+const CLIENTS_COLLECTION_SLUG = "mc-clients";
+
+function clientAddPrompt(marker: string): string {
+  return [
+    `Add one client to the ${CLIENTS_COLLECTION_SLUG} clients collection whose name is EXACTLY '${marker}' (verbatim, do not edit it).`,
+    "Use the mc-clients skill: derive an id and Write the record to data/clients/items/<id>.json.",
+    "Do not add any other client. Do not use presentForm. Reply with a one-line confirmation only.",
+  ].join(" ");
+}
+
+// The standalone /collections/<slug> route mounts <CollectionView>. Its
+// header "+ Add" button (canCreate is always true for this non-singleton
+// collection) is the stable "the collection loaded" gate — the view has
+// no single root testid, and waiting on the row directly can't tell a
+// not-yet-rendered row from a failed mount.
+async function openClientsCollection(page: Page): Promise<void> {
+  await page.goto(`/collections/${CLIENTS_COLLECTION_SLUG}`);
+  await expect(page.getByTestId("collections-add-item"), `/collections/${CLIENTS_COLLECTION_SLUG} must mount the collection view`).toBeVisible({
+    timeout: VIEW_REFLECT_TIMEOUT_MS,
+  });
+}
+
+// The agent derives the id slug itself, so filter by the marker (the
+// verbatim `name` cell), not by the id — same reflection check the
+// other journeys use.
+function clientRowByMarker(page: Page, marker: string): Locator {
+  return page.locator('[data-testid^="collections-row-"]').filter({ hasText: marker });
+}
+
+// Click the marker row to open its read-only detail panel, hit Remove,
+// then accept the host ConfirmModal (a testid'd modal, not
+// window.confirm). Only one row is open at a time, so the detail panel
+// and its remove button need no per-id scoping.
+async function deleteClientViaUi(page: Page, row: Locator): Promise<void> {
+  await row.click();
+  await expect(page.getByTestId("collections-detail"), "clicking the row opens the read-only detail panel").toBeVisible({
+    timeout: VIEW_REFLECT_TIMEOUT_MS,
+  });
+  await page.getByTestId("collections-detail-remove").click();
+  await page.getByTestId("host-confirm-ok").click();
+}
+
+// ---------------------------------------------------------------------------
+// roles (custom role lifecycle — UI-add path, no LLM dispatch tool)
+// ---------------------------------------------------------------------------
+
+// `manageRoles` is in no built-in role's availablePlugins, so a custom
+// role cannot be added by the LLM — the only add path is the /roles
+// form (POST /api/roles/manage). Driving that multi-field form is
+// mock-e2e territory (pure UI → REST, no LLM); the e2e-live-worthy part
+// is that a WORKSPACE-defined custom role then surfaces in the live
+// selector and drives a REAL agent turn (the built-in-only roles.spec.ts
+// never exercises a user-created role). So create / delete go through
+// the same REST endpoint the form calls, deterministically, as
+// setup / teardown — and the test focuses on the selector reflection +
+// the real LLM turn.
+interface CustomRoleFixture {
+  id: string;
+  name: string;
+  icon: string;
+  prompt: string;
+  availablePlugins: string[];
+  queries: string[];
+}
+
+const CUSTOM_ROLE_PROMPT = "You are a throwaway role used by an automated end-to-end test. Answer briefly.";
+
+// The marker (testId-epochMs-hex) already matches the server's role-id
+// rule /^[a-zA-Z0-9_-]+$/, so it doubles as the unique id and the
+// displayed name. availablePlugins is empty on purpose: the agent keeps
+// its base tools, and the turn only needs to complete — we're testing
+// that a custom role boots and runs, not any specific plugin.
+function customRoleFixture(marker: string): CustomRoleFixture {
+  return { id: marker, name: marker, icon: "person", prompt: CUSTOM_ROLE_PROMPT, availablePlugins: [], queries: [] };
+}
+
+async function createCustomRole(page: Page, role: CustomRoleFixture): Promise<void> {
+  const res = await postAuthedJsonViaPage(page, API_ROUTES.roles.manage, { action: "create", role });
+  assertManageSuccess(res, `create role ${role.id}`);
+}
+
+async function deleteCustomRole(page: Page, roleId: string): Promise<void> {
+  const res = await postAuthedJsonViaPage(page, API_ROUTES.roles.manage, { action: "delete", roleId });
+  assertManageSuccess(res, `delete role ${roleId}`);
+}
+
+// Fail CLOSED: a transport error OR a { success: false } body must
+// throw, so a silently-rejected create can't let the test proceed to a
+// false-green selector / turn assertion.
+function assertManageSuccess(res: AuthedJsonProbe, label: string): void {
+  if (!res.ok) throw new Error(`${label}: ${res.reason}`);
+  if (!isRecord(res.body) || res.body.success !== true) {
+    const detail = isRecord(res.body) && typeof res.body.error === "string" ? res.body.error : JSON.stringify(res.body);
+    throw new Error(`${label}: /api/roles/manage did not return success — ${detail}`);
+  }
+}
+
+// Poll the custom-role list until the marker role is gone — the delete
+// write can lag the POST response by a beat. Read-only, so it never
+// races a concurrent spec (each test owns a unique role id).
+async function assertRoleAbsentFromApi(page: Page, roleId: string): Promise<void> {
+  await expect(async () => {
+    const res = await fetchAuthedJsonViaPage(page, API_ROUTES.roles.list);
+    if (!res.ok) throw new Error(res.reason);
+    expect(parseRoleIdsStrict(res.body), `custom role '${roleId}' must be gone from ${API_ROUTES.roles.list} after delete`).not.toContain(roleId);
+  }).toPass({ timeout: VIEW_REFLECT_TIMEOUT_MS });
+}
+
+// GET /api/roles returns the custom-role array directly. Fail closed on
+// a shape drift (non-array, or an entry missing a string id) so a
+// malformed payload throws rather than false-passing not.toContain.
+function parseRoleIdsStrict(body: unknown): string[] {
+  if (!Array.isArray(body)) {
+    throw new Error(`${API_ROUTES.roles.list} did not return an array of roles`);
+  }
+  return body.map((role, idx) => {
+    if (!isRecord(role) || typeof role.id !== "string") {
+      throw new Error(`${API_ROUTES.roles.list} has an invalid roles[${idx}] entry; expected { id: string }`);
+    }
+    return role.id;
   });
 }

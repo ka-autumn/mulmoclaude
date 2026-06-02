@@ -8,6 +8,9 @@ author such a deck. Pick one per deck (don't mix), then imitate the matching sam
 
 1. **`slide`** — structured layouts (`title`, `stats`, `table`, `timeline`, …). Static images.
    Pick this by **default**: compact, consistent, hard to break.
+   For impact-heavy decks (opening / closing / principles / credo) add the **Polish toolkit**
+   expressions documented after Sample A — hero titles, `manifesto` layout, glass theme,
+   `eyebrow` / `chips`, icon bullets, inline color spans.
 
 2. **`html_tailwind` + `animation: true`** — free-form HTML/CSS/JS, rendered to an animated video.
    Pick this **only when motion is wanted** (count-up numbers, sequential reveals, animated opener).
@@ -29,6 +32,7 @@ override the generic guidance above:
   are not needed (the `slide` type renders static layouts; `html_tailwind` + `animation` renders from
   your own HTML).
 - **`description`**: put a 1–2 sentence summary of the whole deck in the top-level `description` field.
+- **Visual editor**: when every beat in the resulting script is a `slide`, MulmoClaude swaps the per-beat list view for an interactive deck editor in the canvas — the user can drag, reorder, and tweak slide fields without touching JSON. You don't have to do anything to enable it; just produce a script where `beats[].image.type === "slide"` for every beat. Mixed scripts (slide + movie / textSlide / etc.) fall back to the per-beat list.
 
 ## Styling: shared vs. repeated per beat
 
@@ -379,6 +383,216 @@ The two approaches handle the color scheme / fonts differently — this matters 
             ["Support", "Community", "8x5", { "text": "24x7", "color": "primary", "bold": true }]
           ],
           "callout": { "label": "Note", "text": "All tiers include sub-second freshness — performance is never gated.", "color": "info", "leftBar": true }
+        }
+      }
+    }
+  ]
+}
+```
+
+---
+
+## Polish toolkit — optional `slide` expressions
+
+The `slide` approach has a **polish layer** for impact-heavy decks (opening, closing, principles,
+credos, milestone callouts). Every field below is **optional** — Sample A above still validates
+without any of them. Reach for them when the deck needs a richer visual register than the
+default chrome. Sample C at the end of this section bundles them in one short deck.
+
+### Slide-level fields
+
+Add these directly inside `image.slide` next to `title` / `subtitle`:
+
+- **`eyebrow`** — small label rendered above the title.
+  `{ "label": "Phase 1", "color"?: "primary" | "accent" | "success" | "warning" | "danger" | "info" | "highlight" }`
+- **`titleSize`** — `"default" | "small" | "large" | "hero"`. Use `"hero"` for the opening slide; `"small"` for compact / dense slides.
+- **`subtitleSize`** — `"default" | "lead" | "big"`. `"lead"` for an emphasized one-liner under the title.
+- **`density: "compact"`** — packs more content vertically. Use sparingly on text-heavy slides.
+- **`chips`** — `string[]` of short pill-shaped tags under the title (emoji-friendly):
+  `"chips": ["🚀 deploy or die", "⚡ weekly output", "🔁 dogfooding"]`
+
+### Theme extensions
+
+Inside `slideParams.theme` (alongside `colors` / `fonts`):
+
+- **`bgGradient`** — full CSS background string for the page. Stack a radial + linear for depth:
+  `"radial-gradient(1200px 700px at 12% -10%, rgba(56,189,248,.16), transparent 60%), linear-gradient(160deg, #0A0F24, #16224D)"`
+- **`titleGradient`** — gradient applied to titles (rendered with `background-clip: text`).
+- **`cardStyle`** — `"glass"` (frosted/translucent cards) or `"solid"` (default). `"glass"` pairs well with `bgGradient`.
+- **`fonts.accent`** — extra font slot the renderer uses for `eyebrow` and `chips`.
+
+### New `manifesto` layout
+
+For credos / principles / design rules — a numbered list of strong statements. One slide can hold
+4–6 items comfortably.
+
+```json
+{
+  "layout": "manifesto",
+  "eyebrow": { "label": "Culture" },
+  "title": "Our operating principles",
+  "columns": 2,
+  "items": [
+    { "title": "Ship, then talk.", "description": "Discussion follows working code, never replaces it.", "accentColor": "primary" },
+    { "title": "No permission needed.", "description": "Act first, report second.", "accentColor": "warning" },
+    { "title": "Deploy or die.", "description": "Software in production is the only kind that counts.", "accentColor": "primary" },
+    { "title": "A messy demo beats a polished plan.", "description": "Get it out — feedback is the only fuel.", "accentColor": "success" }
+  ]
+}
+```
+
+### Content tweaks (work inside any `content[]`)
+
+- **`bullets` items as objects** — give each bullet an icon: `"ok"` (✓), `"no"` (✗), `"warn"` (⚠).
+  `{ "type": "bullets", "items": [{ "text": "Real-time freshness", "icon": "ok" }, { "text": "Hours-stale data", "icon": "no" }] }`
+- **`bullets.size: "lead"`** — bigger bullet text for prominent lists.
+- **`text` `size: "sub"`** + **`dim: true`** — smaller / dimmed body text for footnotes.
+- **`tag` content type** — labeled pill chip in front of body text:
+  `{ "type": "tag", "text": "MVP", "color": "warning" }`
+- **`callout` `size: "sub"`** + **`leftBar: true`** — compact + left-bar-emphasized variants.
+- **`comparison` `left/right` `cardless: true`** — drops the card chrome on a side. Useful when the bullets themselves are the visual.
+
+### Inline color spans + markdown
+
+These work inside any text-rendering field (title, subtitle, quote, bullet item text, `text.value`):
+
+- **`**bold**`** / **`*italic*`** — standard markdown emphasis.
+- **`{primary:text}` / `{accent:text}` / `{success:text}` / `{warning:text}` / `{danger:text}` / `{info:text}` / `{highlight:text}`** —
+  inline spans tinted in the theme color. Compose with markdown freely:
+  `"100 discussions, or {primary:**one shipped prototype.**}"`
+
+### `timeline` emphasis flags
+
+`timeline.items[i]` accepts:
+
+- **`hot: true`** — highlight the active / current step (renders with a glow/halo).
+- **`done: true`** — mark a completed past step.
+- **`color`** — tints the dot and stem; combine with `hot` for the "you are here" effect.
+
+---
+
+## Sample C — polished `slide` (hero open + manifesto + glass theme)
+
+A 4-beat deck demonstrating the polish toolkit bundled together. Use as the template for
+opening / principles / closing slides; mix freely with Sample A's layouts inside the same deck.
+
+```json
+{
+  "$mulmocast": { "version": "1.1" },
+  "lang": "en",
+  "title": "Aurora — Operating Principles",
+  "description": "A short principles deck — hero opening, manifesto, comparison, and a closing CTA, all on a glass-card dark theme.",
+  "speechParams": {
+    "speakers": {
+      "Presenter": { "provider": "gemini", "voiceId": "Kore", "isDefault": true, "displayName": { "en": "Presenter" } }
+    }
+  },
+  "slideParams": {
+    "theme": {
+      "colors": {
+        "bg": "0A0F24", "bgCard": "111A3A", "bgCardAlt": "16224D",
+        "text": "EEF2FF", "textMuted": "9FB0D8", "textDim": "6F7FA0",
+        "primary": "38BDF8", "accent": "818CF8", "success": "34D399",
+        "warning": "FBBF24", "danger": "FB7185", "info": "38BDF8", "highlight": "F0ABFC"
+      },
+      "fonts": { "title": "Georgia", "body": "Helvetica", "mono": "Menlo", "accent": "Outfit" },
+      "bgGradient": "radial-gradient(1200px 700px at 12% -10%, rgba(56,189,248,.16), transparent 60%), radial-gradient(1000px 600px at 100% 0%, rgba(129,140,248,.16), transparent 55%), linear-gradient(160deg, #0A0F24, #111A3A 55%, #16224D)",
+      "titleGradient": "linear-gradient(100deg, #FFFFFF, #38BDF8 60%, #818CF8)",
+      "cardStyle": "glass"
+    }
+  },
+  "beats": [
+    {
+      "text": "Welcome to Aurora — four principles that decide how we ship.",
+      "image": {
+        "type": "slide",
+        "slide": {
+          "layout": "title",
+          "titleSize": "hero",
+          "eyebrow": { "label": "Aurora · Operating Principles" },
+          "title": "How we **ship**",
+          "subtitle": "Four rules. {primary:Everything else is taste.}",
+          "subtitleSize": "lead",
+          "chips": ["🚀 deploy or die", "🔁 dogfood", "⚡ weekly output", "🤝 peer review"]
+        }
+      }
+    },
+    {
+      "text": "Our four operating principles.",
+      "image": {
+        "type": "slide",
+        "slide": {
+          "layout": "manifesto",
+          "eyebrow": { "label": "Culture", "color": "warning" },
+          "title": "Operating principles",
+          "columns": 2,
+          "items": [
+            { "title": "Ship, then talk.", "description": "Discussion follows working code, never replaces it.", "accentColor": "primary" },
+            { "title": "No permission needed.", "description": "Act first, report second.", "accentColor": "warning" },
+            { "title": "Deploy or die.", "description": "Software in production is the only kind that counts.", "accentColor": "primary" },
+            { "title": "A messy demo beats a polished plan.", "description": "Get it out — feedback is the only fuel.", "accentColor": "success" }
+          ]
+        }
+      }
+    },
+    {
+      "text": "What sets us apart from teams that talk more than they ship.",
+      "image": {
+        "type": "slide",
+        "slide": {
+          "layout": "comparison",
+          "eyebrow": { "label": "Mindset" },
+          "title": "Builders vs. Talkers",
+          "left": {
+            "title": "Builders",
+            "accentColor": "success",
+            "cardless": true,
+            "content": [
+              {
+                "type": "bullets",
+                "size": "lead",
+                "items": [
+                  { "text": "Goal is big, **next task is small.**", "icon": "ok" },
+                  { "text": "MVP first — anything that runs.", "icon": "ok" },
+                  { "text": "Show 3–5 users, learn, iterate.", "icon": "ok" }
+                ]
+              }
+            ]
+          },
+          "right": {
+            "title": "Talkers",
+            "accentColor": "danger",
+            "cardless": true,
+            "content": [
+              {
+                "type": "bullets",
+                "size": "lead",
+                "items": [
+                  { "text": "Forever debating scope.", "icon": "no" },
+                  { "text": "{danger:Spec docs grow, code doesn't.}", "icon": "no" },
+                  { "text": "Six months pass, nobody saw a demo.", "icon": "warn" }
+                ]
+              }
+            ]
+          },
+          "callout": {
+            "label": "Reminder",
+            "text": "\"No time\" usually means *\"not interesting enough.\"* Make time for what you'd ship anyway.",
+            "color": "accent"
+          }
+        }
+      }
+    },
+    {
+      "text": "One hundred discussions, or one shipped prototype.",
+      "image": {
+        "type": "slide",
+        "slide": {
+          "layout": "bigQuote",
+          "eyebrow": { "label": "Let's go" },
+          "quote": "100 discussions, or {primary:**one shipped prototype.**}",
+          "author": "*Acting is everything.* **deploy or die.**",
+          "role": "Welcome to Aurora 🚀"
         }
       }
     }

@@ -130,7 +130,7 @@ const HOST_API_ROUTES = {
 
   /** Notifier dispatch — single endpoint, body carries `{ action,
    *  ... }`. Matches the `manage*` tool pattern used elsewhere
-   *  (manageEncore / manageAccounting / manageSkills). */
+   *  (manageAccounting / manageSkills). */
   notifier: {
     dispatch: "/api/notifier",
   },

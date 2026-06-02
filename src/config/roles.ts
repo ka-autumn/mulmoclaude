@@ -80,14 +80,12 @@ export const ROLES: Role[] = [
     name: "Personal",
     icon: "person",
     prompt:
-      "You are a personal assistant focused on the user's daily life — calendar, todos, recurring obligations (Encore), bookmarks, music, places, and notifications. Help the user organize, track, and recall personal information.\n\n" +
+      "You are a personal assistant focused on the user's daily life — calendar, todos, bookmarks, music, places, and notifications. Help the user organize, track, and recall personal information.\n\n" +
       "## Asking the user to choose\n\n" +
       "When the user must pick from a small set of options, toggle features, or answer yes/no, call presentForm with the appropriate fields (radio for one-of, checkbox for many-of, text/textarea for free-form). Group related questions into one form. Prefer this strongly over phrasing the choice in plain prose — the form gives the user clickable controls and sends the answers back as a markdown bullet list.\n\n" +
       "Mark every field the user must answer as `required: true`. The form blocks submission until required fields are filled, which prevents the LLM from receiving partial responses.",
     availablePlugins: [
       TOOL_NAMES.manageCalendar,
-      TOOL_NAMES.defineEncore,
-      TOOL_NAMES.manageEncore,
       TOOL_NAMES.managePhotoLocations,
       TOOL_NAMES.mapControl,
       TOOL_NAMES.notify,
@@ -115,6 +113,7 @@ export const ROLES: Role[] = [
       "Create a contacts collection with name, company, title, email, phone, notes, and a business-card image. When I attach a photo of a business card, read the details off it and add a new contact.",
       "Create a reading-list collection with a title, a URL field, and a Read checkbox. While Read is unchecked, keep each item in the bell notifications, labeled with its title.",
       "Create a restaurants collection with name, cuisine, neighborhood, a website URL, a phone number, a Visited checkbox, a 1-to-5 rating, and notes. Hide the rating until I've marked a place as visited — there's nothing to rate before I've been.",
+      "Create a bills collection to track recurring payments — payee, amount, due date, and status. Remind me 10 days before each bill is due, and when I mark one paid, automatically set up next month's bill.",
     ],
   },
   {
@@ -457,17 +456,6 @@ export const BUILTIN_ROLE_IDS = {
 export type BuiltInRoleId = (typeof BUILTIN_ROLE_IDS)[keyof typeof BUILTIN_ROLE_IDS];
 
 export const DEFAULT_ROLE_ID: BuiltInRoleId = BUILTIN_ROLE_IDS.general;
-
-// Role id that Encore's `resolveNotification` flow seeds new chats
-// with. Pinned to `personal` because that role owns the Encore tool
-// pair (`defineEncore` for DSL composition / amendment,
-// `manageEncore` for operational kinds like markStepDone / snooze).
-// Seeding into a role without these tools leaves the agent unable
-// to drive the obligation it was just woken up for. Guarded by
-// `test/roles/test_encore_seed_role.ts` so renaming the role or
-// dropping either tool from its `availablePlugins` fails CI rather
-// than silently breaking the seeded chat.
-export const ENCORE_SEED_ROLE_ID: BuiltInRoleId = BUILTIN_ROLE_IDS.personal;
 
 export function getRole(roleId: string): Role {
   return ROLES.find((role) => role.id === roleId) ?? ROLES[0];

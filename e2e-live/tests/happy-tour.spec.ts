@@ -61,7 +61,7 @@ test.describe.configure({ mode: "serial" });
 // structurally by step 3 (`/api/plugins/diagnostics`) — the bell
 // reads its boot-collision rows from that route, so duplicating
 // the check via the live notifier ledger would be redundant AND
-// unreliable (pre-existing urgent entries from Encore / ghost-bell
+// unreliable (pre-existing urgent entries from ghost-bell
 // publishers would false-positive the assertion). If a future
 // regression class needs a notifier-side canary, the L-17
 // baseline-diff shape is the right pattern, not a global filter.
@@ -85,8 +85,6 @@ interface RouteSweepEntry {
 //   SchedulerView is mounted under both routes with a different
 //   `force-tab`. happy-tour only checks "view mounted at all";
 //   tab-switch internals are scheduler-spec territory.
-// - `/encore` uses `encore-dashboard` — the default branch when no
-//   `pendingId` query param is present (the canonical landing).
 const LAUNCHER_ROUTE_SWEEP: readonly RouteSweepEntry[] = [
   { stepTitle: "6. /todos が mount + 読み込みエラー無し", path: "/todos", rootTestId: "todo-view-root", errorBannerTestId: "todo-api-error" },
   { stepTitle: "7. /calendar が mount", path: "/calendar", rootTestId: "scheduler-view-root", errorBannerTestId: "scheduler-api-error" },
@@ -97,8 +95,7 @@ const LAUNCHER_ROUTE_SWEEP: readonly RouteSweepEntry[] = [
   { stepTitle: "12. /automations が mount", path: "/automations", rootTestId: "scheduler-view-root", errorBannerTestId: "scheduler-api-error" },
   { stepTitle: "13. /news が mount", path: "/news", rootTestId: "news-view" },
   { stepTitle: "14. /roles が mount", path: "/roles", rootTestId: "roles-view-root" },
-  { stepTitle: "15. /encore が mount", path: "/encore", rootTestId: "encore-dashboard" },
-  { stepTitle: "16. /collections が mount", path: "/collections", rootTestId: "collections-view-root" },
+  { stepTitle: "15. /collections が mount", path: "/collections", rootTestId: "collections-view-root" },
 ];
 
 test.describe("happy-tour (capability sweep)", () => {

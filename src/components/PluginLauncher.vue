@@ -44,7 +44,7 @@ export type PluginLauncherKind = "view"; // Switch the canvas to a dedicated vie
 // out of this file avoids duplication across the 8 locales.
 export interface PluginLauncherTarget {
   /** Stable key for testid + dispatch in App.vue. */
-  key: "todos" | "calendar" | "automations" | "encore" | "wiki" | "collections" | "sources" | "news" | "skills" | "roles" | "files" | "debug";
+  key: "todos" | "calendar" | "automations" | "wiki" | "collections" | "sources" | "news" | "skills" | "roles" | "files" | "debug";
   kind: PluginLauncherKind;
   /** Material-icons glyph. */
   icon: string;
@@ -69,11 +69,6 @@ const TARGETS: PluginLauncherTarget[] = [
   // Automations entry picks up ⌘9 (the first unused number).
   { key: "calendar", kind: "view", icon: "calendar_month" },
   { key: "automations", kind: "view", icon: "schedule" },
-  // Encore landing page — read-only dashboard of active obligations
-  // and their cycle history. The same /encore route also handles
-  // `?pendingId=...` chat-on-mount redirects from notification clicks;
-  // the View branches on the query param.
-  { key: "encore", kind: "view", icon: "event_repeat" },
   { key: "wiki", kind: "view", icon: "menu_book" },
   // Schema-driven collections launcher — opens the collections
   // index, from which the user picks one. The index lists every
@@ -102,10 +97,9 @@ const TARGETS: PluginLauncherTarget[] = [
 
 // Index AFTER which the visual separator is inserted (between data
 // plugins on the left and management on the right). Data plugins are
-// todos / calendar / automations / encore / wiki / collections /
-// sources / news (indices 0-7), so the divider renders before
-// index 8 (skills).
-const SEPARATOR_AFTER_INDEX = 8;
+// todos / calendar / automations / wiki / collections / sources /
+// news (indices 0-6), so the divider renders before index 7 (skills).
+const SEPARATOR_AFTER_INDEX = 7;
 
 // Dev-mode flag — set `VITE_DEV_MODE=1` in `.env`. Anything else
 // (including unset) hides any target with `devOnly: true`.

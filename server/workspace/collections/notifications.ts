@@ -41,6 +41,7 @@ import { log } from "../../system/logger/index.js";
 import { errorMessage } from "../../utils/errors.js";
 import { loadCollection, type DiscoveryOptions } from "./discovery.js";
 import { listItems, readItem, type IoOptions } from "./io.js";
+import { isTriggerDue, maybeSpawnSuccessor } from "./spawn.js";
 import type { CollectionItem, CollectionSchema } from "./types.js";
 
 /** The legacy-id prefix every collection-completion bell entry carries.
@@ -226,7 +227,14 @@ export async function clearItemNotification(slug: string, itemId: string): Promi
  *  `workspacePath`; tests pass `{ workspaceRoot: <tmpdir> }` so the
  *  containment check accepts a fixture dataDir outside the real
  *  workspace. */
-export async function reconcileItem(slug: string, schema: CollectionSchema, dataDir: string, itemId: string, ioOpts: IoOptions = {}): Promise<void> {
+export async function reconcileItem(
+  slug: string,
+  schema: CollectionSchema,
+  dataDir: string,
+  itemId: string,
+  ioOpts: IoOptions = {},
+  now: Date = new Date(),
+): Promise<void> {
   if (!schema.completionField) {
     // Schema doesn't track completion — make sure no stale entry sticks
     // around from a previous schema state.
@@ -238,9 +246,27 @@ export async function reconcileItem(slug: string, schema: CollectionSchema, data
     await clearItemNotification(slug, itemId);
     return;
   }
+  // Recurrence: predicate-gated + create-if-absent, so it is idempotent
+  // and independent of this item's own bell state. Runs before the
+  // done-clear below so marking an item done still spawns its successor.
+  await maybeSpawnSuccessor(slug, schema, dataDir, item, itemId, ioOpts);
   if (itemIsDone(schema, item)) {
     await clearItemNotification(slug, itemId);
     return;
+  }
+  // Time gate: when the schema declares a `triggerField`, suppress the
+  // bell until the clock reaches that date — minus `triggerLeadDays`, so
+  // a 10-day lead fires the bell 10 days early (day-granularity, local
+  // tz). Unparseable date ⇒ fail safe (no bell) + warn so it's debuggable.
+  if (schema.triggerField) {
+    const due = isTriggerDue(item[schema.triggerField], now, schema.triggerLeadDays);
+    if (due === null) {
+      log.warn("collections", "trigger date unparseable, suppressing bell", { slug, itemId, triggerField: schema.triggerField });
+    }
+    if (due !== true) {
+      await clearItemNotification(slug, itemId);
+      return;
+    }
   }
   await ensureItemNotification(slug, schema, itemId, resolveDisplayLabel(schema, item, itemId));
 }
@@ -252,7 +278,13 @@ export async function reconcileItem(slug: string, schema: CollectionSchema, data
  *  not this function — this only sees files that exist).
  *
  *  See `reconcileItem` for the `ioOpts` test-seam rationale. */
-export async function reconcileAllItems(slug: string, schema: CollectionSchema, dataDir: string, ioOpts: IoOptions = {}): Promise<void> {
+export async function reconcileAllItems(
+  slug: string,
+  schema: CollectionSchema,
+  dataDir: string,
+  ioOpts: IoOptions = {},
+  now: Date = new Date(),
+): Promise<void> {
   if (!schema.completionField) return;
   let items: CollectionItem[];
   try {
@@ -265,7 +297,7 @@ export async function reconcileAllItems(slug: string, schema: CollectionSchema, 
   for (const item of items) {
     const raw = item[primaryKey];
     if (typeof raw !== "string" || raw.length === 0) continue;
-    await reconcileItem(slug, schema, dataDir, raw, ioOpts);
+    await reconcileItem(slug, schema, dataDir, raw, ioOpts, now);
   }
 }
 

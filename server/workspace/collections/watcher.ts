@@ -23,15 +23,25 @@ import { watch, type FSWatcher } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { log } from "../../system/logger/index.js";
 import { errorMessage } from "../../utils/errors.js";
-import { ONE_SECOND_MS } from "../../utils/time.js";
+import { ONE_MINUTE_MS, ONE_SECOND_MS } from "../../utils/time.js";
 import { discoverCollections, loadCollection, type DiscoveryOptions, type LoadedCollection } from "./discovery.js";
 import { reconcileAllItems, reconcileItem, sweepStaleActiveEntries } from "./notifications.js";
+import type { CollectionSchema } from "./types.js";
 
 // Collections don't get added / removed rapidly; 30 s is a comfortable
 // upper bound on how long a new schema can sit before its watcher is
 // up. Cheap to run — `discoverCollections` reads a handful of
 // `schema.json` files per scope.
 const REDISCOVERY_INTERVAL_MS = 30 * ONE_SECOND_MS;
+
+// Wall-clock tick that re-reconciles time-dependent collections (those
+// declaring `triggerField` and/or `spawn`). The fs.watcher only re-runs
+// the reconciler on FILE changes; a `triggerField` bell that should fire
+// "when the clock reaches date X" — and a `spawn` whose successor's own
+// trigger later comes due — change no file at that moment, so a periodic
+// re-derivation is required. 1 minute is fine: the reconciler is
+// idempotent and only reads a bounded set of small JSON files.
+const TRIGGER_TICK_INTERVAL_MS = ONE_MINUTE_MS;
 
 interface CollectionWatcher {
   slug: string;
@@ -48,6 +58,7 @@ interface CollectionWatcher {
 
 const watchers = new Map<string, CollectionWatcher>();
 let rediscoveryTimer: ReturnType<typeof setInterval> | null = null;
+let triggerTimer: ReturnType<typeof setInterval> | null = null;
 let started = false;
 /** Discovery options threaded into every `discoverCollections` /
  *  `loadCollection` / `sweepStaleActiveEntries` call this module
@@ -75,6 +86,10 @@ const itemSlots = new Map<string, ReconcileSlot>();
 export interface CollectionWatcherOptions {
   discoveryOpts?: DiscoveryOptions;
   rediscoveryIntervalMs?: number | null;
+  /** Wall-clock tick cadence for time-dependent collections
+   *  (`triggerField` / `spawn`). `null` disables the tick so a test can
+   *  drive `_tickTimeTriggersForTesting` manually. Default 1 minute. */
+  triggerTickIntervalMs?: number | null;
 }
 
 /** Boot entry point: sweep stale active entries, then mount watchers
@@ -110,6 +125,15 @@ export async function startCollectionWatchers(opts: CollectionWatcherOptions = {
       // waiting for the next tick.
       rediscoveryTimer.unref();
     }
+    const triggerMs = opts.triggerTickIntervalMs === undefined ? TRIGGER_TICK_INTERVAL_MS : opts.triggerTickIntervalMs;
+    if (triggerMs !== null) {
+      triggerTimer = setInterval(() => {
+        tickTimeTriggers().catch((err: unknown) => {
+          log.warn("collections", "watcher trigger tick failed", { error: errorMessage(err) });
+        });
+      }, triggerMs);
+      triggerTimer.unref();
+    }
     started = true;
   } catch (err) {
     discoveryOpts = {};
@@ -124,6 +148,10 @@ export async function stopCollectionWatchers(): Promise<void> {
   if (rediscoveryTimer) {
     clearInterval(rediscoveryTimer);
     rediscoveryTimer = null;
+  }
+  if (triggerTimer) {
+    clearInterval(triggerTimer);
+    triggerTimer = null;
   }
   for (const watcher of watchers.values()) {
     try {
@@ -144,6 +172,35 @@ export async function stopCollectionWatchers(): Promise<void> {
  *  `rediscoveryIntervalMs: null` in `startCollectionWatchers`). */
 export async function _syncWatchersForTesting(): Promise<void> {
   await syncWatchers();
+}
+
+/** Test-only: drive one wall-clock tick synchronously, with an optional
+ *  injected clock (tests disable the auto-tick via
+ *  `triggerTickIntervalMs: null` and call this with a fixed `now`). */
+export async function _tickTimeTriggersForTesting(now?: Date): Promise<void> {
+  await tickTimeTriggers(now);
+}
+
+/** Re-reconcile every watched collection that depends on the clock —
+ *  i.e. declares `triggerField` (a bell that fires at a date) and/or
+ *  `spawn` (recurrence whose successors come due over time). Collections
+ *  with neither are skipped: their bell state changes only on file
+ *  events, which the fs.watcher already covers, so a periodic
+ *  re-reconcile would be pure waste. Idempotent, so a tick that races a
+ *  file event simply converges. The schema is parsed back from the
+ *  watcher's cached `schemaJson` to avoid a per-tick disk read. */
+async function tickTimeTriggers(now: Date = new Date()): Promise<void> {
+  for (const entry of watchers.values()) {
+    let schema: CollectionSchema;
+    try {
+      schema = JSON.parse(entry.schemaJson) as CollectionSchema;
+    } catch (err) {
+      log.warn("collections", "trigger tick: bad cached schema", { slug: entry.slug, error: errorMessage(err) });
+      continue;
+    }
+    if (!schema.triggerField && !schema.spawn) continue;
+    await reconcileAllItems(entry.slug, schema, entry.dataDir, discoveryOpts, now);
+  }
 }
 
 /** Reconcile the watcher set against the currently-discovered

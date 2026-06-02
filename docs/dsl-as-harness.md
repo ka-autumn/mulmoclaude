@@ -101,44 +101,38 @@ edited, and re-rendered rather than regenerated from scratch. The harness slogan
 "the model decides *what* to think about; the harness decides *how* it is
 executed" is, in MulmoScript, an actual boundary in the pipeline.
 
-### Encore: a DSL that enforces its own invariants
+### Collections: a DSL that enforces its own invariants — authored by the user
 
-MulmoClaude's Encore feature lets the agent declare a *recurring obligation* — a
-payment, a tax, a medical exam — as a compact schema: a cadence, the targets it
-covers, the steps that close each cycle, the values to record, and a firing plan
-that says when to nudge and how loudly. The agent declares the obligation; a
-deterministic engine reconciles it against the calendar, raises notifications at
-the right moments, and rolls each completed cycle into the next. For an agent,
-this is the "enforce invariants, not implementations" pattern delivered by the
-schema itself.
+MulmoClaude's collections feature is a DSL-as-harness whose authoring pen is
+handed to the end user. A collection is defined by a schema — a small DSL
+describing the shape of the data: its fields and types, the relationships between
+them, which value marks a record "done," when to raise a notification, and how a
+record recurs. That schema drives the skills the agent uses to read, write, and
+reason over the records. The schema is the spec; the generated skill files and
+the host's reconciler are the execution layer.
 
-An agent composing an obligation has wide latitude in *what* to track and how to
-describe it, but it cannot emit a structurally incoherent schedule, because the
-validator rejects one before it is ever saved: a payment with no currency, a
-reminder anchored to an expression that does not exist, a recorded field that no
-step claims. Each failure is a precise, field-path message pointing at the exact
-rule — localized, actionable feedback the agent can act on without a human in the
-loop. And the agent never authors the part that must not drift: it does not
-implement the scheduling, the notification firing, or the cycle rollover — those
-belong to the engine and run identically every time. The obligation stays correct
-across every later amendment not because a reviewer caught each edit, but because
-the DSL would not let an incorrect one through.
+Like any good harness, the schema enforces its own invariants. Whoever declares a
+collection — agent or user — has wide latitude in *what* to model, but cannot emit
+a structurally incoherent schema, because the loader rejects one before it is ever
+used: a money field with neither a literal currency nor a per-record currency
+field, a `ref` pointing at a collection that does not exist, a `spawn` whose
+successor would be born already matching its own predicate (an unbounded respawn),
+a `triggerField` that does not name a real date field. Each failure is a precise,
+actionable message — feedback the author can act on without a human in the loop.
+And the part that must not drift belongs to the host and runs identically every
+time: the reconciler that fires and clears bells, the civil-date math that
+advances each recurrence, the create-if-absent write that makes spawning
+idempotent. The collection stays correct across every later edit not because a
+reviewer caught each one, but because the schema would not let an incorrect one
+through.
 
-### Collections: handing the harness-authoring pen to the user
-
-MulmoClaude's collections feature extends the idea one rung further. A collection
-is defined by a schema — a small DSL describing the shape of the data — and that
-schema drives the skills the agent uses to read, write, and reason over the
-collection. The schema is the spec; the generated skill files are the execution
-layer.
-
-The novel move is *who writes the DSL*. In the SWE-agent and Encore cases, an
-engineer designs the harness and the agent operates inside it. Collections push
-the authoring of the harness toward the end user: by declaring a schema, a
-non-engineer is, in effect, designing the environment the agent will work in.
-This is the literal democratization of harness engineering. The principle that
-"engineers design environments rather than write code" becomes "*anyone* can
-design an environment, declaratively, and let the agent execute within it."
+The novel move is *who writes the DSL*. In the SWE-agent case, an engineer designs
+the harness and the agent operates inside it. Collections push the authoring of
+the harness toward the end user: by declaring a schema, a non-engineer is, in
+effect, designing the environment the agent will work in. This is the literal
+democratization of harness engineering. The principle that "engineers design
+environments rather than write code" becomes "*anyone* can design an environment,
+declaratively, and let the agent execute within it."
 
 ## The one hazard: design the escape hatch
 
@@ -148,10 +142,11 @@ two bad things: give up, or contort the DSL into something it was never meant to
 hold. A DSL that is too hard becomes a cage.
 
 The well-designed DSLs all answer this the same way — with a deliberate exit to a
-more expressive layer. Encore drops out of its declarative schedule into a seeded
-chat — an agent with full tools — the moment a cycle needs the human judgment the
-form cannot capture. MulmoScript can incorporate arbitrary external assets and
-media rather than insisting everything be expressed in its own primitives.
+more expressive layer. A collection drops out of its declarative schema into a
+seeded chat — an agent with full tools — the moment a record needs the human
+judgment the form cannot capture; its action buttons start exactly such a chat.
+MulmoScript can incorporate arbitrary external assets and media rather than
+insisting everything be expressed in its own primitives.
 The art of DSL-as-harness is not maximizing constraint; it is choosing *where*
 the constraint binds and providing a clean, legible path out where it does not.
 A harness with no escape hatch eventually forces the agent to either fail or lie,
@@ -244,70 +239,67 @@ one slide without re-reasoning about the whole deck. The escape hatch is the
 `image`/`html_tailwind` types that embed arbitrary assets or raw HTML when the
 structured layouts run out.
 
-### B. Encore — a recurring obligation as a declarative schedule
+### B. A recurring obligation as a collection — schedule and recurrence without an engine
 
-MulmoClaude's Encore plugin tracks recurring obligations — a monthly payment, a
-biannual tax, an annual physical — that fire on a cadence and carry context
-forward across cycles. The agent authors the obligation as a small YAML DSL
-(stored as frontmatter in `obligations/<id>/index.md`); a deterministic
-reconciler turns the declared `firingPlan` into bell notifications and, when a
-cycle closes, provisions the next one. The agent declares *what recurs and when
-to nudge* — it never writes a timer, a cron expression, or notification code.
+Recurring obligations — a monthly payment, a biannual tax, an annual physical —
+were once a dedicated subsystem in MulmoClaude. They are now just a handful of
+keys on a collection schema: the host's reconciler turns a record's `triggerField`
+date into a bell, holds it back until `triggerLeadDays` before that date, clears
+it once the record is marked done, and — via `spawn` — provisions the next
+instance on a civil cadence when this one closes. The author declares *what recurs
+and when to nudge*; nothing writes a timer, a cron expression, or notification
+code.
 
-A monthly two-payee payment with an escalating reminder plan:
+A monthly payment due on the 10th, reminded three days early, that re-creates next
+month's record each time it is paid:
 
-```yaml
-version: 1
-displayName: "Monthly payments (due 10th)"
-type: payment
-currency: JPY
-cadence:
-  type: monthly
-  day: 10
-targets:
-  - id: isamu
-    displayName: "Isamu"
-    defaults:
-      amount: 15000
-  - id: singularity-society
-    displayName: "Singularity Society"
-steps:
-  - id: pay
-    displayName: "Pay"
-    deadline: cycle-deadline
-    firingPlan:
-      - { at: cycle-start, severity: info }
-      - { at: cycle-deadline-3d, severity: warning }
-      - { at: cycle-deadline+1d, severity: urgent }
-    fields: [invoiceReceivedOn, amount, paidOn]
-formSchema:
-  fields:
-    - { name: invoiceReceivedOn, type: date, label: "Invoice received on" }
-    - { name: amount, type: number, label: "Amount paid (JPY)", required: true }
-    - { name: paidOn, type: date, label: "Payment date" }
+`schema.json`:
+
+```json
+{
+  "title": "Payments",
+  "icon": "payments",
+  "dataPath": "data/collections/payments",
+  "primaryKey": "id",
+  "displayField": "payee",
+  "fields": {
+    "id": { "type": "string", "label": "ID", "primary": true, "required": true },
+    "payee": { "type": "string", "label": "Payee", "required": true },
+    "amount": { "type": "money", "label": "Amount", "currency": "JPY" },
+    "dueOn": { "type": "date", "label": "Due on", "required": true },
+    "status": { "type": "enum", "label": "Status", "values": ["pending", "paid"], "required": true }
+  },
+  "completionField": "status",
+  "completionDoneValues": ["paid"],
+  "triggerField": "dueOn",
+  "triggerLeadDays": 3,
+  "spawn": {
+    "every": { "unit": "month", "interval": 1, "dayOfMonth": 10 },
+    "carry": ["payee", "amount"],
+    "set": { "status": "pending" }
+  }
+}
 ```
 
-The document is validated against a Zod discriminated union (`EncoreDslInput`,
-`src/types/encore-dsl/schema.ts`) on every `defineEncore` call — §2, the free
-validator: a `payment` missing its ISO-4217 `currency`, or a `formSchema` field
-that no step's `fields` array claims, is rejected with a field-path message
-*before* the obligation is ever saved. The grammar is the §3 forcing function:
-`cadence.type` is a closed set (`daily` / `weekly` / `monthly` / `annual` /
-`biannual`), and a `firingPlan[].at` can only be an anchor expression
-(`cycle-start`, `cycle-deadline`, `step-deadline`, `schedule:YYYY-MM-DD`) with an
-optional `±Nd` offset — the agent cannot invent a scheduling primitive the
-reconciler doesn't understand. Each obligation, and each step within it, is the
-§4 unit of context: the agent amends one without re-reasoning about the rest.
+The schema is validated when the collection loads — §2, the free validator: a
+`money` field with neither a `currency` nor a `currencyField`, a `triggerField`
+that does not name a real `date` field, or a `spawn` whose successor would be born
+already `paid` (an unbounded respawn) is rejected with an actionable reason
+*before* any record is written. The grammar is the §3 forcing function:
+`spawn.every.unit` is a closed set (`day` / `week` / `month` / `year`) and each
+cycle advances on civil-date arithmetic the host owns — the author cannot invent a
+scheduling primitive the reconciler doesn't understand. Each record is the §4 unit
+of context: marking one month `paid` spawns next month's untouched, with no
+re-reasoning about the rest.
 
-The generation/execution split is as clean as MulmoScript's: the agent produces
-the schedule; the deterministic reconciler (`server/encore/reconcile.ts`)
-evaluates the firing plan against today's date, raises the bell at the right
-severity, and provisions the next cycle on close — repeatable, inspectable, no
-guessing. And the escape hatch is the **hand-off to a seeded chat**: when a cycle
-genuinely needs judgment ("what was the amount? was it actually paid?"), clicking
-the bell opens a chat where the agent collects the `formSchema` values and calls
-an operational action (`markStepDone`, `snooze`, …) — the expressive,
-human-in-the-loop layer the declarative schedule deliberately leaves out.
+The generation/execution split is as clean as MulmoScript's: the author declares
+the schedule; the deterministic reconciler raises the bell at lead time, clears it
+on completion, and create-if-absent provisions the next cycle on the `spawn`
+predicate — repeatable, inspectable, no guessing. And the escape hatch is the
+**hand-off to a seeded chat**: when an instance genuinely needs judgment ("what
+was the amount? was it actually paid?"), a schema-declared `action` button opens a
+chat where the agent collects the values and updates the record — the expressive,
+human-in-the-loop layer the declarative schema deliberately leaves out.
 
 ### C. The Collection DSL — a user-authored schema
 

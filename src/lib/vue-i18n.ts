@@ -18,47 +18,35 @@
 // the Options API `this.$t`. CLAUDE.md mandates Composition API.
 
 import { createI18n } from "vue-i18n";
-import enMessages from "../lang/en";
-import jaMessages from "../lang/ja";
-import zhMessages from "../lang/zh";
-import koMessages from "../lang/ko";
-import esMessages from "../lang/es";
-import ptBRMessages from "../lang/pt-BR";
-import frMessages from "../lang/fr";
-import deMessages from "../lang/de";
+import { messages, SUPPORTED_LOCALES, isSupportedLocale, type Locale, type LocaleMessages } from "../lang";
 
 // Schema generic on createI18n — this is what makes `t("common.save")`
 // calls across the whole app compile-time checked (the module
 // augmentation in src/types/vue-i18n.d.ts alone is not enough; vue-i18n
 // v11's `t` overloads still fall back to `string` unless the schema is
-// threaded through here).
-type MessageSchema = typeof enMessages;
-type Locale = "en" | "ja" | "zh" | "ko" | "es" | "pt-BR" | "fr" | "de";
+// threaded through here). The locale list + message map live in
+// `src/lang/index.ts` so the server can reuse them without `vue-i18n`.
+type MessageSchema = LocaleMessages;
 
-const SUPPORTED_LOCALES: readonly Locale[] = ["en", "ja", "zh", "ko", "es", "pt-BR", "fr", "de"] as const;
 const DEFAULT_LOCALE: Locale = "en";
-
-function isSupported(tag: string): tag is Locale {
-  return (SUPPORTED_LOCALES as readonly string[]).includes(tag);
-}
 
 // Match the full tag first (so `pt-BR` resolves exactly), then collapse
 // `ja-JP`, `ja-Hira-JP`, etc. to their primary subtag. Returns null when
 // neither the full tag nor the primary subtag is supported.
 function primarySubtagIfSupported(tag: string): Locale | null {
-  if (isSupported(tag)) return tag;
+  if (isSupportedLocale(tag)) return tag;
   const lower = tag.toLowerCase();
   for (const supported of SUPPORTED_LOCALES) {
     if (supported.toLowerCase() === lower) return supported;
   }
   const [primary] = lower.split("-");
-  return isSupported(primary) ? primary : null;
+  return isSupportedLocale(primary) ? primary : null;
 }
 
 function detectLocale(): Locale {
   // 1. explicit env override
   const envLocale = import.meta.env.VITE_LOCALE;
-  if (typeof envLocale === "string" && isSupported(envLocale)) {
+  if (typeof envLocale === "string" && isSupportedLocale(envLocale)) {
     return envLocale;
   }
 
@@ -82,16 +70,7 @@ const i18n = createI18n<[MessageSchema], Locale>({
   legacy: false,
   locale,
   fallbackLocale: "en",
-  messages: {
-    en: enMessages,
-    ja: jaMessages,
-    zh: zhMessages,
-    ko: koMessages,
-    es: esMessages,
-    "pt-BR": ptBRMessages,
-    fr: frMessages,
-    de: deMessages,
-  },
+  messages,
 });
 
 export default i18n;

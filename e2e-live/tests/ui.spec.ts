@@ -82,8 +82,8 @@ test.describe("ui (real LLM / static)", () => {
 
     // Snapshot active entries pre-run. We don't compare the full
     // id-set blindly (Codex iter-1 review): an unrelated background
-    // publisher firing during the test window — Encore obligations,
-    // ghost-bell recovery, the todo plugin's action lifecycle — would
+    // publisher firing during the test window — ghost-bell recovery
+    // or the todo plugin's action lifecycle — would
     // add new ids and false-fail the assertion. Instead, we look for
     // the *specific shape* PR #818 commented out: a
     // `publishNotification({ kind: NOTIFICATION_KINDS.agent, sessionId:

@@ -51,7 +51,6 @@ See [Wiki](config/helps/wiki.md) for details on how it works.
 - [Sandbox](config/helps/sandbox.md) — how the Docker sandbox isolates the agent, what it can access, and how to disable it
 - [Telegram Bridge](config/helps/telegram.md) — how to talk to MulmoClaude from the Telegram app: creating a bot, starting the bridge, allowlisting chat IDs, commands, and troubleshooting
 - [Information Sources](config/helps/sources.md) — registering RSS feeds / GitHub repos / arXiv queries, the daily-brief pipeline, and where its files live on disk
-- [Encore — recurring obligations DSL](config/helps/encore-dsl.md) — YAML DSL for recurring obligations (payments, services, check-ins), firing plans, multi-target bundles, and the bell-click resume loop
 - [GitHub repositories in the workspace](config/helps/github.md) — clone-destination rules under `github/<name>/` and how to handle existing directories with matching or different remotes
 - [Collection skills](config/helps/collection-skills.md) — build a data app (model + UI + relations + computed fields + action buttons) by authoring a `schema.json` collection skill: the DSL, field types, derived formulas, actions, records
 

@@ -929,6 +929,102 @@ describe("discoverCollections — workspaceRoot propagation", () => {
   });
 });
 
+describe("discoverCollections — triggerField + spawn validation", () => {
+  // A valid time-trigger + spawn base, cloned + mutated per case.
+  function recurringSchema(extra: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      title: "Rent",
+      icon: "home",
+      dataPath: "data/rent/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        dueOn: { type: "date", label: "Due", required: true },
+        amount: { type: "number", label: "Amount" },
+        status: { type: "enum", values: ["pending", "paid"], label: "Status", required: true },
+      },
+      completionField: "status",
+      completionDoneValues: ["paid"],
+      triggerField: "dueOn",
+      spawn: { when: { field: "status", in: ["paid"] }, every: { unit: "month", interval: 1, dayOfMonth: 10 }, carry: ["amount"], set: { status: "pending" } },
+      ...extra,
+    };
+  }
+
+  it("accepts a well-formed time-trigger + spawn schema", async () => {
+    writeSkill("test-rent-ok", recurringSchema());
+    assert.equal((await listCollections()).length, 1);
+  });
+
+  it("rejects triggerField without the completion pair", async () => {
+    writeSkill("test-trigger-no-completion", recurringSchema({ completionField: undefined, completionDoneValues: undefined, spawn: undefined }));
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects triggerField naming a non-date field", async () => {
+    writeSkill("test-trigger-non-date", recurringSchema({ triggerField: "status", spawn: undefined }));
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects triggerField naming a missing field", async () => {
+    writeSkill("test-trigger-missing", recurringSchema({ triggerField: "nope", spawn: undefined }));
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects spawn without triggerField", async () => {
+    writeSkill("test-spawn-no-trigger", recurringSchema({ triggerField: undefined }));
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("accepts a non-negative triggerLeadDays", async () => {
+    writeSkill("test-lead-ok", recurringSchema({ triggerLeadDays: 10, spawn: undefined }));
+    assert.equal((await listCollections()).length, 1);
+  });
+
+  it("rejects triggerLeadDays without triggerField", async () => {
+    writeSkill("test-lead-no-trigger", recurringSchema({ triggerField: undefined, triggerLeadDays: 10, spawn: undefined }));
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects a negative triggerLeadDays", async () => {
+    writeSkill("test-lead-negative", recurringSchema({ triggerLeadDays: -5, spawn: undefined }));
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects a bad spawn.every (interval < 1)", async () => {
+    writeSkill("test-spawn-bad-interval", recurringSchema({ spawn: { every: { unit: "month", interval: 0 } } }));
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects a bad spawn.every (dayOfMonth out of range)", async () => {
+    writeSkill("test-spawn-bad-dom", recurringSchema({ spawn: { every: { unit: "month", interval: 1, dayOfMonth: 32 } } }));
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects spawn.carry naming a missing field", async () => {
+    writeSkill("test-spawn-bad-carry", recurringSchema({ spawn: { every: { unit: "month", interval: 1 }, carry: ["ghost"] } }));
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("accepts the 'last' dayOfMonth sentinel", async () => {
+    writeSkill("test-spawn-last", recurringSchema({ spawn: { every: { unit: "month", interval: 1, dayOfMonth: "last" } } }));
+    assert.equal((await listCollections()).length, 1);
+  });
+
+  it("rejects a default-when spawn that `set`s the completion field to a done value (would respawn forever)", async () => {
+    writeSkill("test-spawn-respawn-set", recurringSchema({ spawn: { every: { unit: "month", interval: 1 }, set: { status: "paid" } } }));
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects a spawn that carries its own predicate field (successor inherits the matching value)", async () => {
+    writeSkill(
+      "test-spawn-carry-pred",
+      recurringSchema({ spawn: { when: { field: "status", in: ["paid"] }, every: { unit: "month", interval: 1 }, carry: ["status"] } }),
+    );
+    assert.equal((await listCollections()).length, 0);
+  });
+});
+
 describe("loadCollection", () => {
   it("returns the named project-scope collection", async () => {
     writeSkill("test-load", {

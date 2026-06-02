@@ -200,8 +200,16 @@
       </div>
     </div>
 
-    <!-- Beat list -->
-    <div ref="beatListEl" class="flex-1 overflow-y-auto p-2 space-y-1.5">
+    <!-- Deck editor (#1575): every beat is a slide → mount the
+         interactive deck editor from @mulmocast/deck-web. The Vue
+         component is lazy-loaded via defineAsyncComponent, so users
+         whose scripts aren't pure decks never pay the bundle cost. -->
+    <div v-if="isDeck" class="flex-1 overflow-hidden" data-testid="mulmo-script-deck-editor">
+      <MulmoScriptDeckEditor :script="deckScriptInput" layout="compact" @update:script="onDeckUpdate" />
+    </div>
+
+    <!-- Beat list (fallback when the script has any non-slide beat) -->
+    <div v-else ref="beatListEl" class="flex-1 overflow-y-auto p-2 space-y-1.5">
       <div v-for="(beat, index) in beats" :key="index" class="rounded-lg border border-gray-200 overflow-hidden">
         <!-- Beat body: thumbnail + narration side by side -->
         <div class="flex gap-3 items-stretch">
@@ -462,12 +470,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from "vue";
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { MulmoScriptData } from "./index";
 import { mulmoBeatSchema, mulmoScriptSchema } from "@mulmocast/types";
-import { extractErrorMessage, getMissingCharacterKeys, isSameScript, shouldAutoRenderBeat, streamMovieEvents, validateBeatJSON } from "./helpers";
+import {
+  extractErrorMessage,
+  getMissingCharacterKeys,
+  isAllSlideDeck,
+  isSameScript,
+  shouldAutoRenderBeat,
+  streamMovieEvents,
+  validateBeatJSON,
+} from "./helpers";
 import { apiGet, apiPost, apiFetchRaw } from "../../utils/api";
 import { pluginEndpoints } from "../api";
 import type { MulmoScriptEndpoints } from "./definition";
@@ -475,6 +491,13 @@ import { errorMessage } from "../../utils/errors";
 import { useClipboardCopy } from "../../composables/useClipboardCopy";
 import { useActiveSession } from "../../composables/useActiveSession";
 import { GENERATION_KINDS, type PendingGeneration } from "../../types/events";
+import type { SlideLayout, SlideTheme } from "@mulmocast/deck-web";
+
+// Lazy-loaded so the deck editor's Vue / tailwind / SlidePreview chunk
+// stays out of the initial bundle for users whose scripts aren't decks
+// (movies, html_tailwind animations, mixed beats). `defineAsyncComponent`
+// triggers the dynamic import only when `isDeck` first flips true.
+const MulmoScriptDeckEditor = defineAsyncComponent(() => import("@mulmocast/deck-web").then((mod) => mod.MulmoScriptDeckEditor));
 
 const endpoints = pluginEndpoints<MulmoScriptEndpoints>("mulmoScript");
 
@@ -803,6 +826,92 @@ const effectiveScript = computed<MulmoScript>(() => ({
   beats: beats.value.map((beat, i) => localOverrides[i] ?? beat),
 }));
 const scriptSourceText = computed(() => JSON.stringify(effectiveScript.value, null, 2));
+
+// #1575 — when every beat is a `slide`, swap the per-beat list UI for
+// the interactive deck editor (@mulmocast/deck-web). Mixed scripts
+// (any non-slide beat) fall back to the existing list so the user can
+// keep editing movie / textSlide / html_tailwind beats as before.
+const isDeck = computed(() => isAllSlideDeck(effectiveScript.value));
+
+// `@mulmocast/deck-web` types its `script` prop as a *structural*
+// superset of MulmoScript (every key optional + index signature) using
+// `SlideLayout` / `SlideTheme` from `@mulmocast/deck`. Our strict
+// `MulmoScript` from `@mulmocast/types` doesn't unify with that shape
+// by name, so we re-type at the boundary. The cast is safe — any real
+// MulmoScript instance fits the structural shape. Mirrored on the way
+// out (`onDeckUpdate`).
+interface DeckBeatShape {
+  image?: {
+    type?: string;
+    slide?: SlideLayout;
+    theme?: SlideTheme;
+    [k: string]: unknown;
+  };
+  [k: string]: unknown;
+}
+interface DeckScriptShape {
+  beats?: DeckBeatShape[];
+  presentationStyle?: { slideParams?: { theme?: SlideTheme } };
+  slideParams?: { theme?: SlideTheme };
+  [k: string]: unknown;
+}
+const deckScriptInput = computed<DeckScriptShape>(() => effectiveScript.value as unknown as DeckScriptShape);
+
+// Debounce window for deck-editor → /update-script. Drag a slide,
+// reorder, edit a field — each emit fires `update:script`, and we
+// only want one network round-trip per quiet stretch. 300ms is short
+// enough to feel live, long enough that typing in the Inspector
+// doesn't carpet-bomb the server.
+const DECK_SAVE_DEBOUNCE_MS = 300;
+let deckSaveTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingDeckScript: MulmoScript | null = null;
+
+function scheduleDeckSave(next: MulmoScript): void {
+  pendingDeckScript = next;
+  if (deckSaveTimer) clearTimeout(deckSaveTimer);
+  deckSaveTimer = setTimeout(() => {
+    void flushDeckSave();
+  }, DECK_SAVE_DEBOUNCE_MS);
+}
+
+async function flushDeckSave(): Promise<void> {
+  deckSaveTimer = null;
+  const next = pendingDeckScript;
+  pendingDeckScript = null;
+  if (!next || !filePath.value) return;
+  const response = await apiPost<unknown>(endpoints.updateScript.url, {
+    filePath: filePath.value,
+    script: next,
+  });
+  if (!response.ok) {
+    // Surface via console so the user can see what failed; a full
+    // toast UI is P2. The deck editor still holds the latest edit
+    // in its props until the next prop refresh, so the visible state
+    // doesn't snap back on a transient failure.
+    console.error("[presentMulmoScript] deck save failed:", response.error);
+    return;
+  }
+  // Mirror the JSON-source `applySource` flow so the parent's in-memory
+  // script and our reactive beats[] stay in sync without a remount.
+  emit("updateResult", {
+    ...props.selectedResult,
+    data: { ...props.selectedResult.data, script: next },
+  });
+}
+
+function onDeckUpdate(next: DeckScriptShape): void {
+  scheduleDeckSave(next as unknown as MulmoScript);
+}
+
+onBeforeUnmount(() => {
+  if (deckSaveTimer) {
+    clearTimeout(deckSaveTimer);
+    // Flush synchronously-scheduled work on unmount so a quick switch
+    // away doesn't lose the last keystroke. Fire-and-forget — the
+    // component is gone, we just want the bytes to land.
+    void flushDeckSave();
+  }
+});
 const loadedSource = ref("");
 const sourceChanged = computed(() => editableSource.value !== loadedSource.value);
 const sourceValid = computed(() => {

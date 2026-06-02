@@ -23,7 +23,7 @@
 // glob during `yarn test` (env unset), where it asserts the
 // localhost-only fallback. CI runs both invocations.
 //
-// Full design: plans/test-csrf-env-wiring-1463.md
+// Full design: plans/done/test-csrf-env-wiring-1463.md
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
