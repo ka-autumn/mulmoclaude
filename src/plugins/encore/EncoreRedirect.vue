@@ -27,7 +27,7 @@ import { computed, onMounted, ref } from "vue";
 import { pluginEndpoints } from "../api";
 import { apiCall } from "../../utils/api";
 import { META } from "./manageEncoreMeta";
-import type { EncoreEndpoints } from "./manageEncoreDefinition";
+import type { EncoreEndpoints, ResolveNotificationResult } from "./manageEncoreDefinition";
 
 const props = defineProps<{ pendingId: string }>();
 
@@ -44,20 +44,11 @@ const notificationId = computed<string | null>(() => {
   return params.get("notificationId");
 });
 
-interface ResolveResult {
-  ok: boolean;
-  chatId?: string;
-  navigateTo?: string;
-  orphan?: boolean;
-  error?: string;
-  message?: string;
-}
-
 async function resolveAndRedirect(): Promise<void> {
   try {
     const endpoints = pluginEndpoints<EncoreEndpoints>(META.apiNamespace);
     const { method, url } = endpoints.dispatch;
-    const response = await apiCall<ResolveResult>(url, {
+    const response = await apiCall<ResolveNotificationResult>(url, {
       method,
       body: {
         kind: "resolveNotification",

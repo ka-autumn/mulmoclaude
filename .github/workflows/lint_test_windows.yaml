@@ -1,0 +1,101 @@
+name: lint_test (Windows)
+
+# The Windows half of the lint_test matrix, split out of pull_request.yaml
+# in #1585 so PR CI doesn't pay the Windows wall-clock cost (NTFS tar
+# extraction + Defender + slower tsc across the 25 packages/* workspaces)
+# on every push.
+#
+# Coverage cadence:
+#   - schedule: daily, so a Windows-only regression surfaces within a day
+#   - push to main: catches regressions immediately after merge
+#   - workflow_dispatch: manual rerun
+#
+# Steps mirror the lint_test job in pull_request.yaml (ubuntu/macos
+# variant). Keep them in sync when adding new gates.
+
+on:
+  schedule:
+    - cron: "0 18 * * *" # Daily 18:00 UTC = 03:00 JST (matches e2e_live_no_llm)
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - 'plans/**'
+      - '**/*.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lint-test-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint_test_windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22.x, 24.x]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false  # no git push; zizmor artipacked
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+          # Skip setup-node's built-in yarn cache on Windows — tar
+          # extraction on NTFS is slower than a fresh install. We use
+          # actions/cache for node_modules instead (below).
+      # Disable Defender realtime monitoring to prevent EPERM on
+      # atomic rename during yarn install / build.
+      - name: Disable Windows Defender realtime monitoring
+        run: Set-MpPreference -DisableRealtimeMonitoring $true
+        shell: powershell
+      # Cache node_modules directly (faster than yarn cache because it
+      # skips the tar extract → yarn install file-write cycle).
+      # restore-keys lets a yarn.lock change land on a warm node_modules
+      # tree (yarn install fills in the diff) instead of a cold cache.
+      - name: Cache node_modules
+        uses: actions/cache@v5
+        with:
+          path: node_modules
+          key: win-node-modules-${{ matrix.node-version }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: |
+            win-node-modules-${{ matrix.node-version }}-
+      - run: yarn install --frozen-lockfile --network-timeout 120000
+      # Cache the output of `yarn build:packages` keyed on the source
+      # files it consumes. The 25 @mulmobridge/* workspaces all run tsc
+      # serially / pairwise — the slowest non-install step on Windows.
+      # When no package source / tsconfig / package.json changed, skip
+      # the build step entirely. Cache key includes runner.os and node
+      # version because emitted JS can differ across them.
+      - name: Cache packages/dist
+        id: pkg-dist-cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            packages/*/dist
+            packages/bridges/*/dist
+            packages/plugins/*/dist
+          key: pkg-dist-${{ runner.os }}-${{ matrix.node-version }}-${{ hashFiles('packages/*/src/**', 'packages/*/tsconfig.json', 'packages/*/package.json', 'packages/bridges/*/src/**', 'packages/bridges/*/tsconfig.json', 'packages/bridges/*/package.json', 'packages/plugins/*/src/**', 'packages/plugins/*/tsconfig.json', 'packages/plugins/*/package.json', 'config/tsconfig.packages.json') }}
+      - name: Build internal packages (required before typecheck)
+        if: steps.pkg-dist-cache.outputs.cache-hit != 'true'
+        run: yarn build:packages
+      - run: yarn run typecheck
+      - run: yarn run lint
+      # Plugin barrel codegen must be in sync — fail the build if a
+      # developer added a plugin dir without re-running the codegen.
+      - run: yarn run plugins:codegen:check
+      - run: yarn run build
+      # Bundle integrity: `yarn build` regenerates committed esbuild
+      # artifacts. If a developer changed the TS source but forgot to
+      # commit the new bundle, this fails.
+      - name: Verify built hook bundles are up-to-date
+        run: git diff --exit-code -- server/workspace/wiki-history/hook/snapshot.mjs server/build/dispatcher.mjs
+      - run: yarn run test:coverage
+      # Subprocess-mode env-bound smoke for `requireSameOrigin` (#1463).
+      - run: yarn run test:csrf-wiring

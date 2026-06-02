@@ -24,6 +24,8 @@ import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { pluginEndpoints } from "../api";
 import { apiCall } from "../../utils/api";
+import { useConfirm } from "../../composables/useConfirm";
+import ConfirmModal from "../../components/ConfirmModal.vue";
 import { META } from "./manageEncoreMeta";
 import type { EncoreEndpoints } from "./manageEncoreDefinition";
 import type { EncoreDsl, StepDef, FormFieldDef } from "../../types/encore-dsl/schema";
@@ -242,6 +244,76 @@ async function startSetupChat(): Promise<void> {
   }
 }
 
+// ── row actions: retire / unretire + delete ──
+//
+// Retire/unretire reuse the existing `amendDefinition` kind (status is
+// a mutable DSL field); retiring re-runs the reconciler server-side,
+// which clears the obligation's bells. Delete is gated server-side on
+// the obligation being retired — the dashboard only renders the button
+// on retired rows (defense in depth) and confirms via the shared
+// ConfirmModal before dispatching.
+interface DispatchAck {
+  ok: boolean;
+  error?: string;
+  message?: string;
+}
+
+const { openConfirm } = useConfirm();
+const statusChanging = ref<Record<string, boolean>>({});
+const deleting = ref<Record<string, boolean>>({});
+
+// POST a dispatch and resolve to whether it succeeded, surfacing any
+// network/HTTP/handler error into `errorMessage`. Shared by the status
+// toggle and delete so both report failures the same way.
+async function dispatchAck(body: Record<string, unknown>): Promise<boolean> {
+  const endpoints = pluginEndpoints<EncoreEndpoints>(META.apiNamespace);
+  const { method, url } = endpoints.dispatch;
+  const response = await apiCall<DispatchAck>(url, { method, body });
+  if (!response.ok) {
+    errorMessage.value = response.error;
+    return false;
+  }
+  if (!response.data.ok) {
+    errorMessage.value = response.data.error ?? response.data.message ?? t("encoreDashboard.unexpectedResponse");
+    return false;
+  }
+  return true;
+}
+
+async function setStatus(obligationId: string, status: EncoreDsl["status"]): Promise<void> {
+  if (statusChanging.value[obligationId]) return;
+  statusChanging.value[obligationId] = true;
+  try {
+    if (await dispatchAck({ kind: "amendDefinition", obligationId, definition: { status } })) {
+      await loadObligations();
+    }
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : String(err);
+  } finally {
+    statusChanging.value[obligationId] = false;
+  }
+}
+
+async function confirmDelete(obligationId: string, displayName: string): Promise<void> {
+  if (deleting.value[obligationId]) return;
+  const confirmed = await openConfirm({
+    message: t("encoreDashboard.deleteConfirmMessage", { displayName }),
+    confirmText: t("encoreDashboard.deleteButtonTitle"),
+    variant: "danger",
+  });
+  if (!confirmed) return;
+  deleting.value[obligationId] = true;
+  try {
+    if (await dispatchAck({ kind: "deleteObligation", obligationId })) {
+      await loadObligations();
+    }
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : String(err);
+  } finally {
+    deleting.value[obligationId] = false;
+  }
+}
+
 // ── derived closure (mirrors server/encore/closure.ts) ──
 
 function isStepClosed(record: TargetRecord | undefined, step: StepDef): boolean {
@@ -426,6 +498,34 @@ function recordedValuesForTarget(state: CycleState, targetId: string): RecordedV
             >
               <span class="material-icons text-base">{{ chatStarting[item.obligationId] ? "hourglass_empty" : "chat_bubble_outline" }}</span>
             </button>
+            <button
+              type="button"
+              class="px-3 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-wait"
+              :title="item.dsl.status === 'retired' ? t('encoreDashboard.reactivateButtonTitle') : t('encoreDashboard.retireButtonTitle')"
+              :aria-label="item.dsl.status === 'retired' ? t('encoreDashboard.reactivateButtonTitle') : t('encoreDashboard.retireButtonTitle')"
+              :disabled="!!statusChanging[item.obligationId]"
+              :data-testid="`encore-obligation-retire-${item.obligationId}`"
+              @click="setStatus(item.obligationId, item.dsl.status === 'retired' ? 'active' : 'retired')"
+            >
+              <span class="material-icons text-base">{{
+                statusChanging[item.obligationId] ? "hourglass_empty" : item.dsl.status === "retired" ? "unarchive" : "archive"
+              }}</span>
+            </button>
+            <!-- Delete only on retired rows — mirrors the server-side
+                 retired-only guard in deleteObligation.ts. Confirms via
+                 the shared ConfirmModal. -->
+            <button
+              v-if="item.dsl.status === 'retired'"
+              type="button"
+              class="px-3 flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-wait"
+              :title="t('encoreDashboard.deleteButtonTitle')"
+              :aria-label="t('encoreDashboard.deleteButtonTitle')"
+              :disabled="!!deleting[item.obligationId]"
+              :data-testid="`encore-obligation-delete-${item.obligationId}`"
+              @click="confirmDelete(item.obligationId, item.dsl.displayName)"
+            >
+              <span class="material-icons text-base">{{ deleting[item.obligationId] ? "hourglass_empty" : "delete_outline" }}</span>
+            </button>
           </div>
 
           <!-- formSchema field definitions — obligation-level reference,
@@ -537,5 +637,6 @@ function recordedValuesForTarget(state: CycleState, targetId: string): RecordedV
         </li>
       </ul>
     </div>
+    <ConfirmModal />
   </div>
 </template>

@@ -383,3 +383,77 @@ describe("sweepStaleActiveEntries", () => {
     assert.equal((await activeCompletionEntries()).length, 1);
   });
 });
+
+describe("reconcileItem — triggerField (time gate)", () => {
+  // A reminder-style schema: pending until the clock reaches `dueOn`,
+  // cleared once `status` is `done`.
+  function triggerSchema(extra: Partial<CollectionSchema> = {}): CollectionSchema {
+    return {
+      title: "Reminders",
+      icon: "event",
+      dataPath: `data/${SLUG}/items`,
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        dueOn: { type: "date", label: "Due", required: true },
+        status: { type: "enum", values: ["pending", "done"], label: "Status", required: true },
+      },
+      completionField: "status",
+      completionDoneValues: ["done"],
+      triggerField: "dueOn",
+      ...extra,
+    };
+  }
+
+  const BEFORE = new Date(2026, 5, 9); // Jun 9 2026
+  const ON_DAY = new Date(2026, 5, 10); // Jun 10 2026
+
+  it("suppresses the bell before the trigger date", async () => {
+    const schema = triggerSchema();
+    writeItem("a", { dueOn: "2026-06-10", status: "pending" });
+    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir }, BEFORE);
+    assert.equal((await activeCompletionEntries()).length, 0);
+  });
+
+  it("fires the bell once the clock reaches the trigger date", async () => {
+    const schema = triggerSchema();
+    writeItem("a", { dueOn: "2026-06-10", status: "pending" });
+    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir }, ON_DAY);
+    assert.equal((await activeCompletionEntries()).length, 1);
+  });
+
+  it("clears a fired bell when the item is marked done", async () => {
+    const schema = triggerSchema();
+    writeItem("a", { dueOn: "2026-06-10", status: "pending" });
+    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir }, ON_DAY);
+    assert.equal((await activeCompletionEntries()).length, 1);
+    writeItem("a", { dueOn: "2026-06-10", status: "done" });
+    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir }, ON_DAY);
+    assert.equal((await activeCompletionEntries()).length, 0);
+  });
+
+  it("retracts a premature bell when the trigger is pushed to the future (convergent)", async () => {
+    const schema = triggerSchema();
+    writeItem("a", { dueOn: "2026-06-10", status: "pending" });
+    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir }, ON_DAY);
+    assert.equal((await activeCompletionEntries()).length, 1);
+    writeItem("a", { dueOn: "2026-12-31", status: "pending" });
+    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir }, ON_DAY);
+    assert.equal((await activeCompletionEntries()).length, 0);
+  });
+
+  it("suppresses the bell (no throw) when the trigger value is unparseable", async () => {
+    const schema = triggerSchema();
+    writeItem("a", { dueOn: "whenever", status: "pending" });
+    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir }, ON_DAY);
+    assert.equal((await activeCompletionEntries()).length, 0);
+  });
+
+  it("fires for an already-overdue pending item (missed-fire while server was down)", async () => {
+    const schema = triggerSchema();
+    writeItem("a", { dueOn: "2026-06-10", status: "pending" });
+    // Boot-style reconcile with `now` already well past the trigger.
+    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir }, new Date(2026, 11, 1));
+    assert.equal((await activeCompletionEntries()).length, 1);
+  });
+});

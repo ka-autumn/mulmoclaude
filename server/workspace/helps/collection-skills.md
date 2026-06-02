@@ -103,6 +103,9 @@ skipped, never crashes the host):
 | `completionField` | Optional. Name of the field whose value marks an item as "done" — when set, item-create fires a bell notification that clears once the field reaches one of `completionDoneValues`. Must name a real field in `fields`. Paired with `completionDoneValues` (both set, or both omitted). |
 | `completionDoneValues` | Optional. Non-empty array of values that count as "done" for `completionField` (e.g. `["Done"]`, `["paid", "void"]`). Compared as strings. |
 | `displayField` | Optional. Name of a field whose value is shown as the human-readable label in the completion notification's title (e.g. `Contacts: Jane Doe` instead of the opaque primaryKey). Must name a real field in `fields`. Falls back to the primaryKey value when unset or when the record's value is empty. |
+| `triggerField` | Optional. Name of a `date` field that **delays** the completion bell until that date arrives (instead of firing on create). Requires `completionField` / `completionDoneValues` (the bell still clears via the done value). Must name a real `date` field. See "Time-gated bells" below. |
+| `triggerLeadDays` | Optional. Non-negative integer: fire the bell this many days **before** `triggerField` (e.g. `10` = "remind me 10 days early"). Requires `triggerField`. Default `0` (fire on the trigger date). |
+| `spawn` | Optional. Host-driven **recurrence**: when a record reaches a configured value (e.g. `status: paid`), the host auto-creates the next record with a forward-advanced `triggerField` date. Requires `triggerField`. See "Recurring obligations" below. |
 
 ### Field types
 
@@ -303,6 +306,117 @@ Set `displayField` to make the bell title readable: with `displayField:
 It must name a real field; an empty value on a given record falls back to the
 primaryKey for that record.
 
+### Time-gated bells (`triggerField`)
+
+By default the completion bell fires **on create**. Add `triggerField` — the
+name of a `date` field — to instead **hold the bell until that date arrives**.
+The item is still tracked, but its bell stays silent while the trigger date is
+in the future and appears once the clock reaches it (compared at day
+granularity in the server's local timezone). It clears the same way as any
+completion bell — when `completionField` reaches a `completionDoneValues` value.
+
+```json
+{
+  "title": "Reminders",
+  "icon": "event",
+  "dataPath": "data/reminders/items",
+  "primaryKey": "id",
+  "fields": {
+    "id":     { "type": "string", "label": "ID", "primary": true, "required": true },
+    "what":   { "type": "string", "label": "What", "required": true },
+    "dueOn":  { "type": "date",   "label": "Remind on", "required": true },
+    "status": { "type": "enum", "values": ["pending", "done"], "label": "Status", "required": true }
+  },
+  "completionField": "status",
+  "completionDoneValues": ["done"],
+  "displayField": "what",
+  "triggerField": "dueOn"
+}
+```
+
+This is the "nudge me about this on date X, until I mark it done" pattern. Notes:
+
+- `triggerField` **requires** the completion pair (validation rejects it
+  otherwise — there'd be no bell to gate or clear).
+- The named field must be type `date`; its value is parsed as `YYYY-MM-DD`.
+- Firing is **derived from the clock, not stored** — so if the server was down
+  when the date passed, the bell simply appears at the next boot/check. Pushing
+  the date back into the future retracts a bell that already fired.
+- Granularity is whole days (no time-of-day).
+
+#### Lead time — fire it early (`triggerLeadDays`)
+
+Keep `triggerField` as the **real** due date and add `triggerLeadDays` to fire
+the bell some days ahead of it. "Remind me 10 days before rent is due":
+
+```json
+"triggerField": "dueOn",
+"triggerLeadDays": 10
+```
+
+The bell now appears once the clock reaches `dueOn − 10 days`, and still clears
+when the item is marked done. The lead is applied at fire time (not stored), so
+it **composes with `spawn`**: every recurred month fires 10 days before its own
+`dueOn`, with no extra bookkeeping. It's a non-negative whole number of days and
+requires `triggerField`. This is a single earlier bell — not an escalating
+multi-stage reminder (that's Encore's job, see below).
+
+### Recurring obligations (`spawn`)
+
+Add a `spawn` block to make a collection **recur**: when a record satisfies a
+predicate (by default, when it becomes "done"), the host automatically creates
+the **next** record with its `triggerField` advanced. Combined with
+`triggerField`, this expresses periodic obligations — rent, subscriptions,
+renewals, recurring payments — with no work from you per cycle: mark this
+month's rent `paid`, and next month's pending record appears on its own.
+
+```json
+"triggerField": "dueOn",
+"spawn": {
+  "when":  { "field": "status", "in": ["paid"] },
+  "every": { "unit": "month", "interval": 1, "dayOfMonth": 10 },
+  "carry": ["amount", "payee"],
+  "set":   { "status": "pending" }
+}
+```
+
+- **`when`** — a `{ field, in: [...] }` predicate (same shape as field/action
+  `when`) that fires the spawn. Omit it to default to "the completion-done
+  condition" (i.e. spawn when this record is done).
+- **`every`** — how to advance `triggerField` from this record to the next:
+  - `unit`: `day` · `week` · `month` · `year`; `interval`: a positive integer
+    (so `unit: "month", interval: 3` = quarterly, `unit: "year", interval: 1`
+    = annual).
+  - `dayOfMonth` (month/year only): the **canonical** day-of-month anchor
+    (1–31, or `"last"` for the month's last day). Use it for day ≥ 29 so
+    short months don't cause drift — "31st of every month" yields
+    31 → 28/29 → 31 → 30 … correctly. Omit it for days ≤ 28 and the source
+    date's day is preserved.
+- **`carry`** — record fields copied verbatim onto the successor (must name
+  real fields). Fields not in `carry` / `set` / the trigger+primary keys start
+  blank.
+- **`set`** — fields forced to fixed values on the successor (typically
+  resetting the status to its pending value).
+
+How it behaves (worth understanding so it doesn't surprise you):
+
+- The successor's id is **deterministic**: `<stem>-<YYYYMMDD>` (the source id
+  with any trailing `-YYYYMMDD` replaced). So `rent` → `rent-20260610` →
+  `rent-20260710`. Creation is **create-if-absent** — it never overwrites, so
+  re-running is harmless and any edits you make to a successor are preserved.
+- **Forward-only**: un-doing the source (e.g. `paid` → `pending`) does NOT
+  delete an already-created successor. And because spawning is convergent,
+  deleting the successor while the source still matches `when` will **re-create
+  it**. To genuinely **stop a recurrence**, move the source to a status that is
+  *not* in `spawn.when` (e.g. an `archived` value) — that's the supported "end
+  it" gesture.
+- `spawn` **requires** `triggerField` (the successor's date is `triggerField`
+  advanced by `every`).
+
+This covers *periodic* obligations. It does **not** do escalating, multi-stage
+reminders over a long prep window (info → warning → urgent) — that's a
+different tool (Encore), intentionally not part of collections.
+
 ## Records — one JSON object per file
 
 - Write each record to `<dataPath>/<id>.json` via the **Write** tool; the `id`
@@ -337,8 +451,10 @@ primaryKey for that record.
    mirror); then check your `schema.json` passed validation — primary key
    flagged `primary: true`, `ref`/`embed` have a valid `to`, `enum` has
    `values`, `table` has `of`, `derived` has `formula`, action ids unique,
-   `dataPath` under the workspace. (A schema that fails validation is logged
-   server-side and silently skipped at discovery.)
+   `dataPath` under the workspace, `triggerField` names a real `date` field and
+   has the completion pair, `spawn` has `triggerField` and a valid `every`.
+   (A schema that fails validation is logged server-side and silently skipped
+   at discovery.)
 
 ## Worked reference: the billing suite
 

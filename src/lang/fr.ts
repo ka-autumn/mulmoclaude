@@ -307,6 +307,11 @@ const frMessages = {
     cycleClosed: "Clos",
     chatButtonTitle: "Discuter de cette obligation dans un nouveau chat",
     bellButtonTitle: "Discuter de ce cycle",
+    retireButtonTitle: "Retirer",
+    reactivateButtonTitle: "Réactiver",
+    deleteButtonTitle: "Supprimer",
+    deleteConfirmMessage:
+      'Supprimer "{displayName}" ? L\'obligation et tout son historique enregistré seront définitivement supprimés et cette action est irréversible.',
     addButtonLabel: "Ajouter",
     unexpectedResponse: "Encore a renvoyé une réponse inattendue.",
     fieldsHeading: "Champs collectés à chaque cycle",

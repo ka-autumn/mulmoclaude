@@ -165,6 +165,24 @@ const ActionSpecSchema = z.object({
   when: WhenSchema.optional(),
 });
 
+// Recurrence advance for `spawn.every`. `interval` is a positive integer
+// count of `unit`s; `dayOfMonth` (month/year only) is the canonical
+// day-of-month anchor (1-31) or the `"last"` sentinel for end-of-month.
+const EverySchema = z.object({
+  unit: z.enum(["day", "week", "month", "year"]),
+  interval: z.number().int().min(1),
+  dayOfMonth: z.union([z.number().int().min(1).max(31), z.literal("last")]).optional(),
+});
+
+// Host-driven recurrence. `when` defaults to the completion-done
+// condition; `every` is required; `carry`/`set` shape the successor.
+const SpawnSchema = z.object({
+  when: WhenSchema.optional(),
+  every: EverySchema,
+  carry: z.array(z.string().trim().min(1)).optional(),
+  set: z.record(z.string(), z.unknown()).optional(),
+});
+
 // Field types that can hold a currency code string. A `currencyField`
 // pointer must resolve to one of these — pointing at a number / boolean
 // / table would never yield a usable ISO code.
@@ -193,6 +211,27 @@ function collectCurrencyFieldRefs(fields: Record<string, FieldLike>): string[] {
   return refs;
 }
 
+// True iff a `spawn`'s successor will NOT be born already matching its own
+// predicate (and would therefore re-spawn forever). The effective predicate
+// is `spawn.when` when present, else the completion-done pair. The successor's
+// value for the predicate field is `set[field]` if set, else the carried
+// source value (which matched when the spawn fired) if carried, else absent.
+function spawnSuccessorStartsInert(schema: {
+  spawn?: { when?: { field: string; in: readonly string[] }; carry?: readonly string[]; set?: Record<string, unknown> };
+  completionField?: string;
+  completionDoneValues?: readonly string[];
+}): boolean {
+  const { spawn } = schema;
+  if (!spawn) return true;
+  const field = spawn.when?.field ?? schema.completionField;
+  const values = spawn.when?.in ?? schema.completionDoneValues;
+  if (!field || !values) return true; // predicate not evaluable — other refines cover this
+  if (spawn.set && Object.prototype.hasOwnProperty.call(spawn.set, field)) {
+    return !values.includes(String(spawn.set[field])); // `set` wins over `carry`
+  }
+  return !(spawn.carry ?? []).includes(field); // carried ⇒ inherits the matching value
+}
+
 const CollectionSchemaZ = z
   .object({
     title: z.string().min(1),
@@ -218,6 +257,16 @@ const CollectionSchemaZ = z
     // primaryKey (e.g. a `name` field). Falls back to the primaryKey
     // value at render time when unset or empty.
     displayField: z.string().trim().min(1).optional(),
+    // Time gate: names a `date` field that delays the completion bell
+    // until the clock reaches it. Requires the completion pair (the bell
+    // still clears via the done value). Validated to name a real `date`
+    // field by refines below.
+    triggerField: z.string().trim().min(1).optional(),
+    // Lead time in whole days — fire the bell this many days before
+    // `triggerField`. Non-negative; requires `triggerField` (refine below).
+    triggerLeadDays: z.number().int().min(0).optional(),
+    // Host-driven recurrence; requires `triggerField`. See SpawnSchema.
+    spawn: SpawnSchema.optional(),
   })
   // The singleton value becomes a record id (and thus a `<id>.json`
   // filename), so it must satisfy the SAME `safeSlugName` rule the
@@ -271,6 +320,54 @@ const CollectionSchemaZ = z
   .refine((schema) => Object.values(schema.fields).every((field) => field.when === undefined || schema.fields[field.when.field] !== undefined), {
     message: "a field's `when.field` must name a top-level field declared in `fields`",
     path: ["fields"],
+  })
+  // `triggerField` requires the completion pair: the time gate only
+  // suppresses the *completion* bell until the date, and the bell still
+  // clears via `completionDoneValues`. Without completion there is no
+  // bell to gate (or clear), so the declaration is meaningless.
+  .refine((schema) => schema.triggerField === undefined || schema.completionField !== undefined, {
+    message: "schema `triggerField` requires `completionField` / `completionDoneValues` (the gated bell still clears via the done value)",
+    path: ["triggerField"],
+  })
+  // `triggerField` must name a real `date` field — the gate parses its
+  // value as `YYYY-MM-DD`; any other type can't be compared to the clock.
+  .refine((schema) => schema.triggerField === undefined || schema.fields[schema.triggerField]?.type === "date", {
+    message: "schema `triggerField` must name a top-level `date` field declared in `fields`",
+    path: ["triggerField"],
+  })
+  // `triggerLeadDays` only means something relative to a trigger date.
+  .refine((schema) => schema.triggerLeadDays === undefined || schema.triggerField !== undefined, {
+    message: "schema `triggerLeadDays` requires `triggerField` (it shifts when that field's bell fires)",
+    path: ["triggerLeadDays"],
+  })
+  // `spawn` advances `triggerField` to compute the successor's trigger
+  // date, so the schema must declare one.
+  .refine((schema) => schema.spawn === undefined || schema.triggerField !== undefined, {
+    message: "schema `spawn` requires `triggerField` (the successor's trigger date is `triggerField` advanced by `spawn.every`)",
+    path: ["spawn"],
+  })
+  // `spawn.when.field` and every `spawn.carry` entry must name real
+  // top-level fields — a typo would silently never match / never copy.
+  .refine((schema) => schema.spawn?.when === undefined || schema.fields[schema.spawn.when.field] !== undefined, {
+    message: "schema `spawn.when.field` must name a top-level field declared in `fields`",
+    path: ["spawn"],
+  })
+  .refine((schema) => (schema.spawn?.carry ?? []).every((name) => schema.fields[name] !== undefined), {
+    message: "every `spawn.carry` entry must name a top-level field declared in `fields`",
+    path: ["spawn"],
+  })
+  // A successor must NOT be born already matching its own spawn predicate
+  // — it would re-spawn on its first reconcile, fanning out into an
+  // unbounded chain of records. The predicate field/values are `spawn.when`
+  // when given, else the completion-done pair (the default predicate). The
+  // successor's value for that field is `set[field]` if set, else the
+  // carried source value (which matched, by definition, when the spawn
+  // fired) if carried, else absent (safe). Reject the first two when they
+  // land on a matching value.
+  .refine((schema) => spawnSuccessorStartsInert(schema), {
+    message:
+      "`spawn` must leave the successor in a non-matching state (e.g. `set` the status to a pending value); seeding the predicate field to a matching value via `set`/`carry` would respawn forever",
+    path: ["spawn"],
   });
 
 interface LoadedCollection {

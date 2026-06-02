@@ -31,6 +31,26 @@ export const TOOL_NAME = META.toolName;
  *  dispatch endpoint. */
 export type EncoreEndpoints = { readonly [K in keyof typeof META.apiRoutes]: ResolvedRoute };
 
+/** Server response shape for the `resolveNotification` dispatch kind
+ *  (the bell-click path: EncoreRedirect.vue → handleResolveNotification).
+ *  Success seeds (or reuses) a chat and returns where to navigate; the
+ *  orphan path (the ticket was already swept) returns `orphan`/`error`/
+ *  `cleared`. Every other failure throws server-side and surfaces as an
+ *  HTTP error, so it never reaches this shape. Shared by the handler
+ *  (producer) and the Vue redirect (consumer) so the two can't drift —
+ *  the open `EncoreDispatchResult` envelope on the dispatch route can't
+ *  enforce per-kind fields on its own. */
+// eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- must be a `type` alias, not an `interface`: only a type-literal gets the implicit index signature that keeps this assignable to the open `EncoreDispatchResult` ({ [key: string]: unknown }) envelope the handler return flows through in dispatch.ts.
+export type ResolveNotificationResult = {
+  ok: boolean;
+  message: string;
+  chatId?: string;
+  navigateTo?: string;
+  orphan?: boolean;
+  error?: string;
+  cleared?: boolean;
+};
+
 /** Action kinds the LLM is allowed to invoke via the `manageEncore`
  *  MCP tool. Operational only — structural (setup / amendDefinition)
  *  lives on the `defineEncore` tool. `resolveNotification` is
@@ -48,7 +68,7 @@ export const LLM_ENCORE_KINDS = ["markStepDone", "markTargetSkipped", "recordVal
  *  browser-only ones and the structural kinds the server keeps for
  *  backward compat. NOT the enum exposed to Claude — used by the
  *  dispatch.ts switch and by tests. */
-export const ALL_ENCORE_KINDS = [...LLM_ENCORE_KINDS, "resolveNotification", "setup", "amendDefinition", "defineEncore"] as const;
+export const ALL_ENCORE_KINDS = [...LLM_ENCORE_KINDS, "resolveNotification", "setup", "amendDefinition", "defineEncore", "deleteObligation"] as const;
 
 const toolDefinition: ToolDefinition = {
   type: "function",

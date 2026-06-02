@@ -115,6 +115,7 @@ export const ROLES: Role[] = [
       "Create a contacts collection with name, company, title, email, phone, notes, and a business-card image. When I attach a photo of a business card, read the details off it and add a new contact.",
       "Create a reading-list collection with a title, a URL field, and a Read checkbox. While Read is unchecked, keep each item in the bell notifications, labeled with its title.",
       "Create a restaurants collection with name, cuisine, neighborhood, a website URL, a phone number, a Visited checkbox, a 1-to-5 rating, and notes. Hide the rating until I've marked a place as visited — there's nothing to rate before I've been.",
+      "Create a bills collection to track recurring payments — payee, amount, due date, and status. Remind me 10 days before each bill is due, and when I mark one paid, automatically set up next month's bill.",
     ],
   },
   {

@@ -23,6 +23,7 @@ import { withLock } from "./lock.js";
 import { handleAmend, AmendArgs } from "./handlers/amend.js";
 import { handleAppendNote, AppendNoteArgs } from "./handlers/appendNote.js";
 import { handleDefineEncore, DefineArgs } from "./handlers/defineEncore.js";
+import { handleDeleteObligation, DeleteObligationArgs } from "./handlers/deleteObligation.js";
 import { handleMarkStepDone, MarkStepDoneArgs } from "./handlers/markStepDone.js";
 import { handleMarkTargetSkipped, MarkTargetSkippedArgs } from "./handlers/markTargetSkipped.js";
 import { handleQuery, QueryArgs } from "./handlers/query.js";
@@ -70,22 +71,29 @@ async function dispatchInner(body: EncoreDispatchBody): Promise<EncoreDispatchRe
   if (kind === "snooze") return handleSnooze(safeParse(SnoozeArgs, body, kind));
   if (kind === "unsnooze") return handleUnsnooze(safeParse(UnsnoozeArgs, body, kind));
   if (kind === "defineEncore") return handleDefineEncore(safeParse(DefineArgs, body, kind));
+  return dispatchUiKind(kind, body);
+}
+
+/** UI-only verbs — dashboard / bell-triggered, deliberately NOT in the
+ *  LLM-facing tool schema (`LLM_ENCORE_KINDS`). Split out of
+ *  `dispatchInner` so neither routing function trips the
+ *  cognitive-complexity ceiling as the kind list grows. */
+async function dispatchUiKind(kind: string, body: EncoreDispatchBody): Promise<EncoreDispatchResult> {
+  // Bell-click landing — seeds (or reuses) a chat for a live ticket.
   if (kind === "resolveNotification") return handleResolveNotification(safeParse(ResolveNotificationArgs, body, kind));
-  // UI-only verb (dashboard chat button). Deliberately NOT in the
-  // LLM-facing tool schema — the LLM gets to chat via the normal
-  // session start path, this one is for users.
+  // Dashboard chat button — the LLM reaches chat via the normal
+  // session start path; this one is for users.
   if (kind === "startObligationChat") return handleStartObligationChat(safeParse(StartObligationChatArgs, body, kind));
-  // UI-only verb (dashboard bell badge). Lists live tickets so the
-  // dashboard can show a clickable bell on obligations that have a
-  // pending notification. Same rationale as startObligationChat —
-  // not in the LLM schema, because the LLM learns about pending
-  // work through cycle state, not tickets.
+  // Dashboard bell badge — lists live tickets. The LLM learns about
+  // pending work through cycle state, not tickets.
   if (kind === "listTickets") return handleListTickets(safeParse(ListTicketsArgs, body, kind));
-  // UI-only verb (dashboard "+ Add" button). Seeds a new chat for
-  // composing a fresh obligation. Same rationale as the other UI
-  // kinds — the LLM doesn't need to call this; it gets the same
-  // capability through normal chat session creation.
+  // Dashboard "+ Add" button — seeds a new chat for composing a fresh
+  // obligation.
   if (kind === "startSetupChat") return handleStartSetupChat(safeParse(StartSetupChatArgs, body, kind));
+  // Dashboard delete button — destructive (removes the obligation's
+  // whole on-disk tree), so it's gated server-side on the obligation
+  // being retired and kept out of the LLM tool schema.
+  if (kind === "deleteObligation") return handleDeleteObligation(safeParse(DeleteObligationArgs, body, kind));
   throw new EncoreError(400, `unknown kind ${JSON.stringify(kind)}`);
 }
 

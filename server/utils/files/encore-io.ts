@@ -109,3 +109,12 @@ export async function unlink(rel: string, workspaceRoot?: string): Promise<void>
     throw err;
   }
 }
+
+/** Recursively remove a directory and its contents. No-op if it
+ *  doesn't exist (`force: true`) — same tolerant semantics as
+ *  `unlink`, so deleting an obligation that's already half-gone
+ *  doesn't throw. The `abs` guard rejects any traversal segment, so
+ *  this can only ever target a path inside the Encore plugin root. */
+export async function removeDir(rel: string, workspaceRoot?: string): Promise<void> {
+  await fsPromises.rm(abs(rel, workspaceRoot), { recursive: true, force: true });
+}

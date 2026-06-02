@@ -479,7 +479,7 @@ function slotFromCycleId(cadence: EncoreDsl["cadence"], cycleId: string): CycleS
 
 // ── clear-all helpers ─────────────────────────────────────────────
 
-async function clearAllForObligation(obligationId: string, reason: string, log: typeof defaultLog): Promise<void> {
+export async function clearAllForObligation(obligationId: string, reason: string, log: typeof defaultLog): Promise<void> {
   const entries = await readDir(TICKETS_DIRNAME);
   let cleared = 0;
   for (const entry of entries) {
@@ -569,21 +569,7 @@ function buildSeedPrompt(dsl: EncoreDsl, group: BundleGroup, pendingId: string, 
     })
     .join("\n");
   const fieldList = group.stepDef.fields.length === 0 ? "(no fields to record for this step)" : group.stepDef.fields.map((name) => `- ${name}`).join("\n");
-  const firstTargetId = group.members[0]?.targetId ?? "<targetId>";
   const obligationId = dsl.id ?? "";
-  const exampleCall = JSON.stringify(
-    {
-      kind: "markStepDone",
-      pendingId,
-      obligationId,
-      cycleId,
-      targetId: firstTargetId,
-      stepId: group.stepId,
-      values: Object.fromEntries(group.stepDef.fields.map((name) => [name, "<value>"])),
-    },
-    null,
-    2,
-  );
   return [
     `An Encore reminder for the obligation "${dsl.displayName}" (id: ${obligationId}, cycle: ${cycleId}).`,
     "",
@@ -596,22 +582,9 @@ function buildSeedPrompt(dsl: EncoreDsl, group: BundleGroup, pendingId: string, 
     `Fields to collect on each target's record:`,
     fieldList,
     "",
-    `Help the user record what happened, then call manageEncore — ONCE PER TARGET — with one of:`,
-    `- kind: "markStepDone" — step is complete (pass field values via \`values\`).`,
-    `- kind: "markTargetSkipped" — user is skipping this target for this cycle.`,
-    `- kind: "recordValues" — partial info only, no closing.`,
-    `- kind: "snooze" — defer the bell entry (default 24h).`,
-    `- kind: "unsnooze" — re-enable a previously snoozed step before its timer expires.`,
+    `pendingId for clearing this bell entry: ${pendingId}`,
     "",
-    `Call-shape rules (the parser will 400 on these common mistakes):`,
-    `- \`targetId\` is SINGULAR (a string), NOT \`targetIds\` (array). If the notification covers multiple targets, make one call per target.`,
-    `- \`values\` is a FLAT field-map: \`{ fieldName: value, ... }\`. NEVER nest it by target id (\`{ <targetId>: { ... } }\` is wrong).`,
-    `- Always pass \`pendingId\`, \`obligationId\`, and \`cycleId\` as shown below — they're what clears the bell entry when the cycle progresses.`,
-    "",
-    `Example for ${firstTargetId}:`,
-    "```json",
-    exampleCall,
-    "```",
+    `Help the user record what happened, then use manageEncore to save it. Read config/helps/encore-dsl.md for the exact call shape.`,
   ].join("\n");
 }
 

@@ -81,9 +81,21 @@ async function mockTree(page: Page): Promise<void> {
   await page.route((url) => url.pathname === "/api/files/content", handleContentRoute);
 }
 
+// Wait for an expanded directory to be FULLY rendered (its first and
+// last file rows both in the DOM). Each lazy-load batch pushes the
+// selected row further down, so polling for the scroll position before
+// the tree height has settled would race the reveal watcher even when
+// the logic is correct.
+async function expectDirFullyRendered(page: Page, dir: "a" | "b"): Promise<void> {
+  await expect(page.locator(`[data-testid="file-tree-file-${dir}-00.md"]`)).toBeVisible();
+  await expect(page.locator(`[data-testid="file-tree-file-${dir}-39.md"]`)).toBeVisible();
+}
+
 async function expectSelectedRowInView(page: Page): Promise<void> {
-  // poll: the reveal effect re-fires on tree growth, so give it a beat
-  // to settle after the lazy-load of dir-a finishes.
+  // The reveal effect re-fires on tree growth via a coalesced rAF, so
+  // the final scroll only lands once the last lazy-load resolves and
+  // its DOM patch flushes. The 15s ceiling is for slow CI runners —
+  // logic is eventual-correct, this just gives the cascade headroom.
   await expect
     .poll(
       async () =>
@@ -95,7 +107,7 @@ async function expectSelectedRowInView(page: Page): Promise<void> {
           const containerRect = container.getBoundingClientRect();
           return selRect.top >= containerRect.top && selRect.bottom <= containerRect.bottom;
         }),
-      { timeout: 5000 },
+      { timeout: 15000 },
     )
     .toBe(true);
 }
@@ -108,7 +120,7 @@ test.beforeEach(async ({ page }) => {
 test.describe("file tree auto-scroll to selection", () => {
   test("deep link to a file below the fold scrolls the tree to reveal it", async ({ page }) => {
     await page.goto("/files/dir-b/b-39.md");
-    await expect(page.locator('[data-testid="file-tree-file-b-39.md"]')).toBeVisible();
+    await expectDirFullyRendered(page, "b");
     await expectSelectedRowInView(page);
   });
 
@@ -116,7 +128,7 @@ test.describe("file tree auto-scroll to selection", () => {
     // Land on a row at the top of dir-a (which auto-expands via the
     // deep-link path). dir-b is still collapsed at this point.
     await page.goto("/files/dir-a/a-00.md");
-    await expect(page.locator('[data-testid="file-tree-file-a-00.md"]')).toBeVisible();
+    await expectDirFullyRendered(page, "a");
 
     // Simulate a markdown link navigating to a file in the still-
     // collapsed dir-b — this is the in-app file→file case the fix
@@ -127,7 +139,7 @@ test.describe("file tree auto-scroll to selection", () => {
       window.dispatchEvent(new PopStateEvent("popstate"));
     });
 
-    await expect(page.locator('[data-testid="file-tree-file-b-39.md"]')).toBeVisible();
+    await expectDirFullyRendered(page, "b");
     await expectSelectedRowInView(page);
   });
 });

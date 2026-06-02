@@ -33,6 +33,50 @@ export type CollectionFieldType =
 
 export type CollectionSource = "user" | "project";
 
+/** Recurrence unit for a `spawn.every` advance. */
+export type CollectionRecurUnit = "day" | "week" | "month" | "year";
+
+/** How a `spawn` advances the source item's `triggerField` date to
+ *  produce the successor's. All arithmetic is done on the civil
+ *  (year, month, day) triple — never by adding milliseconds — so month
+ *  lengths and leap years are handled correctly. */
+export interface CollectionEvery {
+  unit: CollectionRecurUnit;
+  /** Number of `unit`s to advance (≥ 1). `interval: 3` + `unit: "month"`
+   *  = quarterly; `interval: 1` + `unit: "year"` = annual. */
+  interval: number;
+  /** Day-of-month anchor for `month`/`year` units. The CANONICAL day —
+   *  read from the rule, never re-derived from the prior concrete date,
+   *  so "31st of every month" yields 31 → 28/29 → 31 → 30 … with no
+   *  drift (it is clamped per-month at compute time, not stored
+   *  clamped). `"last"` always means the last day of the target month.
+   *  Omitted ⇒ preserve the source date's day (safe for days ≤ 28).
+   *  Ignored for `day`/`week` units. */
+  dayOfMonth?: number | "last";
+}
+
+/** Host-driven recurrence: when a record satisfies `when`, the host
+ *  creates the next record with a forward-advanced `triggerField` date.
+ *  The successor's id and contents are a pure function of (source
+ *  record, this rule); creation is create-if-absent, so the mechanism
+ *  stays convergent — observing the predicate N times writes one
+ *  successor. Requires the schema to declare `triggerField`. */
+export interface CollectionSpawn {
+  /** Predicate that fires the spawn (a `CollectionWhen`). Defaults to
+   *  "`completionField` value ∈ `completionDoneValues`" (i.e. spawn the
+   *  next instance when this one is done). */
+  when?: CollectionWhen;
+  /** How to advance `triggerField` from the source to the successor. */
+  every: CollectionEvery;
+  /** Record fields copied verbatim onto the successor. Fields not listed
+   *  here, not in `set`, and not the trigger / primary keys start
+   *  blank. */
+  carry?: string[];
+  /** Fields forced to fixed values on the successor (typically resetting
+   *  the status field to its pending value). */
+  set?: Record<string, unknown>;
+}
+
 /** The kind of work an action kicks off. v1 ships only `"chat"` —
  *  start a new chat in a role with a templated seed prompt. The enum
  *  reserves room for a future `"mutate"` (status transitions) without
@@ -186,6 +230,23 @@ export interface CollectionSchema {
    *  when the record's value for it is empty — the title falls back to
    *  the record's primaryKey value. Display-only; never stored. */
   displayField?: string;
+  /** Name of a `date` field that gates this item's completion
+   *  notification: the bell is suppressed until the clock reaches that
+   *  date (compared at day-granularity in the server's local timezone),
+   *  instead of firing on create. Requires `completionField` /
+   *  `completionDoneValues` (the bell still clears via the done value).
+   *  Must name a real `date` field. Absent ⇒ fire on create, as before. */
+  triggerField?: string;
+  /** Lead time in whole days: fire the bell this many days BEFORE
+   *  `triggerField` (so `10` shows the reminder 10 days early). The lead
+   *  is applied at fire time, not stored, so it composes with `spawn` —
+   *  every recurred cycle fires the same number of days before its own
+   *  trigger. Non-negative integer; requires `triggerField`. Default 0
+   *  (fire on the trigger date). */
+  triggerLeadDays?: number;
+  /** Host-driven recurrence. When set, requires `triggerField`. See
+   *  {@link CollectionSpawn}. */
+  spawn?: CollectionSpawn;
 }
 
 export interface CollectionSummary {

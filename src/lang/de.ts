@@ -310,6 +310,11 @@ const deMessages = {
     cycleClosed: "Erledigt",
     chatButtonTitle: "Diese Verpflichtung in einem neuen Chat besprechen",
     bellButtonTitle: "Diesen Zyklus besprechen",
+    retireButtonTitle: "Beenden",
+    reactivateButtonTitle: "Reaktivieren",
+    deleteButtonTitle: "Löschen",
+    deleteConfirmMessage:
+      '"{displayName}" löschen? Die Verpflichtung und ihr gesamter aufgezeichneter Verlauf werden dauerhaft entfernt und können nicht wiederhergestellt werden.',
     addButtonLabel: "Hinzufügen",
     unexpectedResponse: "Encore hat eine unerwartete Antwort zurückgegeben.",
     fieldsHeading: "Pro Zyklus erfasste Felder",
