@@ -123,7 +123,7 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { getPlugin } from "../tools";
-import { TOOL_NAMES } from "../config/toolNames";
+import { TOOL_NAMES, type ToolName } from "../config/toolNames";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import { View as TextResponseOriginalView } from "../plugins/textResponse/index";
 import { handleExternalLinkClick } from "../utils/dom/externalLink";
@@ -141,7 +141,7 @@ const { t } = useI18n();
 // Most plugin viewComponents use h-full internally, so a defined parent
 // height is required for them to render. text-response and the
 // "stack-natural" plugins below are special-cased.
-const PLUGIN_HEIGHT = "min(60vh, 560px)";
+const DEFAULT_PLUGIN_HEIGHT = "min(60vh, 560px)";
 
 // Per-tool height overrides. presentMulmoScript's deck-editor renders
 // a 16:9 slide preview inside an iframe; at the default 560px cap, the
@@ -149,12 +149,18 @@ const PLUGIN_HEIGHT = "min(60vh, 560px)";
 // preview shorter than what a 16:9 slide needs to fit, and the bottom
 // of the rendered slide ends up clipped. A taller cap lets the slide
 // render in full without letterboxing.
-const PLUGIN_HEIGHT_OVERRIDES: Record<string, string> = {
+// `satisfies Partial<Record<ToolName, string>>` keys this off the
+// canonical `TOOL_NAMES` union so a typo'd or stale tool name fails at
+// compile time instead of silently falling through to the default.
+const PLUGIN_HEIGHT_OVERRIDES = {
   [TOOL_NAMES.presentMulmoScript]: "min(85vh, 820px)",
-};
+} satisfies Partial<Record<ToolName, string>>;
 
 function pluginHeightFor(toolName: string): string {
-  return PLUGIN_HEIGHT_OVERRIDES[toolName] ?? PLUGIN_HEIGHT;
+  // Indexed lookup is wide-string-keyed; the `satisfies` constraint
+  // above already ensures the literal's keys are valid `ToolName`s.
+  const overrides: Record<string, string | undefined> = PLUGIN_HEIGHT_OVERRIDES;
+  return overrides[toolName] ?? DEFAULT_PLUGIN_HEIGHT;
 }
 
 // How long to ignore scroll-spy after a programmatic scroll (sidebar
