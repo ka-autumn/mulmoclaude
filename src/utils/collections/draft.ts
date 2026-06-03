@@ -81,7 +81,7 @@ function rowDraftToRecord(rowDraft: TableRowDraft, subFields: Record<string, Fie
 export function draftToRecord(state: EditState, schema: CollectionSchema): CollectionItem {
   const record: CollectionItem = {};
   for (const [key, field] of Object.entries(schema.fields)) {
-    if (field.type === "derived" || field.type === "embed") continue; // never persisted
+    if (field.type === "derived" || field.type === "embed" || field.type === "toggle") continue; // never persisted (toggle projects an enum field)
     if (field.type === "boolean") {
       if (shouldEmitBoolean(state, key, field)) record[key] = state.bool[key] === true;
       continue;
@@ -145,7 +145,7 @@ function validateOneField(key: string, field: FieldSpec, draft: EditState, recor
   }
   if (!field.required) return null;
   if (draft.mode === "create" && field.primary === true) return null; // server auto-generates id
-  if (field.type === "boolean" || field.type === "derived" || field.type === "embed") return null;
+  if (field.type === "boolean" || field.type === "derived" || field.type === "embed" || field.type === "toggle") return null;
   return isMissingDraftValue(draft.text[key]) ? field.label : null;
 }
 

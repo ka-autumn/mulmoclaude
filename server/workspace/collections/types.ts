@@ -29,7 +29,13 @@ export type CollectionFieldType =
   // upload); rendered as an <img> in the detail view (not the list table —
   // a per-row fetch is too expensive at scale). Stored and edited as a
   // plain string.
-  | "image";
+  | "image"
+  // A checkbox that is a pure PROJECTION of an `enum` field — it stores
+  // nothing of its own. Checked when the enum equals `onValue`; toggling
+  // writes `onValue` / `offValue` back to that enum field. Lets a "done"
+  // checkbox front a kanban `status` field with the enum as the single
+  // source of truth (no separate stored boolean to keep in sync).
+  | "toggle";
 
 export type CollectionSource = "user" | "project";
 
@@ -192,6 +198,19 @@ export interface CollectionFieldSpec {
    *  must name another top-level field. Absent ⇒ always shown. Only
    *  honoured on top-level fields, not inside a `table`'s `of`. */
   when?: CollectionWhen;
+  /** When `type === "toggle"`: the name of the top-level `enum` field this
+   *  checkbox projects. The toggle stores nothing itself — it reads and
+   *  writes this field. Required when type is `toggle`; ignored otherwise.
+   *  Must name a real `enum` field. */
+  field?: string;
+  /** When `type === "toggle"`: the enum value that means "checked". The
+   *  box is checked when the projected `field` equals this; checking writes
+   *  it. Required when type is `toggle`; must be one of the enum's `values`. */
+  onValue?: string;
+  /** When `type === "toggle"`: the enum value written when the box is
+   *  unchecked. Required when type is `toggle`; must be one of the enum's
+   *  `values`. */
+  offValue?: string;
 }
 
 export interface CollectionSchema {
@@ -267,6 +286,15 @@ export interface CollectionSchema {
    *  default and is switchable in-view). Set this to pin a specific group
    *  field. Must name a real `enum` field. */
   kanbanField?: string;
+  /** Optional predicate that gates the completion bell: when set, the bell
+   *  fires only for records whose `String(record[notifyWhen.field])` is one
+   *  of `notifyWhen.in` (e.g. notify only `high`/`urgent` priority todos).
+   *  Reuses the `when` predicate shape. Requires `completionField` — it
+   *  narrows that bell rather than introducing a second one. The bell still
+   *  clears on done / delete / when the predicate stops matching. Absent ⇒
+   *  notify for every open record (the prior behaviour). `notifyWhen.field`
+   *  must name a real top-level field. */
+  notifyWhen?: CollectionWhen;
 }
 
 export interface CollectionSummary {

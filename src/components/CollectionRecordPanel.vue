@@ -36,8 +36,10 @@
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 bg-white rounded-2xl border border-slate-200/60 p-6 shadow-sm">
       <template v-for="(field, key) in collection.schema.fields" :key="key">
+        <!-- `toggle` is a projection of an enum field — that enum has its own
+             input here, so the toggle isn't a separate editable control. -->
         <div
-          v-if="fieldVisible(field, liveRecord ?? {}) && (!field.primary || editing.mode === 'create')"
+          v-if="field.type !== 'toggle' && fieldVisible(field, liveRecord ?? {}) && (!field.primary || editing.mode === 'create')"
           class="flex flex-col gap-1.5"
           :class="['table', 'markdown', 'embed'].includes(field.type) ? 'col-span-full' : 'col-span-1'"
         >
@@ -313,8 +315,25 @@
           <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider select-none">{{ field.label }}</div>
 
           <div class="text-xs font-medium text-slate-700 break-words" :data-testid="`collections-detail-value-${key}`">
+            <!-- Toggle state (read-only reflection of the projected enum). -->
+            <template v-if="field.type === 'toggle'">
+              <span
+                v-if="field.field !== undefined && String(viewing[field.field] ?? '') === field.onValue"
+                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/40"
+              >
+                <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                {{ t("common.yes") }}
+              </span>
+              <span
+                v-else
+                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-50 text-slate-400 border border-slate-200/20"
+              >
+                {{ t("common.no") }}
+              </span>
+            </template>
+
             <!-- Boolean state -->
-            <template v-if="field.type === 'boolean'">
+            <template v-else-if="field.type === 'boolean'">
               <span
                 v-if="viewing[key] === true"
                 class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/40"

@@ -341,12 +341,27 @@
                 <td v-for="[key, field] in listColumnFields" :key="key" class="px-5 py-2 text-slate-700 align-middle max-w-xs font-medium">
                   <!-- Conditionally hidden field (`when` predicate) → blank cell. -->
                   <template v-if="fieldVisible(field, item)">
+                    <!-- Toggle → inline checkbox projecting an enum field.
+                         Stores nothing itself; toggling writes onValue/
+                         offValue to the projected field via the same PUT. -->
+                    <input
+                      v-if="field.type === 'toggle'"
+                      type="checkbox"
+                      :checked="toggleChecked(item, field)"
+                      :disabled="isRowInlineSaving(item)"
+                      class="h-5 w-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500/20 cursor-pointer align-middle disabled:opacity-50 disabled:cursor-not-allowed"
+                      :data-testid="`collections-inline-toggle-${key}-${item[collection.schema.primaryKey]}`"
+                      :aria-label="field.label"
+                      @click.stop
+                      @change="commitToggle(item, field)"
+                    />
+
                     <!-- Boolean → inline checkbox. Tap toggles + saves
                          immediately; `@click.stop` so it doesn't open the
                          row's detail panel. Unset (undefined) and explicit
                          false both render unchecked. -->
                     <input
-                      v-if="field.type === 'boolean'"
+                      v-else-if="field.type === 'boolean'"
                       type="checkbox"
                       :checked="item[key] === true"
                       :disabled="isRowInlineSaving(item)"
@@ -1011,11 +1026,11 @@ function openCreate(): void {
       boolTouched[key] = false;
     } else if (field.type === "table") {
       table[key] = [];
-    } else if (field.type !== "derived" && field.type !== "embed") {
+    } else if (field.type !== "derived" && field.type !== "embed" && field.type !== "toggle") {
       text[key] = "";
     }
-    // derived (computed) and embed (display-only, foreign record)
-    // fields have no draft slot.
+    // derived (computed), embed (display-only, foreign record), and toggle
+    // (projection of an enum field) have no draft slot.
   }
   // Singleton collections fix the primary key to the schema-declared
   // value (e.g. "me") so the first Add can't pick an arbitrary id.
@@ -1051,7 +1066,7 @@ function openEdit(item: CollectionItem): void {
       table[key] = rows
         .filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === "object" && !Array.isArray(row))
         .map((row) => rowFromItem(row, sub));
-    } else if (field.type !== "derived" && field.type !== "embed") {
+    } else if (field.type !== "derived" && field.type !== "embed" && field.type !== "toggle") {
       text[key] = raw === undefined || raw === null ? "" : String(raw);
     }
   }
@@ -1273,6 +1288,25 @@ async function commitInlineEdit(item: CollectionItem, key: string, field: FieldS
     applyInlineValue(item, key, previous);
     inlineError.value = result.error;
   }
+}
+
+/** Whether a `toggle` field reads as checked: its projected enum field
+ *  currently equals `onValue`. The toggle stores nothing itself. */
+function toggleChecked(item: CollectionItem, field: FieldSpec): boolean {
+  return field.field !== undefined && String(item[field.field] ?? "") === field.onValue;
+}
+
+/** Flip a `toggle`: write the projected enum field to `offValue` when
+ *  currently checked, else `onValue`. Reuses the inline-edit PUT path
+ *  (optimistic + rollback) — the toggle has no value of its own. */
+function commitToggle(item: CollectionItem, field: FieldSpec): void {
+  const targetKey = field.field;
+  if (!targetKey || !collection.value) return;
+  const enumField = collection.value.schema.fields[targetKey];
+  if (!enumField) return;
+  const next = toggleChecked(item, field) ? field.offValue : field.onValue;
+  if (next === undefined) return;
+  void commitInlineEdit(item, targetKey, enumField, next);
 }
 
 async function confirmDelete(item: CollectionItem): Promise<void> {

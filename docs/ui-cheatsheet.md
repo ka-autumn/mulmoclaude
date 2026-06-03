@@ -418,6 +418,8 @@ The preview pane reuses plugin views — clicking a `config/scheduler/items.json
 
 The **Calendar** toggle (`[collection-view-toggle-calendar]`) appears only when the schema has a `date` field; the **Kanban** toggle (`[collection-view-toggle-kanban]`) only when it has an `enum` field. `<CollectionKanbanView>` groups records into columns by the chosen enum field (declared `values` order + a trailing **Uncategorized** column for empty/unknown values — omitted when the chosen enum is declared `required`), with a `[collection-kanban-field]` selector when >1 enum field exists. Dragging a card (`[collection-kanban-card-<id>]`) between columns writes the group field via the same inline-edit PUT (no column drag, no within-column ordering); a card whose group field is hidden by a `when` predicate is omitted from the board. Card click opens the same detail panel below the board.
 
+A `toggle` field is a checkbox that **projects** an `enum` field (stores nothing itself): checked when the enum equals its `onValue`, toggling writes `onValue`/`offValue` back to that enum. It renders inline in the table (`[collections-inline-toggle-<key>-<id>]`) and on the kanban card (`[collection-kanban-toggle-<id>]`, shown when it projects the board's group field — checking it also moves the card). This is how a todo-style "done" checkbox fronts a kanban `status` while keeping the enum as the single source of truth.
+
 ## /skills — workspace skills list
 
 Two-pane layout (`<ManageSkillsView>`): left sidebar = two collapsible

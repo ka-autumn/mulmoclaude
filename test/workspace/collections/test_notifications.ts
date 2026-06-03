@@ -457,3 +457,72 @@ describe("reconcileItem — triggerField (time gate)", () => {
     assert.equal((await activeCompletionEntries()).length, 1);
   });
 });
+
+describe("reconcileItem — notifyWhen (condition gate)", () => {
+  // A todo whose completion bell is gated to high/urgent priority only.
+  function notifySchema(extra: Partial<CollectionSchema> = {}): CollectionSchema {
+    return {
+      title: "Todos",
+      icon: "check_circle",
+      dataPath: `data/${SLUG}/items`,
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        priority: { type: "enum", values: ["low", "medium", "high", "urgent"], label: "Priority" },
+        status: { type: "enum", values: ["Todo", "Done"], label: "Status", required: true },
+      },
+      completionField: "status",
+      completionDoneValues: ["Done"],
+      notifyWhen: { field: "priority", in: ["high", "urgent"] },
+      ...extra,
+    };
+  }
+
+  it("fires the bell only for records matching notifyWhen", async () => {
+    const schema = notifySchema();
+    writeItem("a", { priority: "high", status: "Todo" });
+    writeItem("b", { priority: "low", status: "Todo" });
+    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir });
+    await reconcileItem(SLUG, schema, dataDir, "b", { workspaceRoot: workdir });
+    const ids = (await activeCompletionEntries()).map((entry) => entry.legacyId);
+    assert.deepEqual(ids, [`collection-completion:${SLUG}:a`]);
+  });
+
+  it("does not fire when the gated field is missing", async () => {
+    const schema = notifySchema();
+    writeItem("a", { status: "Todo" });
+    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir });
+    assert.equal((await activeCompletionEntries()).length, 0);
+  });
+
+  it("clears the bell when the record stops matching (priority dropped)", async () => {
+    const schema = notifySchema();
+    writeItem("a", { priority: "urgent", status: "Todo" });
+    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir });
+    assert.equal((await activeCompletionEntries()).length, 1);
+    writeItem("a", { priority: "low", status: "Todo" });
+    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir });
+    assert.equal((await activeCompletionEntries()).length, 0);
+  });
+
+  it("still clears on done even while notifyWhen matches", async () => {
+    const schema = notifySchema();
+    writeItem("a", { priority: "high", status: "Todo" });
+    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir });
+    assert.equal((await activeCompletionEntries()).length, 1);
+    writeItem("a", { priority: "high", status: "Done" });
+    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir });
+    assert.equal((await activeCompletionEntries()).length, 0);
+  });
+
+  it("sweep clears entries that no longer match notifyWhen", async () => {
+    const schema = notifySchema();
+    writeSchemaJson(schema);
+    writeItem("a", { priority: "high", status: "Todo" });
+    await reconcileItem(SLUG, schema, dataDir, "a", { workspaceRoot: workdir });
+    assert.equal((await activeCompletionEntries()).length, 1);
+    writeItem("a", { priority: "low", status: "Todo" });
+    await sweepStaleActiveEntries({ workspaceRoot: workdir, userSkillsDir: userDir });
+    assert.equal((await activeCompletionEntries()).length, 0);
+  });
+});

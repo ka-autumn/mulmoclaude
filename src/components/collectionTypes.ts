@@ -20,7 +20,8 @@ export type FieldType =
   | "table"
   | "derived"
   | "image"
-  | "embed";
+  | "embed"
+  | "toggle";
 
 export interface FieldSpec {
   type: FieldType;
@@ -49,6 +50,14 @@ export interface FieldSpec {
   /** Optional visibility predicate: render this field only when
    *  `String(record[when.field])` is one of `when.in`. */
   when?: { field: string; in: string[] };
+  /** When type === "toggle": the `enum` field this checkbox projects
+   *  (stores nothing itself — reads + writes that field). */
+  field?: string;
+  /** When type === "toggle": the enum value meaning "checked" (and written
+   *  on check). */
+  onValue?: string;
+  /** When type === "toggle": the enum value written on uncheck. */
+  offValue?: string;
 }
 
 /** A schema-declared, per-record action rendered as a button in the
@@ -87,6 +96,9 @@ export interface CollectionSchema {
    *  exists (the first one, in declaration order, is the default and is
    *  switchable in-view). */
   kanbanField?: string;
+  /** Optional predicate gating the completion bell (server-side); reuses
+   *  the `when` shape. */
+  notifyWhen?: { field: string; in: string[] };
 }
 
 export interface CollectionDetail {

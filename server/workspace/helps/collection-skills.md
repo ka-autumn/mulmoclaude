@@ -102,18 +102,20 @@ skipped, never crashes the host):
 | `actions` | Optional array of per-record buttons (see below). |
 | `completionField` | Optional. Name of the field whose value marks an item as "done" — when set, item-create fires a bell notification that clears once the field reaches one of `completionDoneValues`. Must name a real field in `fields`. Paired with `completionDoneValues` (both set, or both omitted). |
 | `completionDoneValues` | Optional. Non-empty array of values that count as "done" for `completionField` (e.g. `["Done"]`, `["paid", "void"]`). Compared as strings. |
+| `notifyWhen` | Optional. A `when` predicate (`{ "field": "...", "in": [...] }`) that **gates** the completion bell: fire it only for records matching the predicate (e.g. `{ "field": "priority", "in": ["high", "urgent"] }`). Requires `completionField`; `field` must name a real field. Absent ⇒ notify for every open record. |
 | `displayField` | Optional. Name of a field whose value is shown as the human-readable label in the completion notification's title (e.g. `Contacts: Jane Doe` instead of the opaque primaryKey). Must name a real field in `fields`. Falls back to the primaryKey value when unset or when the record's value is empty. |
 | `triggerField` | Optional. Name of a `date` field that **delays** the completion bell until that date arrives (instead of firing on create). Requires `completionField` / `completionDoneValues` (the bell still clears via the done value). Must name a real `date` field. See "Time-gated bells" below. |
 | `triggerLeadDays` | Optional. Non-negative integer: fire the bell this many days **before** `triggerField` (e.g. `10` = "remind me 10 days early"). Requires `triggerField`. Default `0` (fire on the trigger date). |
 | `spawn` | Optional. Host-driven **recurrence**: when a record reaches a configured value (e.g. `status: paid`), the host auto-creates the next record with a forward-advanced `triggerField` date. Requires `triggerField`. See "Recurring obligations" below. |
 | `calendarField` | Optional. Name of a `date` field that anchors the **calendar view** (a month grid; each record lands on its date cell). When unset, the table↔calendar toggle still appears if the schema has any `date` field — the first one is used, switchable in-view. Set this to pin a specific anchor. Must name a real `date` field. See "Calendar view" below. |
 | `calendarEndField` | Optional. A second `date` field marking the END of a multi-day span on the calendar (the record renders across `calendarField` → this date). Requires `calendarField`. Must name a real `date` field. |
+| `kanbanField` | Optional. Name of an `enum` field that groups records into columns on the **Kanban board** (one column per declared value). When unset, the Kanban toggle still appears if the schema has any `enum` field — the first one is used, switchable in-view. Set this to pin a specific group field. Must name a real `enum` field. See "Kanban view" below. |
 
 ### Field types
 
 `string` · `text` (multi-line) · `email` · `number` · `date` (`YYYY-MM-DD`) ·
 `boolean` · `markdown` · `money` · `enum` · `ref` · `embed` · `table` ·
-`derived` · `image`
+`derived` · `image` · `toggle`
 
 Every field spec needs a `type` and a `label`. Extra keys by type:
 
@@ -146,6 +148,19 @@ Every field spec needs a `type` and a `label`. Extra keys by type:
   collection). No extra keys. Great for photos like a business card: read the
   details off the attached image and write its path into the image field.
   Write the bare workspace-relative path — never an `/api/files/raw?...` URL.
+- **`toggle`** — `field: "<enum-field>"`, `onValue`, `offValue`. A checkbox that
+  is a pure **projection** of an `enum` field — it **stores nothing** of its own
+  (like `derived`/`embed`). Checked when the projected enum equals `onValue`;
+  toggling writes `onValue` / `offValue` back to that enum. `onValue`/`offValue`
+  must be members of the enum's `values`. Use it to front a kanban `status` with
+  a "done" checkbox while keeping the enum as the single source of truth — e.g.
+  `{ "type": "toggle", "label": "Done", "field": "status", "onValue": "Done", "offValue": "Todo" }`.
+  Renders an interactive checkbox in the list table and on the kanban card (when
+  it projects the board's group field); read-only in the detail view.
+  **A todo / task list should almost always include one** — it's the row/card
+  "done" checkbox. Without it, `status` only shows as a dropdown and a kanban
+  column, with no checkbox to tick. `offValue` is the status to return to on
+  uncheck (the default open column, e.g. `"Todo"`).
 
 ### Conditional field visibility (`when`)
 
@@ -308,6 +323,12 @@ Set `displayField` to make the bell title readable: with `displayField:
 It must name a real field; an empty value on a given record falls back to the
 primaryKey for that record.
 
+> **Building a todo / task list?** When your `completionField` is a status enum,
+> also add a `toggle` field (the row/card "done" checkbox) and `notifyWhen`
+> (fire the bell only for high-priority items, not every record). See the full
+> recipe in **"Worked example: a Todo list"** below — that's the canonical
+> template; don't reinvent it from these fragments.
+
 ### Time-gated bells (`triggerField`)
 
 By default the completion bell fires **on create**. Add `triggerField` — the
@@ -464,6 +485,134 @@ Notes:
 - This is a generic collection view — distinct from the scheduler's calendar
   (`manageCalendar`), which is a separate built-in.
 
+### Kanban view
+
+Any collection that has at least one `enum` field gains a **Kanban board** toggle
+in its header — **zero config**. The board renders one column per declared enum
+value (in `values` order), plus a trailing **Uncategorized** column for
+empty/unknown values (omitted when the group enum is `required`). Dragging a card
+between columns writes that enum field; clicking a card opens the same
+detail/edit panel.
+
+```json
+{
+  "title": "Tasks",
+  "icon": "checklist",
+  "dataPath": "data/tasks/items",
+  "primaryKey": "id",
+  "fields": {
+    "id":     { "type": "string", "label": "ID", "primary": true, "required": true },
+    "title":  { "type": "string", "label": "Title", "required": true },
+    "status": { "type": "enum",   "label": "Status", "values": ["Backlog", "Todo", "In Progress", "Done"] },
+    "done":   { "type": "toggle", "label": "Done", "field": "status", "onValue": "Done", "offValue": "Todo" }
+  },
+  "displayField": "title",
+  "kanbanField": "status"
+}
+```
+
+Notes:
+
+- **No schema change is needed to get the toggle** — it appears whenever an
+  `enum` field exists. `kanbanField` only *tunes* which enum groups the board
+  (otherwise the first `enum` field is used, switchable in-view).
+- **The enum is the single source of truth.** For a todo-style "done" checkbox,
+  use a `toggle` field projecting the status enum (above) — do NOT add a separate
+  stored boolean. Checking the box sets `status` to the done value (and moves the
+  card to that column); dragging the card to the Done column checks the box. They
+  are the same write.
+- Columns are not draggable (order comes from the enum's `values`) and there is
+  no manual ordering within a column — a drop only changes the enum value.
+- Like the calendar, the board is purely a **rendering** of the records: it adds
+  no storage. `completionField` / `completionDoneValues` (bells) are independent
+  but pair naturally with the Done column.
+- For the full, copy-pasteable todo schema (status enum + done toggle + priority
+  + bells + calendar), see **"Worked example: a Todo list"** below.
+
+### Worked example: a Todo list
+
+This is the canonical recipe — a single schema that gives you a kanban board, a
+table with an inline done checkbox, a due-date calendar, and completion bells,
+with the `status` enum as the **single source of truth** (no separate stored
+`done` boolean).
+
+`data/skills/todos/schema.json`:
+
+```json
+{
+  "title": "Todos",
+  "icon": "check_circle",
+  "dataPath": "data/todos/items",
+  "primaryKey": "id",
+  "fields": {
+    "id":       { "type": "string", "label": "ID", "primary": true, "required": true },
+    "done":     { "type": "toggle", "label": "Done", "field": "status", "onValue": "Done", "offValue": "Todo" },
+    "title":    { "type": "string", "label": "Title", "required": true },
+    "status":   { "type": "enum",   "label": "Status", "values": ["Backlog", "Todo", "In Progress", "Done"], "required": true },
+    "priority": { "type": "enum",   "label": "Priority", "values": ["low", "medium", "high", "urgent"] },
+    "dueDate":  { "type": "date",   "label": "Due" },
+    "note":     { "type": "markdown", "label": "Note" }
+  },
+  "displayField": "title",
+  "kanbanField": "status",
+  "calendarField": "dueDate",
+  "completionField": "status",
+  "completionDoneValues": ["Done"],
+  "notifyWhen": { "field": "priority", "in": ["high", "urgent"] }
+}
+```
+
+`data/skills/todos/SKILL.md` — front-matter `name: todos` + a one-line
+`description`, then the record-shape bullets (id is the filename; `status` is the
+column; leave `done` OUT of the JSON — it's a projection of `status`) and the
+CRUD conventions.
+
+A record (`data/todos/items/t-0042.json`) — note there is **no `done` key**:
+
+```json
+{ "id": "t-0042", "title": "Buy milk", "status": "Todo", "priority": "high", "dueDate": "2026-06-10" }
+```
+
+What you get from this one schema, with no host code:
+
+- **Table** — a `done` checkbox per row (checking it sets `status: "Done"`), plus
+  inline `status` / `priority` dropdowns.
+- **Kanban** — columns Backlog / Todo / In Progress / Done; drag a card to move
+  it (writes `status`); the per-card `done` checkbox does the same.
+- **Calendar** — todos placed on their `dueDate`.
+- **Completion bell** — fires on create, clears when `status` reaches `Done`.
+
+**Reminder timing (optional).** To make the bell fire on the due date instead of
+on create, add `"triggerField": "dueDate"` (and `"triggerLeadDays": 2` to fire it
+N days early). `triggerField` must name a real `date` field and reuses the
+completion pair above.
+
+**Priority-gated notifications (`notifyWhen`).** By default the completion bell
+fires for *every* open record. Add `notifyWhen` to fire it only for records
+matching a predicate — here, only `high`/`urgent` priority todos raise a bell
+(`low`/`medium` stay silent), reproducing the legacy Todo's priority behaviour.
+The bell still clears on done / delete, and also clears when the predicate stops
+matching (e.g. priority dropped to `low`). `notifyWhen` reuses the `when` shape
+and requires `completionField` (it narrows that bell rather than adding a second
+one). It does NOT vary the badge *color* by value — the bell uses the completion
+bell's standard severity; per-value severity (red vs amber) isn't modelled.
+
+**Migrating the legacy `todo-plugin`.** Old records live at
+`data/plugins/%40mulmoclaude%2Ftodo-plugin/todos.json` (an array) with columns in
+the sibling `columns.json`. Map them onto the schema above:
+
+- Use the legacy `columns.json` ids as the `status` enum `values` (keep the
+  user's own columns — e.g. `["todo", "mulmoclaude", "mag2", "done"]`), and set
+  `completionDoneValues` to the column whose `isDone` is true.
+- Fold the legacy `completed` boolean into `status` (a completed item → the
+  done column). Then **add the `done` toggle** projecting `status`
+  (`onValue` = the done column, `offValue` = your default open column, e.g.
+  `"todo"`). This is the row/card "done" checkbox — **without it the migrated
+  list has no checkbox**, which is the #1 migration mistake.
+- Preserve each item's `id` verbatim (one `<id>.json` per record), convert the
+  legacy millisecond `createdAt` to a `YYYY-MM-DD` `date`, and carry `priority`,
+  `dueDate`, `note` straight across.
+
 ## Records — one JSON object per file
 
 - Write each record to `<dataPath>/<id>.json` via the **Write** tool; the `id`
@@ -501,7 +650,10 @@ Notes:
    `dataPath` under the workspace, `triggerField` names a real `date` field and
    has the completion pair, `spawn` has `triggerField` and a valid `every`,
    `calendarField` / `calendarEndField` name real `date` fields (and
-   `calendarEndField` requires `calendarField`).
+   `calendarEndField` requires `calendarField`), `kanbanField` names a real
+   `enum` field, any `toggle` field names a real `enum` `field` with its
+   `onValue` / `offValue` among that enum's `values`, and `notifyWhen` (if set)
+   requires `completionField` and names a real field.
    (A schema that fails validation is logged server-side and silently skipped
    at discovery.)
 

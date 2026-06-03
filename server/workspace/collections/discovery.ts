@@ -113,7 +113,7 @@ const SubFieldSpecSchema = z
 
 const FieldSpecSchema = z
   .object({
-    type: z.enum(["string", "text", "email", "number", "date", "boolean", "markdown", "ref", "money", "enum", "table", "derived", "embed", "image"]),
+    type: z.enum(["string", "text", "email", "number", "date", "boolean", "markdown", "ref", "money", "enum", "table", "derived", "embed", "image", "toggle"]),
     label: z.string().min(1),
     primary: z.boolean().optional(),
     required: z.boolean().optional(),
@@ -122,6 +122,12 @@ const FieldSpecSchema = z
     currency: z.string().trim().min(1).optional(),
     currencyField: z.string().trim().min(1).optional(),
     values: z.array(z.string().trim().min(1)).min(1).optional(),
+    // `toggle` projection: the enum field it fronts + the checked/unchecked
+    // values written to it. Validated against the target enum's `values` by
+    // a schema-level refine below.
+    field: z.string().trim().min(1).optional(),
+    onValue: z.string().trim().min(1).optional(),
+    offValue: z.string().trim().min(1).optional(),
     of: z.record(z.string(), SubFieldSpecSchema).optional(),
     formula: z.string().trim().min(1).optional(),
     /** Inner type to render a derived value as (e.g. `"money"`).
@@ -147,7 +153,16 @@ const FieldSpecSchema = z
   .refine((spec) => spec.type !== "derived" || (typeof spec.formula === "string" && spec.formula.length > 0), {
     message: "fields with type 'derived' must declare a non-empty `formula` (see src/utils/collections/derivedFormula.ts)",
     path: ["formula"],
-  });
+  })
+  .refine(
+    (spec) =>
+      spec.type !== "toggle" ||
+      (typeof spec.field === "string" && spec.field.length > 0 && typeof spec.onValue === "string" && typeof spec.offValue === "string"),
+    {
+      message: "fields with type 'toggle' must declare `field` (the enum field to project), `onValue`, and `offValue`",
+      path: ["field"],
+    },
+  );
 
 // A schema-declared record action. Domain-free: the host validates the
 // shape; the meaning (which role, which template) is data.
@@ -209,6 +224,23 @@ function collectCurrencyFieldRefs(fields: Record<string, FieldLike>): string[] {
     }
   }
   return refs;
+}
+
+// True iff every `toggle` field is a valid projection: its `field` names a
+// top-level `enum`, and both `onValue` and `offValue` are members of that
+// enum's closed `values` set.
+function everyToggleProjectsValidEnum(
+  fields: Record<string, { type: string; field?: string; onValue?: string; offValue?: string; values?: readonly string[] }>,
+): boolean {
+  for (const spec of Object.values(fields)) {
+    if (spec.type !== "toggle") continue;
+    const target = spec.field === undefined ? undefined : fields[spec.field];
+    if (!target || target.type !== "enum" || target.values === undefined) return false;
+    const allowed = new Set(target.values);
+    if (spec.onValue === undefined || !allowed.has(spec.onValue)) return false;
+    if (spec.offValue === undefined || !allowed.has(spec.offValue)) return false;
+  }
+  return true;
 }
 
 // True iff a `spawn`'s successor will NOT be born already matching its own
@@ -280,6 +312,10 @@ const CollectionSchemaZ = z
     // refine below. Optional — the toggle auto-derives from any `enum`
     // field when this is unset.
     kanbanField: z.string().trim().min(1).optional(),
+    // Completion-bell gate: only notify for records matching this predicate
+    // (e.g. high-priority todos). Reuses the `when` shape; requires
+    // `completionField`; field validated to exist by refines below.
+    notifyWhen: WhenSchema.optional(),
   })
   // The singleton value becomes a record id (and thus a `<id>.json`
   // filename), so it must satisfy the SAME `safeSlugName` rule the
@@ -406,6 +442,24 @@ const CollectionSchemaZ = z
   .refine((schema) => schema.kanbanField === undefined || schema.fields[schema.kanbanField]?.type === "enum", {
     message: "schema `kanbanField` must name a top-level `enum` field declared in `fields`",
     path: ["kanbanField"],
+  })
+  // A `toggle` field projects an `enum` field: its `field` must name a real
+  // top-level enum, and `onValue` / `offValue` must be members of that
+  // enum's `values` — otherwise toggling would write a value outside the
+  // closed set (and never appear "checked").
+  .refine((schema) => everyToggleProjectsValidEnum(schema.fields), {
+    message: "a `toggle` field's `field` must name a top-level `enum` field, and its `onValue`/`offValue` must be values of that enum",
+    path: ["fields"],
+  })
+  // `notifyWhen` narrows the completion bell, so it only means something with
+  // completion tracking, and its `field` must name a real top-level field.
+  .refine((schema) => schema.notifyWhen === undefined || schema.completionField !== undefined, {
+    message: "schema `notifyWhen` requires `completionField` (it narrows that bell)",
+    path: ["notifyWhen"],
+  })
+  .refine((schema) => schema.notifyWhen === undefined || schema.fields[schema.notifyWhen.field] !== undefined, {
+    message: "schema `notifyWhen.field` must name a top-level field declared in `fields`",
+    path: ["notifyWhen"],
   });
 
 interface LoadedCollection {

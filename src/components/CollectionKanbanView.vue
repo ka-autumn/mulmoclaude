@@ -39,7 +39,22 @@
               @keydown.enter.prevent.self="(e) => !e.repeat && emit('select', itemId(element))"
               @keydown.space.prevent.self="(e) => !e.repeat && emit('select', itemId(element))"
             >
-              <div class="text-sm font-medium text-slate-800 truncate">{{ itemLabel(element) }}</div>
+              <div class="flex items-start gap-2">
+                <!-- Toggle checkbox (when the schema has a toggle projecting
+                     this board's group field). Checking it sets the group
+                     field, so the card also moves columns. -->
+                <input
+                  v-if="cardToggle"
+                  type="checkbox"
+                  :checked="cardChecked(element)"
+                  class="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500/20 cursor-pointer shrink-0"
+                  :aria-label="cardToggle.label"
+                  :data-testid="`collection-kanban-toggle-${itemId(element)}`"
+                  @click.stop
+                  @change="onCardToggle(element)"
+                />
+                <div class="text-sm font-medium text-slate-800 truncate">{{ itemLabel(element) }}</div>
+              </div>
             </div>
           </template>
         </draggable>
@@ -153,5 +168,28 @@ function itemsByColumn(value: string): CollectionItem[] {
 
 function onDragChange(columnValue: string, event: DragChangeEvent): void {
   if (event.added) emit("move", itemId(event.added.element), columnValue);
+}
+
+// A `toggle` field that projects THIS board's group field — rendered as a
+// per-card checkbox. Checking it writes the group field (so the card also
+// changes column), reusing the same `move` event as a drag.
+const cardToggle = computed(() => {
+  for (const spec of Object.values(props.schema.fields)) {
+    if (spec.type === "toggle" && spec.field === props.groupField) return spec;
+  }
+  return null;
+});
+
+function cardChecked(item: CollectionItem): boolean {
+  const toggle = cardToggle.value;
+  return toggle !== null && String(item[props.groupField] ?? "") === toggle.onValue;
+}
+
+function onCardToggle(item: CollectionItem): void {
+  const toggle = cardToggle.value;
+  if (!toggle) return;
+  const next = cardChecked(item) ? toggle.offValue : toggle.onValue;
+  if (next === undefined) return;
+  emit("move", itemId(item), next);
 }
 </script>
