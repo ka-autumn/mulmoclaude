@@ -463,6 +463,10 @@ const props = defineProps<{
   slug?: string;
   selected?: string;
   sendTextMessage?: (text?: string) => void;
+  /** Embedded mode only: initial view / anchor restored from the card's
+   *  persisted `viewState` so a switch to calendar survives a remount. */
+  initialView?: "table" | "calendar";
+  initialAnchorField?: string;
 }>();
 
 const emit = defineEmits<{
@@ -470,6 +474,9 @@ const emit = defineEmits<{
    *  The card persists this in its tool-result `viewState` so the open
    *  item survives a re-render. */
   select: [id: string | null];
+  /** Embedded mode only: the view mode / calendar anchor changed. The
+   *  card persists these alongside `selected` so the calendar sticks. */
+  viewStateChange: [state: { view: "table" | "calendar"; anchorField: string }];
 }>();
 
 const { t, locale } = useI18n();
@@ -766,7 +773,7 @@ const canDeleteCollection = computed<boolean>(() => {
 // when the schema has a `date` field, so date-less collections and the
 // initial load are unchanged (default "table").
 type CollectionViewMode = "table" | "calendar";
-const view = ref<CollectionViewMode>("table");
+const view = ref<CollectionViewMode>(props.initialView ?? "table");
 
 /** `date` fields in declaration order — the calendar can anchor on any. */
 const dateFields = computed<string[]>(() =>
@@ -786,7 +793,7 @@ const calendarActive = computed<boolean>(() => view.value === "calendar" && hasC
 
 // In-view override for which date field anchors the grid; null ⇒ the
 // schema hint, else the first date field.
-const anchorOverride = ref<string | null>(null);
+const anchorOverride = ref<string | null>(props.initialAnchorField ?? null);
 const calendarAnchorField = computed<string>(() => {
   if (anchorOverride.value && dateFields.value.includes(anchorOverride.value)) return anchorOverride.value;
   const hint = collection.value?.schema.calendarField;
@@ -1124,11 +1131,14 @@ function onCalendarSelect(itemId: string | null): void {
 
 watch(
   activeSlug,
-  (slug) => {
-    // Reset view state on every collection switch — the calendar mode and
-    // anchor pick are per-collection and must not leak across navigations.
-    view.value = "table";
-    anchorOverride.value = null;
+  (slug, prevSlug) => {
+    // Reset view state when switching BETWEEN collections — but not on the
+    // initial run (prevSlug undefined), so an embedded card's restored
+    // `initialView` / `initialAnchorField` survive the first load.
+    if (prevSlug !== undefined && slug !== prevSlug) {
+      view.value = "table";
+      anchorOverride.value = null;
+    }
     if (slug) {
       loadCollection(slug);
     } else {
@@ -1140,6 +1150,12 @@ watch(
   },
   { immediate: true },
 );
+
+// Embedded mode: report view/anchor changes so the chat card persists them
+// in `viewState` (alongside `selected`). No-op in standalone route mode.
+watch([view, calendarAnchorField], () => {
+  if (embedded.value) emit("viewStateChange", { view: view.value, anchorField: calendarAnchorField.value });
+});
 
 // React to the active selection changing while already on this
 // collection: follow it to open the new record, OR close the modal when

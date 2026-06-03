@@ -1025,6 +1025,60 @@ describe("discoverCollections — triggerField + spawn validation", () => {
   });
 });
 
+describe("discoverCollections — calendarField + calendarEndField validation", () => {
+  // A collection with two date fields, cloned + mutated per case.
+  function calendarSchema(extra: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      title: "Events",
+      icon: "event",
+      dataPath: "data/events/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        name: { type: "string", label: "Name", required: true },
+        on: { type: "date", label: "Date", required: true },
+        until: { type: "date", label: "End" },
+      },
+      ...extra,
+    };
+  }
+
+  it("accepts a schema with no calendar keys (toggle auto-derives from the date field)", async () => {
+    writeSkill("test-cal-none", calendarSchema());
+    assert.equal((await listCollections()).length, 1);
+  });
+
+  it("accepts a valid calendarField + calendarEndField", async () => {
+    writeSkill("test-cal-ok", calendarSchema({ calendarField: "on", calendarEndField: "until" }));
+    assert.equal((await listCollections()).length, 1);
+  });
+
+  it("accepts calendarField alone", async () => {
+    writeSkill("test-cal-anchor-only", calendarSchema({ calendarField: "on" }));
+    assert.equal((await listCollections()).length, 1);
+  });
+
+  it("rejects calendarField naming a non-date field", async () => {
+    writeSkill("test-cal-non-date", calendarSchema({ calendarField: "name" }));
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects calendarField naming a missing field", async () => {
+    writeSkill("test-cal-missing", calendarSchema({ calendarField: "nope" }));
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects calendarEndField without calendarField", async () => {
+    writeSkill("test-cal-end-no-anchor", calendarSchema({ calendarEndField: "until" }));
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects calendarEndField naming a non-date field", async () => {
+    writeSkill("test-cal-end-non-date", calendarSchema({ calendarField: "on", calendarEndField: "name" }));
+    assert.equal((await listCollections()).length, 0);
+  });
+});
+
 describe("loadCollection", () => {
   it("returns the named project-scope collection", async () => {
     writeSkill("test-load", {

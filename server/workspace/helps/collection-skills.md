@@ -6,8 +6,8 @@ cross-record relations, rendered UI, computed fields, and per-record action
 buttons — in one small JSON file. You author the schema, you write the records
 (one JSON file each), and you are the runtime for any behaviour the schema
 can't express declaratively. The host contains **zero** knowledge of any
-specific collection: it just reads the DSL and renders a table / form / detail
-view, and serves a REST surface. No database, no migration tool, no ORM — a
+specific collection: it just reads the DSL and renders a table / calendar /
+form / detail view, and serves a REST surface. No database, no migration tool, no ORM — a
 `schema.json` plus a folder of `<id>.json` records **is** the app.
 
 This is the project philosophy made concrete: *the workspace is the database;
@@ -106,6 +106,8 @@ skipped, never crashes the host):
 | `triggerField` | Optional. Name of a `date` field that **delays** the completion bell until that date arrives (instead of firing on create). Requires `completionField` / `completionDoneValues` (the bell still clears via the done value). Must name a real `date` field. See "Time-gated bells" below. |
 | `triggerLeadDays` | Optional. Non-negative integer: fire the bell this many days **before** `triggerField` (e.g. `10` = "remind me 10 days early"). Requires `triggerField`. Default `0` (fire on the trigger date). |
 | `spawn` | Optional. Host-driven **recurrence**: when a record reaches a configured value (e.g. `status: paid`), the host auto-creates the next record with a forward-advanced `triggerField` date. Requires `triggerField`. See "Recurring obligations" below. |
+| `calendarField` | Optional. Name of a `date` field that anchors the **calendar view** (a month grid; each record lands on its date cell). When unset, the table↔calendar toggle still appears if the schema has any `date` field — the first one is used, switchable in-view. Set this to pin a specific anchor. Must name a real `date` field. See "Calendar view" below. |
+| `calendarEndField` | Optional. A second `date` field marking the END of a multi-day span on the calendar (the record renders across `calendarField` → this date). Requires `calendarField`. Must name a real `date` field. |
 
 ### Field types
 
@@ -418,6 +420,50 @@ This covers *periodic* obligations. It does **not** do escalating, multi-stage
 reminders over a long prep window (info → warning → urgent) — that is
 intentionally out of scope for collections.
 
+### Calendar view
+
+Any collection that has at least one `date` field gains a **table ↔ calendar**
+toggle in its header — **zero config**. The calendar is a month grid where each
+record lands on the day cell matching its date; clicking a record opens the same
+detail/edit panel the table uses, and clicking an empty cell starts a new record
+with that day prefilled.
+
+```json
+{
+  "title": "Events",
+  "icon": "event",
+  "dataPath": "data/events/items",
+  "primaryKey": "id",
+  "fields": {
+    "id":    { "type": "string", "label": "ID", "primary": true, "required": true },
+    "name":  { "type": "string", "label": "Name", "required": true },
+    "on":    { "type": "date",   "label": "Date", "required": true },
+    "until": { "type": "date",   "label": "End" }
+  },
+  "displayField": "name",
+  "calendarField": "on",
+  "calendarEndField": "until"
+}
+```
+
+Notes:
+
+- **No schema change is needed to get the toggle** — it appears whenever a `date`
+  field exists. The two keys only *tune* it: `calendarField` pins which date
+  anchors the grid (otherwise the first `date` field is used, and the user can
+  switch in-view when there are several); `calendarEndField` makes a record span
+  multiple days (`calendarField` → `calendarEndField`, inclusive).
+- `displayField` sets the chip label (falls back to the primary key).
+- **Day granularity only** — collections store `date` (no time-of-day), so the
+  calendar is a month grid, not a day/week time-grid.
+- Records whose anchor date is missing or unparseable are listed in a small
+  "No date" tray under the grid — never silently dropped.
+- The calendar is purely a **rendering** of the records: it adds no storage and
+  fires nothing. It composes with `triggerField` / `spawn` (which drive bells and
+  recurrence) but is independent of them.
+- This is a generic collection view — distinct from the scheduler's calendar
+  (`manageCalendar`), which is a separate built-in.
+
 ## Records — one JSON object per file
 
 - Write each record to `<dataPath>/<id>.json` via the **Write** tool; the `id`
@@ -453,7 +499,9 @@ intentionally out of scope for collections.
    flagged `primary: true`, `ref`/`embed` have a valid `to`, `enum` has
    `values`, `table` has `of`, `derived` has `formula`, action ids unique,
    `dataPath` under the workspace, `triggerField` names a real `date` field and
-   has the completion pair, `spawn` has `triggerField` and a valid `every`.
+   has the completion pair, `spawn` has `triggerField` and a valid `every`,
+   `calendarField` / `calendarEndField` name real `date` fields (and
+   `calendarEndField` requires `calendarField`).
    (A schema that fails validation is logged server-side and silently skipped
    at discovery.)
 

@@ -1,6 +1,15 @@
 <template>
   <div class="w-full h-full" data-testid="present-collection">
-    <CollectionView v-if="slug" :slug="slug" :selected="selected" :send-text-message="sendTextMessage" @select="onSelect" />
+    <CollectionView
+      v-if="slug"
+      :slug="slug"
+      :selected="selected"
+      :initial-view="viewState?.view"
+      :initial-anchor-field="viewState?.anchorField"
+      :send-text-message="sendTextMessage"
+      @select="onSelect"
+      @view-state-change="onViewStateChange"
+    />
   </div>
 </template>
 
@@ -10,12 +19,14 @@ import type { ToolResult } from "gui-chat-protocol";
 import CollectionView from "../../components/CollectionView.vue";
 import type { PresentCollectionData } from "./types";
 
-/** Card-local UI state: which record the user has opened within the
- *  card. Persisted in the tool result's `viewState` so the open item
- *  survives a re-render — same pattern as presentForm. `null` once the
- *  user has explicitly closed the detail view. */
+/** Card-local UI state persisted in the tool result's `viewState` so it
+ *  survives a re-render — same pattern as presentForm. `selected` is the
+ *  open record (`null` once explicitly closed); `view` / `anchorField`
+ *  keep the table↔calendar choice and calendar anchor sticky. */
 interface PresentCollectionViewState {
   selected?: string | null;
+  view?: "table" | "calendar";
+  anchorField?: string;
 }
 
 const props = defineProps<{
@@ -49,6 +60,14 @@ const selected = computed<string | undefined>(() => {
 
 function onSelect(itemId: string | null): void {
   if (!props.selectedResult) return;
-  emit("updateResult", { ...props.selectedResult, viewState: { selected: itemId } });
+  emit("updateResult", { ...props.selectedResult, viewState: { ...viewState.value, selected: itemId } });
+}
+
+function onViewStateChange(state: { view: "table" | "calendar"; anchorField: string }): void {
+  if (!props.selectedResult) return;
+  // Skip redundant writes (the anchor settling on load fires this once).
+  const current = viewState.value;
+  if (current?.view === state.view && current?.anchorField === state.anchorField) return;
+  emit("updateResult", { ...props.selectedResult, viewState: { ...current, view: state.view, anchorField: state.anchorField } });
 }
 </script>
