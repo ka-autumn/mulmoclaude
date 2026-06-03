@@ -1335,6 +1335,7 @@ const esMessages = {
     loadFailed: "Error al cargar",
     requiredField: "Este campo es obligatorio",
     selectPlaceholder: "Seleccionar…",
+    inlineSaveFailed: "No se pudo guardar el cambio: {error}",
     addRow: "Añadir fila",
     removeRow: "Quitar fila",
     noRows: "Aún no hay filas",

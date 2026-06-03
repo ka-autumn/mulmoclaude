@@ -1321,6 +1321,7 @@ const enMessages = {
     loadFailed: "Failed to load",
     requiredField: "This field is required",
     selectPlaceholder: "Select…",
+    inlineSaveFailed: "Couldn't save change: {error}",
     addRow: "Add row",
     removeRow: "Remove row",
     noRows: "No rows yet",

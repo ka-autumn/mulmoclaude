@@ -1321,6 +1321,7 @@ const koMessages = {
     loadFailed: "불러오기에 실패했습니다",
     requiredField: "이 필드는 필수입니다",
     selectPlaceholder: "선택…",
+    inlineSaveFailed: "변경 사항을 저장하지 못했습니다: {error}",
     addRow: "행 추가",
     removeRow: "행 삭제",
     noRows: "행이 없습니다",

@@ -206,6 +206,25 @@
       </div>
 
       <div v-else class="overflow-x-auto [container-type:inline-size]">
+        <!-- Inline-edit failure banner: a cell write (checkbox/dropdown)
+             was rolled back; the detail panel's `saveError` isn't visible
+             here so inline edits surface their own. -->
+        <div
+          v-if="inlineError"
+          class="m-4 rounded-xl border border-red-200 bg-red-50/50 p-4 text-sm text-red-800 shadow-sm flex items-center gap-3"
+          data-testid="collections-inline-error"
+        >
+          <span class="material-icons text-red-600">error</span>
+          <span class="flex-1">{{ t("collectionsView.inlineSaveFailed", { error: inlineError }) }}</span>
+          <button
+            type="button"
+            class="h-8 w-8 flex items-center justify-center rounded text-red-600 hover:bg-red-100"
+            :aria-label="t('common.close')"
+            @click="inlineError = null"
+          >
+            <span class="material-icons text-base">close</span>
+          </button>
+        </div>
         <table class="min-w-full text-xs">
           <thead>
             <tr class="bg-slate-50 border-b border-slate-200">
@@ -231,24 +250,20 @@
                 <td v-for="[key, field] in listColumnFields" :key="key" class="px-5 py-2 text-slate-700 align-middle max-w-xs font-medium">
                   <!-- Conditionally hidden field (`when` predicate) → blank cell. -->
                   <template v-if="fieldVisible(field, item)">
-                    <!-- Boolean state badge -->
-                    <span v-if="field.type === 'boolean'" class="block">
-                      <span
-                        v-if="item[key] === true"
-                        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/40"
-                      >
-                        <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-                        {{ t("common.yes") }}
-                      </span>
-                      <span
-                        v-else-if="item[key] === false"
-                        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-50 text-slate-400 border border-slate-200/20"
-                      >
-                        {{ t("common.no") }}
-                      </span>
-                      <!-- eslint-disable-next-line @intlify/vue-i18n/no-raw-text -- bare "—" for an omitted boolean: distinct from an explicit false (the edit pipeline tracks presence via boolOriginallyPresent). -->
-                      <span v-else class="text-slate-300">—</span>
-                    </span>
+                    <!-- Boolean → inline checkbox. Tap toggles + saves
+                         immediately; `@click.stop` so it doesn't open the
+                         row's detail panel. Unset (undefined) and explicit
+                         false both render unchecked. -->
+                    <input
+                      v-if="field.type === 'boolean'"
+                      type="checkbox"
+                      :checked="item[key] === true"
+                      class="h-5 w-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500/20 cursor-pointer align-middle"
+                      :data-testid="`collections-inline-bool-${key}-${item[collection.schema.primaryKey]}`"
+                      :aria-label="field.label"
+                      @click.stop
+                      @change="commitInlineEdit(item, String(key), field, ($event.target as HTMLInputElement).checked)"
+                    />
 
                     <!-- Ref router-link badge -->
                     <span v-else-if="field.type === 'ref' && field.to && typeof item[key] === 'string' && item[key]" class="block truncate">
@@ -261,14 +276,21 @@
                       >
                     </span>
 
-                    <!-- Enum badges -->
-                    <span
-                      v-else-if="field.type === 'enum' && item[key]"
-                      class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border"
-                      :class="enumBadgeClass(item[key])"
+                    <!-- Enum → inline dropdown. Selecting writes + saves
+                         immediately; the empty placeholder clears the field.
+                         `@click.stop` keeps the row's detail panel closed. -->
+                    <select
+                      v-else-if="field.type === 'enum' && Array.isArray(field.values) && field.values.length > 0"
+                      :value="item[key] == null ? '' : String(item[key])"
+                      class="rounded-lg border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer"
+                      :data-testid="`collections-inline-enum-${key}-${item[collection.schema.primaryKey]}`"
+                      :aria-label="field.label"
+                      @click.stop
+                      @change="commitInlineEdit(item, String(key), field, ($event.target as HTMLSelectElement).value)"
                     >
-                      {{ item[key] }}
-                    </span>
+                      <option v-if="showEnumPlaceholder(item, String(key))" value="">{{ t("collectionsView.selectPlaceholder") }}</option>
+                      <option v-for="value in field.values" :key="value" :value="value">{{ value }}</option>
+                    </select>
 
                     <!-- Money -->
                     <span v-else-if="field.type === 'money'" class="block truncate tabular-nums font-semibold text-slate-900">{{
@@ -439,7 +461,7 @@ import { useConfirm } from "../composables/useConfirm";
 import { useAppApi } from "../composables/useAppApi";
 import { actionVisible, fieldVisible } from "../utils/collections/actionVisible";
 import { useCollectionRendering } from "../composables/collections/useCollectionRendering";
-import { draftToRecord, firstMissingRequiredField, rowFromItem } from "../utils/collections/draft";
+import { buildUpdatedRecord, coerceInlineValue, draftToRecord, firstMissingRequiredField, rowFromItem } from "../utils/collections/draft";
 import type {
   CollectionAction,
   CollectionDetail,
@@ -521,6 +543,15 @@ const editing = ref<EditState | null>(null);
 const viewing = ref<CollectionItem | null>(null);
 const saving = ref(false);
 const saveError = ref<string | null>(null);
+/** Error from an inline table-cell edit (checkbox/dropdown). Distinct
+ *  from `saveError` (rendered only inside the detail panel, which is
+ *  closed during inline editing) — shown as a banner above the table. */
+const inlineError = ref<string | null>(null);
+/** Per-load snapshot of enum cells that had NO value when fetched
+ *  (keyed `<rowId>:<fieldKey>`). Only these cells offer the empty
+ *  placeholder option in their inline dropdown — a cell that already
+ *  has a value can't be blanked inline (use the edit form for that). */
+const enumOriginallyEmpty = ref<Set<string>>(new Set());
 const actionPending = ref(false);
 const actionError = ref<string | null>(null);
 const chatOpen = ref(false);
@@ -578,6 +609,34 @@ function isCreateRow(item: CollectionItem): boolean {
   return rowId(item) === CREATE_ROW_ID;
 }
 
+/** Stable key for one cell in the `enumOriginallyEmpty` snapshot. */
+function cellKey(rowIdValue: string, fieldKey: string): string {
+  return `${rowIdValue}:${fieldKey}`;
+}
+
+/** Build the set of enum cells that were empty in the freshly-fetched
+ *  records — the only cells whose inline dropdown offers an empty option. */
+function snapshotEmptyEnums(schema: CollectionDetail["schema"], records: CollectionItem[]): Set<string> {
+  const empty = new Set<string>();
+  const enumKeys = Object.entries(schema.fields)
+    .filter(([, field]) => field.type === "enum")
+    .map(([fieldKey]) => fieldKey);
+  if (enumKeys.length === 0) return empty;
+  for (const record of records) {
+    const recordId = String(record[schema.primaryKey] ?? "");
+    for (const fieldKey of enumKeys) {
+      if (record[fieldKey] == null || record[fieldKey] === "") empty.add(cellKey(recordId, fieldKey));
+    }
+  }
+  return empty;
+}
+
+/** Whether an inline enum dropdown should render its empty placeholder
+ *  option: only for cells with no value at load time. */
+function showEnumPlaceholder(item: CollectionItem, fieldKey: string): boolean {
+  return enumOriginallyEmpty.value.has(cellKey(rowId(item), fieldKey));
+}
+
 /** Rows rendered by the table: the filtered records, plus a synthetic
  *  create row at the top while a create is in progress. */
 const displayItems = computed<CollectionItem[]>(() => {
@@ -605,23 +664,6 @@ function isEditingRow(item: CollectionItem): boolean {
 /** Whether to render this row's expansion panel (detail or edit). */
 function shouldExpand(item: CollectionItem): boolean {
   return isRowOpen(item) || isEditingRow(item);
-}
-
-// Best-effort status coloring for enum badges: maps common
-// status-like values to a semantic tint, falling back to neutral
-// slate for anything unrecognized. Value-matching only (no i18n).
-function enumBadgeClass(value: unknown): string {
-  const str = String(value).toLowerCase();
-  if (["paid", "completed", "success", "active", "approved", "yes", "true"].includes(str)) {
-    return "bg-emerald-50 text-emerald-700 border-emerald-200/30";
-  }
-  if (["pending", "processing", "draft", "warning"].includes(str)) {
-    return "bg-amber-50 text-amber-700 border-amber-200/30";
-  }
-  if (["void", "cancelled", "failed", "error", "no", "false"].includes(str)) {
-    return "bg-rose-50 text-rose-700 border-rose-200/30";
-  }
-  return "bg-slate-50 text-slate-600 border-slate-200/50";
 }
 
 function detailUrl(slug: string): string {
@@ -722,6 +764,7 @@ async function loadCollection(slug: string): Promise<void> {
   }
   collection.value = result.data.collection;
   items.value = result.data.items;
+  enumOriginallyEmpty.value = snapshotEmptyEnums(result.data.collection.schema, result.data.items);
   // Fan out to fetch each unique target collection so the table can
   // render ref values as display names (not slugs) and the form
   // dropdown has options. Failures fall back gracefully — the table
@@ -1058,6 +1101,33 @@ async function saveEditor(): Promise<void> {
   }
 }
 
+/** Write a single cell's value directly onto the live `items` entry.
+ *  Reactive in Vue 3 (proxy), so the bound checkbox/select re-renders.
+ *  `undefined` (enum cleared to the placeholder) renders as the empty
+ *  option; the PUT body omits the key via `buildUpdatedRecord`. */
+function applyInlineValue(item: CollectionItem, key: string, value: unknown): void {
+  item[key] = value;
+}
+
+/** Inline table-cell edit (boolean checkbox / enum dropdown): optimistic
+ *  update, then PUT the full record. On failure, roll the cell back and
+ *  surface the error. Bypasses the detail/edit panel entirely. */
+async function commitInlineEdit(item: CollectionItem, key: string, field: FieldSpec, raw: boolean | string): Promise<void> {
+  if (!collection.value) return;
+  const { slug } = collection.value;
+  const itemId = rowId(item);
+  if (!itemId) return;
+  const previous = item[key];
+  const coerced = coerceInlineValue(field, raw);
+  applyInlineValue(item, key, coerced);
+  inlineError.value = null;
+  const result = await apiPut<ItemMutationResponse>(itemUrl(slug, itemId), buildUpdatedRecord(item, key, coerced));
+  if (!result.ok) {
+    applyInlineValue(item, key, previous);
+    inlineError.value = result.error;
+  }
+}
+
 async function confirmDelete(item: CollectionItem): Promise<void> {
   if (!collection.value) return;
   // Snapshot before any await (see saveEditor) — confirm dialog
@@ -1153,6 +1223,7 @@ watch(
     } else {
       collection.value = null;
       items.value = [];
+      enumOriginallyEmpty.value = new Set();
       searchQuery.value = ""; // Reset search query
       loading.value = false;
     }

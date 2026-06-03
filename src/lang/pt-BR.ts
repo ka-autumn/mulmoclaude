@@ -1324,6 +1324,7 @@ const ptBRMessages = {
     loadFailed: "Falha ao carregar",
     requiredField: "Este campo é obrigatório",
     selectPlaceholder: "Selecionar…",
+    inlineSaveFailed: "Não foi possível salvar a alteração: {error}",
     addRow: "Adicionar linha",
     removeRow: "Remover linha",
     noRows: "Ainda não há linhas",

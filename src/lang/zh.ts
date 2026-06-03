@@ -1311,6 +1311,7 @@ const zhMessages = {
     loadFailed: "加载失败",
     requiredField: "此字段为必填项",
     selectPlaceholder: "请选择…",
+    inlineSaveFailed: "无法保存更改：{error}",
     addRow: "添加行",
     removeRow: "删除行",
     noRows: "暂无行",

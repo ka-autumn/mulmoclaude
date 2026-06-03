@@ -1330,6 +1330,7 @@ const frMessages = {
     loadFailed: "Échec du chargement",
     requiredField: "Ce champ est obligatoire",
     selectPlaceholder: "Sélectionner…",
+    inlineSaveFailed: "Impossible d'enregistrer la modification : {error}",
     addRow: "Ajouter une ligne",
     removeRow: "Supprimer la ligne",
     noRows: "Aucune ligne pour l'instant",

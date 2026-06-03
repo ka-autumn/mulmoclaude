@@ -1340,6 +1340,7 @@ const deMessages = {
     loadFailed: "Laden fehlgeschlagen",
     requiredField: "Dieses Feld ist erforderlich",
     selectPlaceholder: "Auswählen…",
+    inlineSaveFailed: "Änderung konnte nicht gespeichert werden: {error}",
     addRow: "Zeile hinzufügen",
     removeRow: "Zeile entfernen",
     noRows: "Noch keine Zeilen",

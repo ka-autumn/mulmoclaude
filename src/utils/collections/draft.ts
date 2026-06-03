@@ -97,6 +97,25 @@ export function draftToRecord(state: EditState, schema: CollectionSchema): Colle
   return record;
 }
 
+/** Normalise a raw inline-edit input (table-cell checkbox/select) to its
+ *  persisted form. Mirrors `draftToRecord`'s boolean strictness; an empty
+ *  enum selection (the placeholder option) clears the field via `undefined`. */
+export function coerceInlineValue(field: FieldSpec, raw: boolean | string): unknown {
+  if (field.type === "boolean") return raw === true;
+  return raw === "" ? undefined : raw;
+}
+
+/** Build the full record to PUT for a single-cell inline edit, without
+ *  mutating `item`. A `undefined` value omits the key (enum cleared),
+ *  matching `draftToRecord`'s omission semantics. */
+export function buildUpdatedRecord(item: CollectionItem, key: string, value: unknown): CollectionItem {
+  if (value === undefined) {
+    const { [key]: __omit, ...rest } = item;
+    return rest;
+  }
+  return { ...item, [key]: value };
+}
+
 /** Empty for required-field validation — NOT a truthiness check (a
  *  numeric `0` is a filled value). */
 function isMissingDraftValue(value: unknown): boolean {

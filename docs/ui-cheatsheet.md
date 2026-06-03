@@ -395,6 +395,27 @@ Clicking a list row marks it read (badge decrements). The "Mark all read" button
 
 The preview pane reuses plugin views — clicking a `config/scheduler/items.json` mounts `<CalendarView>` via `toSchedulerResult`. System-managed files (`config/*.json`, `data/wiki/*.md`, `conversations/memory.md`, …) get a `[system-file-banner]` above the body explaining what the file is, who writes it, and whether hand-edits survive (descriptors live in `src/config/systemFileDescriptors.ts`; #832).
 
+## /collections — schema-driven record tables
+
+```
+┌─[<CollectionView> — /collections/:slug]────────────────────────────────┐
+│ Toolbar: [Table | Calendar] toggle · search · [+ add]                   │
+│                                                                         │
+│ [collections-inline-error] (banner, only after a failed inline write)   │
+│ ┌─Table──────────────────────────────────────────────────────────────┐ │
+│ │ ID        │ Yoga                  │ Status                          │ │
+│ │ [collections-row-<id>] (whole row click → detail panel)            │ │
+│ │  jun-03   │ ☑ [collections-      │ ▾ [collections-                 │ │
+│ │           │   inline-bool-       │   inline-enum-                  │ │
+│ │           │   <key>-<id>]        │   <key>-<id>]                   │ │
+│ └────────────────────────────────────────────────────────────────────┘ │
+│                                                                         │
+│ Row click expands [collections-detail] (read-only → Edit → Save).       │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+`boolean` columns render an inline checkbox and `enum` columns an inline `<select>` directly in the table cell — changing one writes the value straight to the record (`PUT .../items/:id`, optimistic + rollback on failure) without opening the detail panel. The controls use `@click.stop` so the cell click never bubbles into the row's `openView`. All other field types (and the full edit form) still go through the row → `[collections-detail]` → Edit → Save flow.
+
 ## /skills — workspace skills list
 
 Two-pane layout (`<ManageSkillsView>`): left sidebar = two collapsible

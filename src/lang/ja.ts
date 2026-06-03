@@ -1318,6 +1318,7 @@ const jaMessages = {
     loadFailed: "読み込みに失敗しました",
     requiredField: "この項目は必須です",
     selectPlaceholder: "選択…",
+    inlineSaveFailed: "変更を保存できませんでした: {error}",
     addRow: "行を追加",
     removeRow: "行を削除",
     noRows: "行がありません",
