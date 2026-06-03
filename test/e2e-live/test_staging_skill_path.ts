@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { stagingSkillSlugFromWritePath } from "../../e2e-live/fixtures/staging-skill-path.ts";
+import { CONTAINER_WORKSPACE_PATH, stagingSkillSlugFromWritePath } from "../../e2e-live/fixtures/staging-skill-path.ts";
 
 // Regression net for the L-31 "skill 化して" bridge-dispatch canary.
 // Under Docker the agent runs inside the sandbox, so its `Write`
@@ -12,10 +12,11 @@ import { stagingSkillSlugFromWritePath } from "../../e2e-live/fixtures/staging-s
 // Arbitrary stable host root — only used to distinguish the Docker-off
 // branch from the Docker-on (sandbox) branch.
 const HOST_ROOT = "/Users/qa/mulmoclaude";
-// Mirrors CONTAINER_WORKSPACE_PATH in server/agent/config.ts — where the
-// workspace is bind-mounted inside the Docker sandbox. The agent's Write
-// landing here being dropped was the L-31 Docker-on regression.
-const SANDBOX_ROOT = "/home/node/mulmoclaude";
+// The Docker sandbox mount root — where the agent's Write landing was
+// dropped (the L-31 Docker-on regression). Imported from the fixture so
+// the literal lives in one place within the test layer (Sourcery review
+// on this PR).
+const SANDBOX_ROOT = CONTAINER_WORKSPACE_PATH;
 const SLUG = "e2e-live-l31-chromium-1780000000000-ab12cd";
 
 describe("stagingSkillSlugFromWritePath", () => {
@@ -29,6 +30,14 @@ describe("stagingSkillSlugFromWritePath", () => {
 
   it("matches a workspace-relative staging write", () => {
     assert.equal(stagingSkillSlugFromWritePath(`data/skills/${SLUG}/SKILL.md`, HOST_ROOT), SLUG);
+  });
+
+  it("matches a ./-prefixed cwd-relative staging write", () => {
+    assert.equal(stagingSkillSlugFromWritePath(`./data/skills/${SLUG}/SKILL.md`, HOST_ROOT), SLUG);
+  });
+
+  it("matches a ../-traversal write that resolves back into the workspace", () => {
+    assert.equal(stagingSkillSlugFromWritePath(`sub/../data/skills/${SLUG}/SKILL.md`, HOST_ROOT), SLUG);
   });
 
   it("rejects a write to .claude/skills (the permission path the bridge bypasses)", () => {
