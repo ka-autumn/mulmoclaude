@@ -101,7 +101,7 @@
            h-full continue to render properly. Map groups pass the
            ordered `results` so the View replays the whole group onto
            one map; everything else uses the single `selected-result`. -->
-        <div v-else :style="{ height: PLUGIN_HEIGHT }">
+        <div v-else :style="{ height: pluginHeightFor(item.head.toolName) }">
           <component
             :is="getPlugin(item.head.toolName)?.viewComponent"
             v-if="getPlugin(item.head.toolName)?.viewComponent"
@@ -142,6 +142,20 @@ const { t } = useI18n();
 // height is required for them to render. text-response and the
 // "stack-natural" plugins below are special-cased.
 const PLUGIN_HEIGHT = "min(60vh, 560px)";
+
+// Per-tool height overrides. presentMulmoScript's deck-editor renders
+// a 16:9 slide preview inside an iframe; at the default 560px cap, the
+// chrome above (header + toolbar + script-source summary) leaves the
+// preview shorter than what a 16:9 slide needs to fit, and the bottom
+// of the rendered slide ends up clipped. A taller cap lets the slide
+// render in full without letterboxing.
+const PLUGIN_HEIGHT_OVERRIDES: Record<string, string> = {
+  [TOOL_NAMES.presentMulmoScript]: "min(85vh, 820px)",
+};
+
+function pluginHeightFor(toolName: string): string {
+  return PLUGIN_HEIGHT_OVERRIDES[toolName] ?? PLUGIN_HEIGHT;
+}
 
 // How long to ignore scroll-spy after a programmatic scroll (sidebar
 // click, auto-scroll on new result). Keeps the spy from emitting a
