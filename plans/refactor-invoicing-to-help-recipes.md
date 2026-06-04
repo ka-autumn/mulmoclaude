@@ -108,12 +108,33 @@ de-`mc-`'d, and the SKILL/description cross-references updated to the new slugs.
 ### Edit — discoverability
 
 - `src/config/roles.ts` — add two `queries` entries so the bundles are
-  discoverable from a sample prompt. Recommended home: the **`general`** role
-  (default landing role; collection skills are not role-gated — see the existing
-  note at l.366-368). Proposed strings:
-  - "Set up client and time tracking for my consulting work"
-  - "Set up invoicing for my business"
-  - (Alternative / additional home: the `office` role, l.145-153.)
+  discoverable from a sample prompt. Home: the **`personal`** role (it already
+  hosts every "Create a … collection" sample prompt and exposes
+  `presentCollection`). **Recommended order: A then B** (B's `invoice` has a
+  required `clientId → clients` ref and soft-reads `worklog`, both in A — install
+  A first and invoicing works frictionlessly; B-then-A still converges via lazy
+  ref resolution, A-alone is fully functional). List the A query first.
+
+  **CRITICAL — the query must point at the recipe.** A bare query like "Set up
+  invoicing for my business" does NOT work: nothing connects it to the recipe, so
+  the agent never reads `config/helps/billing-*.md` and instead free-styles a
+  custom schema (mimicking other collections, calling `presentForm` to ask design
+  questions). The established codebase pattern (wiki / presentation / spreadsheet
+  / the generic collection-create query in `en.ts`) is to **embed the read-this
+  instruction in the prompt text**. So the shipped strings are:
+  - "Set up client and time tracking for my consulting work. First read
+    `config/helps/billing-clients-worklog.md` and follow it exactly to author the
+    clients and worklog collections — do not redesign the schemas or ask me design
+    questions."  *(Bundle A — list first)*
+  - "Set up invoicing for my business. First read `config/helps/billing-invoice.md`
+    and follow it exactly to author the invoice and profile collections — do not
+    redesign the schemas or ask me design questions."  *(Bundle B)*
+
+  The backticked help path survives runtime query translation verbatim (same as
+  the existing `en.ts` collection-create query). **Belt-and-suspenders:** each
+  recipe also opens with a "Follow this recipe verbatim — do NOT redesign / no
+  `presentForm` / don't mimic other collections" callout, so the agent stays on
+  rails even when reached by a free-form request rather than the sample button.
 
 ### Edit — repoint help/doc cross-refs that currently point at the deleted presets
 
@@ -140,22 +161,44 @@ de-`mc-`'d, and the SKILL/description cross-references updated to the new slugs.
   assertions in skills-preset / collections discovery tests; update counts and
   fixtures.
 
-## Existing users (decision: leave + document)
+## Existing users (decision: remove legacy skills on launch, preserve data)
+
+> **Decision revised** (was "option 1 — notify-only"). The notify-only approach
+> left the starred `mc-*` collections in the dashboard, which the user found
+> confusing. New decision: the host **removes** the legacy skill dirs on launch,
+> leaving all records in place.
 
 Users who already starred the `mc-*` presets have live data at
-`data/{clients,worklog,invoice,profile}/items`. Once the source dirs are deleted:
+`data/{clients,worklog,invoice,profile}/items`. On launch
+(`migrateLegacyBillingPresets`, `server/workspace/billing-migration.ts`, wired in
+`server/index.ts` after `announceOptionalDeps`):
 
-- The boot overwrite of those presets stops; a previously-starred
-  `.claude/skills/mc-invoice` lingers and **keeps working unchanged** against the
-  same `data/invoice/items` (refs still target `mc-clients`, which also lingers).
-- New users get the bare-slug recipe versions (`/collections/invoice`, etc.),
-  backed by the **same** `data/*/items` folders.
+- Any `mc-{clients,worklog,invoice,profile}` dir present in `.claude/skills/` is
+  **deleted** (`rmSync`). Only the **skill directory** is removed — the records
+  under `data/*/items` are left completely untouched.
+- A **one-time bell** fires when at least one was removed, explaining the change
+  and pointing at the two sample queries. (i18n `billingMigration.{title,body}`,
+  8 locales.)
 
-Net: existing starred users keep `mc-*` slugs; new users get bare slugs; data is
-shared and untouched. **No data migration.** Note the cosmetic slug difference
-in `docs/CHANGELOG.md`. (Alternative considered and rejected for now: a recipe
-rewrite step that detects an `mc-*` suite and re-slugs it — more complexity and a
-riskier one-time rewrite of financial collections.)
+**Idempotency is structural — no marker file.** Once the dirs are gone the boot
+check finds nothing and is a no-op; the bell only fires on the boot that actually
+removes something. The preset sources are deleted and their catalog entries are
+pruned by `removeRetiredPresets`, so a legacy `mc-*` billing skill can never
+reappear through the normal star flow.
+
+**Data is never deleted, and the recipe re-attaches to it.** Because `dataPath`
+is prefix-free (`data/clients/items`, …) and unchanged, running "Set up client
+and time tracking" then "Set up invoicing" recreates the bare-slug collections
+over the **same** records — the user's existing clients / invoices / worklog
+entries reappear under `/collections/clients`, `/collections/invoice`, etc.
+
+Alternatives considered and rejected: **(1) notify-only** (leave the `mc-*`
+skills; the original choice) — rejected because the stale collections stayed in
+the dashboard and read as "the migration didn't happen"; **(auto-migrate)**
+delete `mc-*` AND host-recreate bare-slug on boot — re-introduces the host↔slug
+coupling the refactor removes and is a risky one-time host-side rewrite of
+financial collections. The chosen path removes the stale skills (so the dashboard
+is clean) but lets the **recipe** — not the host — recreate them on demand.
 
 ### Docs
 
@@ -186,12 +229,78 @@ riskier one-time rewrite of financial collections.)
       `accounting` chat with the de-`mc-`'d record.
 - [ ] No stale `data/skills/catalog/preset/mc-{clients,worklog,invoice,profile}`
       after a boot (or documented as inert).
+- [ ] Upgrade with active `mc-*` billing skills present: first boot **removes**
+      `.claude/skills/mc-{clients,worklog,invoice,profile}` and fires exactly
+      **one** migration bell; second boot fires none (dirs already gone); the
+      records under `data/*/items` remain untouched and reappear when the recipe
+      is re-run.
 - [ ] `yarn format && yarn lint && yarn typecheck && yarn build` clean; unit +
       e2e suites updated for removed presets.
 
 ## Open decisions for review
 
-1. Sample-query home — `general` (recommended) vs `office` vs both?
-2. Recipe filenames — `billing-clients-worklog.md` / `billing-invoice.md`
-   (proposed) vs another naming.
-3. Confirm "leave existing users, document only" (no re-slug migration).
+(All resolved — see below.)
+
+### Resolved
+
+- **Existing users → remove legacy skills on launch, preserve data** (revised
+  from notify-only). `migrateLegacyBillingPresets`
+  (`server/workspace/billing-migration.ts`), wired at `server/index.ts` after
+  `announceOptionalDeps`: deletes `.claude/skills/mc-{clients,worklog,invoice,profile}`
+  (records under `data/*/items` untouched) and fires a one-time bell, i18n in all
+  8 locales (`billingMigration.{title,body}`). Idempotent without a marker — the
+  deletion is the guard. (See "Existing users" above.)
+- **Install order → recommend A then B**, A-query listed first; both orders and
+  A-alone still work.
+- **Sample-query home → `personal` role** (NOT `general`). The `personal` role
+  already hosts every "Create a … collection" sample prompt and exposes
+  `presentCollection`, so the two billing prompts join that cluster
+  (`src/config/roles.ts`).
+- **Sample query must embed the recipe path** (learned during live validation).
+  Each query carries "First read `config/helps/billing-*.md` and follow it
+  exactly … do not redesign / ask design questions" — without this the agent
+  free-styles a custom schema + `presentForm`. Reinforced by a verbatim-only
+  callout at the top of each recipe. (See "Edit — discoverability".)
+- **Recipe filenames → `billing-clients-worklog.md` + `billing-invoice.md`** (as
+  proposed).
+- **Stale catalog prune → already handled.** `removeRetiredPresets`
+  (`server/workspace/skills-preset.ts:165`) deletes catalog `mc-*` entries whose
+  source is gone, so deleting the four source dirs auto-prunes the catalog on the
+  next boot; starred active copies under `.claude/skills/` correctly linger.
+
+## Implementation status (landed in working tree)
+
+- ✅ Recipes `billing-clients-worklog.md` (A) + `billing-invoice.md` (B), verbatim
+  de-`mc-`'d schemas/SKILL + the four invoice action templates, slug contract,
+  dependency-aware "add clients too?" prompt.
+- ✅ Deleted the four `mc-*` preset dirs (−1002 lines).
+- ✅ Two `personal`-role sample queries (A first), **each embedding the recipe
+  path + "follow it exactly, no redesign / no presentForm"**; reinforced by a
+  verbatim-only callout at the top of both recipes.
+- ✅ Repointed cross-refs (`collection-skills.md`, `helps/index.md`).
+- ✅ Launch-time removal of legacy `mc-*` billing skills (data preserved) + one-time
+  bell + i18n (8 locales). No marker / no gitignore change.
+- ✅ `docs/CHANGELOG.md` entry.
+- ✅ e2e-live: `skills.spec.ts` L-33B retargeted `mc-invoice` → `mc-library`
+  (CI-relevant, no-LLM); `journey-llm.spec.ts` clients journey rewritten to
+  recipe-scaffold the `clients` collection — **needs a live e2e-live run to
+  validate** (could not be exercised here).
+- ✅ `yarn format / lint / typecheck / build` clean; unit suite green (5355 pass,
+  0 fail).
+
+### Manually validated in the running app (2026-06-04)
+
+- ✅ Launch-time removal of the four starred legacy `mc-*` billing skills +
+  one-time bell fired.
+- ✅ Bundle A: the sample query made the agent read
+  `config/helps/billing-clients-worklog.md` and author `data/skills/{clients,worklog}/`
+  **verbatim** — no `presentForm`, no extra fields. Existing client/worklog
+  records preserved.
+- ✅ Bundle B: same for `config/helps/billing-invoice.md` → `data/skills/{profile,invoice}/`
+  + the four templates, verbatim; the dependency check saw `clients` present and
+  proceeded; existing `profile/me` + `INV-2026-0001` preserved.
+
+### Still unverified (automated only)
+
+- The `journey-llm.spec.ts` clients journey under a real `e2e-live` run (the
+  manual path above exercises the same flow, but the spec itself hasn't been run).

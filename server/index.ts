@@ -49,6 +49,7 @@ import { createJournalRouter } from "./api/routes/journal.js";
 import { createTranslationRouter } from "./api/routes/translation.js";
 import { announcePluginMetaDiagnostics } from "./plugins/diagnostics.js";
 import { announceOptionalDeps } from "./system/announceOptionalDeps.js";
+import { migrateLegacyBillingPresets } from "./workspace/billing-migration.js";
 import { APP_VERSION } from "./system/appVersion.js";
 import { createChatService } from "@mulmobridge/chat-service";
 import { readSessionJsonl } from "./utils/files/session-io.js";
@@ -903,6 +904,13 @@ async function startRuntimeServices(httpServer: ReturnType<typeof app.listen>, p
   // missing one so a feature degrading is visible instead of a
   // later opaque crash. Never throws.
   await announceOptionalDeps();
+
+  // --- Billing-suite migration ---
+  // The invoicing collections moved from bundled `mc-*` presets to
+  // help-file recipes. Remove any lingering starred `mc-*` billing
+  // skill from `.claude/skills/` (records preserved) and fire a
+  // one-time bell. No-op once the dirs are gone. Never throws.
+  migrateLegacyBillingPresets();
 
   // --- Collection completion watchers ---
   // Mount `fs.watch` over every discovered collection's dataDir so

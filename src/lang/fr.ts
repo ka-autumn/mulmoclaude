@@ -92,6 +92,10 @@ const frMessages = {
     notResponding:
       "{command} est installé mais n'est pas en cours d'exécution — les fonctionnalités associées ont été désactivées. Démarrez {command} et redémarrez MulmoClaude pour les activer.",
   },
+  billingMigration: {
+    title: "La facturation est passée à une configuration à la demande",
+    body: "Les collections intégrées clients, worklog, invoice et profile ont été retirées de votre tableau de bord, mais vos données sont en sécurité et intactes. Demandez à configurer le suivi des clients et du temps, puis la facturation pour les recréer ; vos enregistrements existants réapparaîtront.",
+  },
   backendOffline: {
     title: "Impossible de joindre le backend",
     body: "Le serveur MulmoClaude n'est peut-être pas démarré. Vérifiez le serveur de développement, puis réessayez.",

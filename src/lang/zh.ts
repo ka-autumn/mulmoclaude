@@ -94,6 +94,10 @@ const zhMessages = {
     notFound: "未找到 {command} — 相关功能已被禁用。请安装 {command} 后重启 MulmoClaude 以启用。",
     notResponding: "{command} 已安装但未运行 — 相关功能已被禁用。请启动 {command} 后重启 MulmoClaude 以启用。",
   },
+  billingMigration: {
+    title: "开票功能已改为按需设置",
+    body: "内置的 clients、worklog、invoice 和 profile 集合已从仪表盘中移除，但你的数据安全无损。请求设置客户与工时记录，然后设置开票，即可重新创建它们，你现有的记录会重新出现。",
+  },
   backendOffline: {
     title: "无法连接到后端",
     body: "MulmoClaude 服务器可能未运行。请检查开发服务器后再重试。",

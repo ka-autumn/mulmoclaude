@@ -94,6 +94,10 @@ const deMessages = {
     notResponding:
       "{command} ist installiert, läuft aber nicht — zugehörige Funktionen wurden deaktiviert. Starten Sie {command} und starten Sie MulmoClaude neu, um sie zu aktivieren.",
   },
+  billingMigration: {
+    title: "Die Rechnungsstellung wird jetzt bei Bedarf eingerichtet",
+    body: "Die gebündelten Sammlungen clients, worklog, invoice und profile wurden aus deinem Dashboard entfernt, deine Daten sind jedoch sicher und unverändert. Bitte um die Einrichtung der Kunden- und Zeiterfassung und anschließend der Rechnungsstellung, um sie neu zu erstellen – deine vorhandenen Datensätze werden wieder angezeigt.",
+  },
   backendOffline: {
     title: "Backend nicht erreichbar",
     body: "Der MulmoClaude-Server läuft möglicherweise nicht. Prüfe den Dev-Server und versuche es erneut.",

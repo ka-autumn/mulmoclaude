@@ -112,6 +112,10 @@ const enMessages = {
     notFound: "{command} not found — related features are disabled. Install {command} and restart MulmoClaude to enable them.",
     notResponding: "{command} is installed but not running — related features are disabled. Start {command} and restart MulmoClaude to enable them.",
   },
+  billingMigration: {
+    title: "Invoicing moved to on-demand setup",
+    body: "The bundled clients, worklog, invoice, and profile collections were removed from your dashboard, but your data is safe and untouched. Ask to set up client & time tracking, then invoicing, to recreate them — your existing records will reappear.",
+  },
   backendOffline: {
     title: "Can't reach the backend",
     body: "The MulmoClaude server may not be running. Check the dev server, then retry.",

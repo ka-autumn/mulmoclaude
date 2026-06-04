@@ -97,6 +97,10 @@ const esMessages = {
     notResponding:
       "{command} está instalado pero no se está ejecutando — las funciones relacionadas se han desactivado. Inicia {command} y reinicia MulmoClaude para habilitarlas.",
   },
+  billingMigration: {
+    title: "La facturación pasó a configurarse bajo demanda",
+    body: "Las colecciones incluidas clients, worklog, invoice y profile se eliminaron de tu panel, pero tus datos están seguros e intactos. Pide configurar el seguimiento de clientes y horas y, luego, la facturación para volver a crearlas; tus registros existentes reaparecerán.",
+  },
   backendOffline: {
     title: "No se puede conectar con el backend",
     body: "Es posible que el servidor de MulmoClaude no esté en ejecución. Comprueba el servidor de desarrollo y vuelve a intentarlo.",

@@ -97,6 +97,10 @@ const jaMessages = {
     notFound: "{command} がインストールされていないため、関連機能を停止しています。{command} をインストールしてから MulmoClaude を再起動してください。",
     notResponding: "{command} が起動していないため、関連機能を停止しています。{command} を起動してから MulmoClaude を再起動してください。",
   },
+  billingMigration: {
+    title: "請求書機能はオンデマンド設定に移行しました",
+    body: "同梱されていた clients・worklog・invoice・profile のコレクションはダッシュボードから削除されましたが、データは安全でそのまま保持されています。クライアントと作業時間の記録、続いて請求書の設定を依頼すると再作成され、既存のレコードが再び表示されます。",
+  },
   backendOffline: {
     title: "バックエンドに接続できません",
     body: "MulmoClaude サーバが起動していない可能性があります。dev サーバを確認してから再試行してください。",

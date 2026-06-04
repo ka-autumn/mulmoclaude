@@ -31,15 +31,17 @@ const L33_TIMEOUT_MS = 3 * ONE_MINUTE_MS;
 const L33B_TIMEOUT_MS = 2 * ONE_MINUTE_MS;
 
 // L-33B target: a launcher preset that's reliably NOT auto-starred
-// in normal user workspaces. `mc-invoice` is bundled (lives in
-// `server/workspace/skills-preset/mc-invoice/`) so its catalog row
+// in normal user workspaces. `mc-library` is bundled (lives in
+// `server/workspace/skills-preset/mc-library/`) so its catalog row
 // always renders, but it's a niche workflow rarely starred by
 // default — minimising the chance that an L-33B run collides with
 // a user who's actively relying on the preset between runs. The
 // test fs-removes any existing star before exercising the UI and
 // fs-removes again in `finally`, so the workspace ends in the same
 // "unstarred" state regardless of where it started.
-const L33B_PRESET_SLUG = "mc-invoice";
+// (Was `mc-invoice` until the billing suite moved to help-file
+// recipes; any surviving non-auto-starred preset works here.)
+const L33B_PRESET_SLUG = "mc-library";
 
 // L-33: launcher preset slug + a signature line from its bundled
 // `SKILL.md`. Treated as pinned literals because the canary's whole
@@ -514,25 +516,25 @@ test.describe("skills (real LLM / static)", () => {
     //       refresh picked it up)
     //   (e) finally: restore to the EXACT original starred state
     //       (snapshot at test start), so a user who actually uses
-    //       mc-invoice doesn't lose their existing star
+    //       mc-library doesn't lose their existing star
     //
     // No LLM dispatch / no agent turn — pure UI + filesystem chain.
     // That keeps it fast and lets the CI matrix run it without
     // `E2E_LIVE_NO_LLM` skipping; the regression net it adds is
-    // independent of fake-echo's reach. mc-invoice is picked because
+    // independent of fake-echo's reach. mc-library is picked because
     // it's a launcher preset (catalog row guaranteed) that's rarely
     // starred by default.
     //
     // Symmetric state restoration (Codex iter-5 review): snapshot
     // the original starred state BEFORE touching disk. If the user /
-    // CI had `mc-invoice` starred (they actually use it), `finally`
+    // CI had `mc-library` starred (they actually use it), `finally`
     // leaves it starred. If unstarred, `finally` fs-unstars whatever
     // the test added. Either way the workspace ends in the same
     // state it started — no silent destruction of a real user's
     // existing star.
     //
     // Concurrency note: L-33B mutates a shared, fixed slug. No other
-    // e2e-live test currently touches mc-invoice and Playwright runs
+    // e2e-live test currently touches mc-library and Playwright runs
     // each test once per file, so there's no actual race today. The
     // defensive `.or()` on Star vs "Starred" inside
     // `clickStarOnCatalogDetail` (Codex iter-5 review) is

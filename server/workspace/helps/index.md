@@ -54,6 +54,8 @@ See [Wiki](config/helps/wiki.md) for details on how it works.
 - [GitHub repositories in the workspace](config/helps/github.md) — clone-destination rules under `github/<name>/` and how to handle existing directories with matching or different remotes
 - [Collection skills](config/helps/collection-skills.md) — build a data app (model + UI + relations + computed fields + action buttons) by authoring a `schema.json` collection skill: the DSL, field types, derived formulas, actions, records
 - [Todo list collection](config/helps/todo-collection.md) — the canonical recipe for building or migrating a todo / task list: full schema (status enum + `done` toggle + priority bells), `SKILL.md`, and legacy `todo-plugin` migration steps
+- [Clients + Worklog](config/helps/billing-clients-worklog.md) — recipe for a client database and a per-client timesheet (Bundle A of the billing suite); set this up before invoicing
+- [Invoicing](config/helps/billing-invoice.md) — recipe for an invoice ledger + business profile with line items, host-computed totals, and PDF / bookkeeping action buttons (Bundle B; references the clients + worklog from Bundle A)
 
 ## Workspace Layout
 

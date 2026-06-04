@@ -99,6 +99,10 @@ const koMessages = {
     notResponding:
       "{command}은(는) 설치되어 있지만 실행 중이 아닙니다 — 관련 기능이 비활성화되었습니다. {command}을(를) 시작한 후 MulmoClaude를 재시작하면 활성화됩니다.",
   },
+  billingMigration: {
+    title: "인보이스 기능이 온디맨드 설정으로 이동했습니다",
+    body: "번들로 제공되던 clients, worklog, invoice, profile 컬렉션이 대시보드에서 제거되었지만 데이터는 안전하게 그대로 유지됩니다. 클라이언트 및 작업 시간 기록을 설정한 다음 인보이스를 설정하도록 요청하면 다시 만들어지고 기존 레코드가 다시 표시됩니다.",
+  },
   backendOffline: {
     title: "백엔드에 연결할 수 없습니다",
     body: "MulmoClaude 서버가 실행 중이 아닐 수 있습니다. 개발 서버를 확인한 후 다시 시도하세요.",

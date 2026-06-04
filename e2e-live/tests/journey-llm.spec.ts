@@ -39,9 +39,9 @@ import {
 //
 // Per the 2026-05-30 design principle: add is always LLM-driven.
 // calendar / todo / accounting expose a role-gated manage* tool;
-// collections have NO manage* tool — the mc-clients preset skill
-// teaches the agent to add a client by Write-ing a workspace JSON
-// file, so the COLLECTION journey nets a path the others don't
+// collections have NO manage* tool — the recipe-authored clients
+// skill teaches the agent to add a client by Write-ing a workspace
+// JSON file, so the COLLECTION journey nets a path the others don't
 // (skill-driven file I/O reflected by <CollectionView>). Deletes mix
 // UI (calendar / collection) and LLM (todo / accounting) so the suite
 // canaries both teardown paths.
@@ -440,21 +440,27 @@ function parseBookNamesStrict(raw: string): string[] {
 }
 
 // ---------------------------------------------------------------------------
-// collections (presentCollection — Personal role, mc-clients preset skill)
+// collections (presentCollection — Personal role, clients recipe collection)
 // ---------------------------------------------------------------------------
 
-// The mc-clients preset skill (server/workspace/skills-preset/mc-clients/)
-// is synced into every workspace on boot. Unlike the manage* plugins,
-// collections have no add tool — the skill tells the agent to derive an
-// id and Write the record to data/clients/items/<id>.json. The host's
-// <CollectionView> reads those same files, so a row appearing in the
-// view proves the skill-driven file write landed AND rendered.
-const CLIENTS_COLLECTION_SLUG = "mc-clients";
+// The `clients` collection is now created on demand from the billing
+// recipe (config/helps/billing-clients-worklog.md), not from a bundled
+// preset skill. The add prompt below first scaffolds the collection
+// (author data/skills/clients/{schema.json,SKILL.md}) if it doesn't
+// exist, then — collections have no add tool — derives an id and Writes
+// the record to data/clients/items/<id>.json. The host's <CollectionView>
+// reads those same files, so a row appearing in the view proves the
+// scaffold + file write landed AND rendered.
+//
+// NOTE: this journey scaffolds a collection in one agent turn; it must be
+// validated with a live e2e-live run (it was not exercised when the
+// billing suite moved off presets).
+const CLIENTS_COLLECTION_SLUG = "clients";
 
 function clientAddPrompt(marker: string): string {
   return [
-    `Add one client to the ${CLIENTS_COLLECTION_SLUG} clients collection whose name is EXACTLY '${marker}' (verbatim, do not edit it).`,
-    "Use the mc-clients skill: derive an id and Write the record to data/clients/items/<id>.json.",
+    `If a '${CLIENTS_COLLECTION_SLUG}' collection does not exist yet, set it up first: read config/helps/billing-clients-worklog.md and author data/skills/${CLIENTS_COLLECTION_SLUG}/schema.json and SKILL.md exactly as that recipe specifies.`,
+    `Then add one client to the ${CLIENTS_COLLECTION_SLUG} collection whose name is EXACTLY '${marker}' (verbatim, do not edit it): derive an id and Write the record to data/clients/items/<id>.json.`,
     "Do not add any other client. Do not use presentForm. Reply with a one-line confirmation only.",
   ].join(" ");
 }

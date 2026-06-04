@@ -43,8 +43,11 @@ data/<name>/items/             ← the records (separate from the skill dir)
   without a restart. (Other files you drop in `data/skills/<slug>/` — a README,
   scratch notes — stay put and are NOT mirrored.)
 - **Do NOT use the `mc-` prefix** for skills you create. `mc-*` is reserved for
-  the bundled presets (`mc-clients`, `mc-worklog`, `mc-invoice`, `mc-profile`);
-  the server overwrites those on every boot, so your edits would be lost.
+  the bundled presets (`mc-cooking-coach`, `mc-library`, `mc-wiki-*`,
+  `mc-manage-*`); the server overwrites those on every boot, so your edits would
+  be lost. (The billing collections — `clients`, `worklog`, `invoice`, `profile`
+  — are now recipe-authored under these plain slugs, NOT `mc-` presets; see the
+  worked reference below.)
 - **`<slug>` rules**: lowercase letters, digits, hyphens; no leading / trailing
   hyphen; 1–64 chars (e.g. `recipes`, `book-club`, `gym-log`). It doubles as the
   URL (`/collections/<slug>`) and the directory name.
@@ -125,14 +128,14 @@ Every field spec needs a `type` and a `label`. Extra keys by type:
   decimal; currency is display-only.
 - **`ref`** — `to: "<target-slug>"`. Stores the target record's primary-key
   slug; host renders a clickable link + a dropdown picker populated from the
-  target collection. Example: `{ "type": "ref", "to": "mc-clients", "label": "Client" }`.
+  target collection. Example: `{ "type": "ref", "to": "clients", "label": "Client" }`.
   A `derived` field on the same record can also **dereference** a `ref` to read
   a numeric column off the record it points at — see the cross-collection
   formula syntax below.
 - **`embed`** — `to: "<target-slug>"`, `id: "<record-id>"`. Pulls a *fixed*
   record from another collection into the read-only detail view (display-only,
   **nothing is stored** on this record). Example: an invoice embedding the
-  user's own profile: `{ "type": "embed", "to": "mc-profile", "id": "me" }`.
+  user's own profile: `{ "type": "embed", "to": "profile", "id": "me" }`.
 - **`table`** — `of: { <col>: <sub-field-spec>, ... }`. An array of rows. Each
   sub-field is a flat spec; sub-fields **cannot** be `table` or `derived`
   (no nested tables, no computed columns).
@@ -586,14 +589,18 @@ single source of truth and the "done" checkbox is a `toggle` field projecting it
 
 ## Worked reference: the billing suite
 
-The bundled presets are the canonical examples — read their `schema.json` when
-in doubt:
+The billing collections are the canonical examples. They ship as **recipes**
+(copy-paste schemas + SKILL bodies), not as boot-overwritten presets — read the
+recipe when the user wants any of them, and copy the schema verbatim:
 
-- **`mc-clients`** — flat table (`string` / `email` / `text` / `markdown`). The
-  simplest possible collection; everything else `ref`s into it.
-- **`mc-worklog`** — adds a `ref` (`clientId → mc-clients`), a `date`, a
-  `number`, a `boolean`. A companion data source.
-- **`mc-invoice`** — the full toolkit in one schema: an `embed` issuer, a `ref`
-  client, a `table` of line items, three `derived` money fields, an `enum`
-  status, and four `actions` (PDF always-on; sale / payment / void gated by
-  `status` via `when`).
+- **`config/helps/billing-clients-worklog.md`** (Bundle A):
+  - **`clients`** — flat table (`string` / `email` / `text` / `markdown`). The
+    simplest possible collection; everything else `ref`s into it.
+  - **`worklog`** — adds a `ref` (`clientId → clients`), a `date`, a `number`, a
+    `boolean`. A companion data source.
+- **`config/helps/billing-invoice.md`** (Bundle B):
+  - **`profile`** — a `singleton` (one record, id `me`): the issuer identity.
+  - **`invoice`** — the full toolkit in one schema: an `embed` issuer
+    (`profile/me`), a `ref` client (`clients`), a `table` of line items, three
+    `derived` money fields, an `enum` status, and four `actions` (PDF always-on;
+    sale / payment / void gated by `status` via `when`).

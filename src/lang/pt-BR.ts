@@ -92,6 +92,10 @@ const ptBRMessages = {
     notResponding:
       "{command} está instalado mas não está em execução — recursos relacionados foram desativados. Inicie {command} e reinicie o MulmoClaude para habilitá-los.",
   },
+  billingMigration: {
+    title: "O faturamento passou a ser configurado sob demanda",
+    body: "As coleções incluídas clients, worklog, invoice e profile foram removidas do seu painel, mas seus dados estão seguros e intactos. Peça para configurar o controle de clientes e horas e, em seguida, o faturamento para recriá-las; seus registros existentes reaparecerão.",
+  },
   backendOffline: {
     title: "Não foi possível conectar ao backend",
     body: "O servidor do MulmoClaude pode não estar em execução. Verifique o servidor de desenvolvimento e tente novamente.",
