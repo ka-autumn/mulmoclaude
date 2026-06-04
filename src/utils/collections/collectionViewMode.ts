@@ -17,7 +17,9 @@ function readAll(): ViewModeMap {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return {};
     const parsed: unknown = JSON.parse(raw);
-    return parsed && typeof parsed === "object" ? (parsed as ViewModeMap) : {};
+    // Plain object only — an array would pass `typeof === "object"` and then
+    // let writeCollectionViewMode write string keys onto it.
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as ViewModeMap) : {};
   } catch {
     return {};
   }

@@ -1455,7 +1455,11 @@ watch(
 // Embedded mode: report view/anchor changes so the chat card persists them
 // in `viewState` (alongside `selected`). Standalone mode: persist the view
 // mode per slug in localStorage so reopening restores it.
-watch([activeView, calendarAnchorField, kanbanGroupField], () => {
+// `loading` is a dependency so the write re-runs when the collection finishes
+// loading: that's the point where a stored mode unsupported by this schema
+// (its date/enum field gone) has collapsed to "table" and must be normalized
+// back into storage — otherwise no other dependency changes and it lingers.
+watch([activeView, calendarAnchorField, kanbanGroupField, loading], () => {
   // Persist the EFFECTIVE view (activeView), not the raw `view` ref — a
   // stale "calendar"/"kanban" that has fallen back to "table" (its enabling
   // field gone) must not be saved as an impossible mode.
