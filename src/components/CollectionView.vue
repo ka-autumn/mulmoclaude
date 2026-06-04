@@ -569,6 +569,7 @@ import CollectionKanbanView from "./CollectionKanbanView.vue";
 import { useConfirm } from "../composables/useConfirm";
 import { useAppApi } from "../composables/useAppApi";
 import { actionVisible, fieldVisible } from "../utils/collections/actionVisible";
+import { readCollectionViewMode, writeCollectionViewMode } from "../utils/collections/collectionViewMode";
 import { useCollectionRendering } from "../composables/collections/useCollectionRendering";
 import { buildUpdatedRecord, coerceInlineValue, draftToRecord, firstMissingRequiredField, rowFromItem } from "../utils/collections/draft";
 import type {
@@ -942,8 +943,21 @@ const canDeleteCollection = computed<boolean>(() => {
 // when the schema has a `date` field and the kanban only when it has an
 // `enum` field, so plain collections and the initial load are unchanged
 // (default "table").
+//
+// Standalone route mode persists the last-used mode per collection in
+// localStorage so reopening `/collections/:slug` restores the prior view
+// instead of always starting on the table. Embedded mode ignores the store
+// and restores from the card's `initialView` prop instead.
 type CollectionViewMode = "table" | "calendar" | "kanban";
-const view = ref<CollectionViewMode>(props.initialView ?? "table");
+
+/** The view to open with: the embedded card's restored `initialView` if
+ *  present, else the standalone slug's stored mode, else "table". */
+function initialViewMode(): CollectionViewMode {
+  if (props.initialView) return props.initialView;
+  const slug = activeSlug.value;
+  return (slug && readCollectionViewMode(slug)) || "table";
+}
+const view = ref<CollectionViewMode>(initialViewMode());
 
 /** `date` fields in declaration order — the calendar can anchor on any. */
 const dateFields = computed<string[]>(() =>
@@ -1416,9 +1430,11 @@ watch(
   (slug, prevSlug) => {
     // Reset view state when switching BETWEEN collections — but not on the
     // initial run (prevSlug undefined), so an embedded card's restored
-    // `initialView` / `initialAnchorField` survive the first load.
+    // `initialView` / `initialAnchorField` survive the first load. Standalone
+    // mode restores the new collection's stored mode (else "table"); the axis
+    // fields always reset to their schema defaults.
     if (prevSlug !== undefined && slug !== prevSlug) {
-      view.value = "table";
+      view.value = (slug && !embedded.value && readCollectionViewMode(slug)) || "table";
       anchorOverride.value = null;
       kanbanOverride.value = null;
     }
@@ -1437,12 +1453,20 @@ watch(
 );
 
 // Embedded mode: report view/anchor changes so the chat card persists them
-// in `viewState` (alongside `selected`). No-op in standalone route mode.
+// in `viewState` (alongside `selected`). Standalone mode: persist the view
+// mode per slug in localStorage so reopening restores it.
 watch([activeView, calendarAnchorField, kanbanGroupField], () => {
   // Persist the EFFECTIVE view (activeView), not the raw `view` ref — a
   // stale "calendar"/"kanban" that has fallen back to "table" (its enabling
   // field gone) must not be saved as an impossible mode.
-  if (embedded.value) emit("viewStateChange", { view: activeView.value, anchorField: calendarAnchorField.value, groupField: kanbanGroupField.value });
+  if (embedded.value) {
+    emit("viewStateChange", { view: activeView.value, anchorField: calendarAnchorField.value, groupField: kanbanGroupField.value });
+    return;
+  }
+  // Don't write during the load window: until the collection resolves,
+  // `hasCalendar`/`hasKanban` are false so `activeView` reads "table",
+  // which would clobber a stored "calendar"/"kanban" before it can apply.
+  if (activeSlug.value && !loading.value && collection.value) writeCollectionViewMode(activeSlug.value, activeView.value);
 });
 
 // React to the active selection changing while already on this
