@@ -37,10 +37,12 @@ const zhMessages = {
   chatInput: {
     placeholder: "向 Claude 发送消息…",
     send: "发送",
+    stop: "停止",
     attachFile: "附加文件",
     fileTooLarge: "文件过大（{sizeMB} MB）。上限为 30 MB。",
     unsupportedFileType: "不支持的文件类型。支持:图像、PDF、DOCX、XLSX、PPTX、文本文件。",
     attachImageFailed: "附加图片失败：{error}",
+    stopFailed: "停止处理失败：{error}",
     dropHint: "拖放文件以附加",
   },
   sessionHistoryPanel: {

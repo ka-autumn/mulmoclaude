@@ -39,10 +39,12 @@ const jaMessages = {
   chatInput: {
     placeholder: "Claude にメッセージ…",
     send: "送信",
+    stop: "停止",
     attachFile: "ファイルを添付",
     fileTooLarge: "ファイルが大きすぎます（{sizeMB} MB）。上限は 30 MB です。",
     unsupportedFileType: "対応していないファイル形式です。画像・PDF・DOCX・XLSX・PPTX・テキストファイルを使用してください。",
     attachImageFailed: "画像の添付に失敗しました: {error}",
+    stopFailed: "処理の停止に失敗しました: {error}",
     dropHint: "ファイルをドロップして添付",
   },
   sessionHistoryPanel: {

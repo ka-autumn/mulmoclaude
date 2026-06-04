@@ -52,11 +52,21 @@
             <span class="material-icons text-base leading-none">lightbulb</span>
           </button>
           <button
+            v-if="isRunning"
+            data-testid="stop-btn"
+            class="bg-red-600 hover:bg-red-700 text-white rounded w-8 h-8 flex items-center justify-center"
+            :title="t('chatInput.stop')"
+            :aria-label="t('chatInput.stop')"
+            @click="emit('stop')"
+          >
+            <span class="material-icons text-base leading-none">stop</span>
+          </button>
+          <button
+            v-else
             data-testid="send-btn"
             class="bg-blue-600 hover:bg-blue-700 text-white rounded w-8 h-8 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
             :title="t('chatInput.send')"
             :aria-label="t('chatInput.send')"
-            :disabled="isRunning"
             @click="emit('send')"
           >
             <span class="material-icons text-base leading-none">send</span>
@@ -108,6 +118,7 @@ const emit = defineEmits<{
   "update:modelValue": [value: string];
   "update:pastedFile": [file: PastedFile | null];
   send: [];
+  stop: [];
   "suggestion-send": [query: string];
 }>();
 

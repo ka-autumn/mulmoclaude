@@ -32,10 +32,12 @@ const ptBRMessages = {
   chatInput: {
     placeholder: "Mensagem para Claude…",
     send: "Enviar",
+    stop: "Parar",
     attachFile: "Anexar arquivo",
     fileTooLarge: "Arquivo muito grande ({sizeMB} MB). O limite é 30 MB.",
     unsupportedFileType: "Tipo de arquivo não suportado. Aceitos: imagens, PDF, DOCX, XLSX, PPTX e arquivos de texto.",
     attachImageFailed: "Falha ao anexar a imagem: {error}",
+    stopFailed: "Falha ao parar a execução: {error}",
     dropHint: "Solte o arquivo para anexar",
   },
   sessionHistoryPanel: {

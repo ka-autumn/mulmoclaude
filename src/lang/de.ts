@@ -32,10 +32,12 @@ const deMessages = {
   chatInput: {
     placeholder: "Nachricht an Claude…",
     send: "Senden",
+    stop: "Stoppen",
     attachFile: "Datei anhängen",
     fileTooLarge: "Datei zu groß ({sizeMB} MB). Das Maximum beträgt 30 MB.",
     unsupportedFileType: "Dateityp nicht unterstützt. Akzeptiert: Bilder, PDF, DOCX, XLSX, PPTX, Textdateien.",
     attachImageFailed: "Anhängen des Bildes fehlgeschlagen: {error}",
+    stopFailed: "Stoppen der Ausführung fehlgeschlagen: {error}",
     dropHint: "Datei zum Anhängen ablegen",
   },
   sessionHistoryPanel: {

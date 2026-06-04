@@ -32,10 +32,12 @@ const frMessages = {
   chatInput: {
     placeholder: "Message à Claude…",
     send: "Envoyer",
+    stop: "Arrêter",
     attachFile: "Joindre un fichier",
     fileTooLarge: "Fichier trop volumineux ({sizeMB} Mo). La limite est de 30 Mo.",
     unsupportedFileType: "Type de fichier non pris en charge. Acceptés : images, PDF, DOCX, XLSX, PPTX, fichiers texte.",
     attachImageFailed: "Échec de l'attache de l'image : {error}",
+    stopFailed: "Échec de l'arrêt du traitement : {error}",
     dropHint: "Déposez le fichier pour joindre",
   },
   sessionHistoryPanel: {

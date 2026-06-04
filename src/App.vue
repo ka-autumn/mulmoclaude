@@ -135,6 +135,7 @@
           :is-running="activeSessionRunning"
           :queries="sessionRoleQueries"
           @send="sendMessage()"
+          @stop="stopCurrentRun()"
           @suggestion-send="(q) => sendMessage(q)"
         />
       </div>
@@ -267,6 +268,7 @@
             :is-running="activeSessionRunning"
             :queries="sessionRoleQueries"
             @send="sendMessage()"
+            @stop="stopCurrentRun()"
             @suggestion-send="(q) => sendMessage(q)"
           />
         </div>
@@ -372,7 +374,7 @@ import { useEventListeners } from "./composables/useEventListeners";
 import { provideAppApi } from "./composables/useAppApi";
 import { provideActiveSession } from "./composables/useActiveSession";
 import { useRoute, useRouter } from "vue-router";
-import { apiGet } from "./utils/api";
+import { apiGet, apiPost } from "./utils/api";
 import { API_ROUTES } from "./config/apiRoutes";
 import { TOOL_NAMES } from "./config/toolNames";
 import { classifyWorkspacePath } from "./utils/path/workspaceLinkRouter";
@@ -1024,6 +1026,21 @@ async function sendMessage(text?: string) {
   if (!result.ok) {
     pushErrorMessage(session, result.error);
     unsubscribeSession(session.id);
+  }
+}
+
+// Stop the in-flight agent run for the displayed session. The server's
+// /api/agent/cancel aborts the AbortController, kills the Claude
+// subprocess, and publishes `session_finished` — which flips
+// `isRunning` back to false through the normal pub/sub path. So we only
+// fire-and-report here; no local state reset is needed on success.
+async function stopCurrentRun(): Promise<void> {
+  const sessionId = currentSessionId.value;
+  if (!sessionId) return;
+  const result = await apiPost<{ ok: boolean }>(API_ROUTES.agent.cancel, { chatSessionId: sessionId });
+  if (!result.ok) {
+    const session = sessionMap.get(sessionId);
+    if (session) pushErrorMessage(session, t("chatInput.stopFailed", { error: result.error }));
   }
 }
 

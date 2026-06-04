@@ -54,10 +54,12 @@ const enMessages = {
   chatInput: {
     placeholder: "Message Claude…",
     send: "Send",
+    stop: "Stop",
     attachFile: "Attach file",
     fileTooLarge: "File too large ({sizeMB} MB). Maximum is 30 MB.",
     unsupportedFileType: "File type not supported. Accepted: images, PDF, DOCX, XLSX, PPTX, text files.",
     attachImageFailed: "Failed to attach image: {error}",
+    stopFailed: "Failed to stop the run: {error}",
     dropHint: "Drop file to attach",
   },
   sessionHistoryPanel: {
