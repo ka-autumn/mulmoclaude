@@ -136,6 +136,85 @@ test("Add opens the create form as a panel pinned at the top of the list", async
   expect(pageErrors, pageErrors.join("\n")).toHaveLength(0);
 });
 
+// Channel isolation: an embedded card's view lives in its tool-result
+// `viewState`, NEVER in the standalone-route localStorage store. A stored
+// standalone preference for the same slug must not leak into (and then get
+// re-persisted by) the embedded card. Here a date-bearing collection has a
+// stored "calendar" mode; the embedded card must still open on the table.
+const DATED_EVENTS_DETAIL = {
+  collection: {
+    slug: "dated-events",
+    title: "Events",
+    icon: "event",
+    source: "user",
+    schema: {
+      title: "Events",
+      icon: "event",
+      dataPath: "data/dated-events/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        name: { type: "string", label: "Name", required: true },
+        on: { type: "date", label: "Date" },
+      },
+      displayField: "name",
+      calendarField: "on",
+    },
+  },
+  items: [{ id: "launch", name: "Launch party", on: "" }],
+};
+
+test("embedded card ignores the standalone localStorage view-mode store", async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (err) => pageErrors.push(`${err.message}\n${err.stack ?? ""}`));
+
+  // Seed the standalone store with "calendar" for this slug BEFORE the app boots.
+  await page.addInitScript(() => {
+    localStorage.setItem("collection_view_modes", JSON.stringify({ "dated-events": "calendar" }));
+  });
+
+  await mockAllApis(page, {
+    sessions: [{ id: "watchlist-session", title: "Events", roleId: "general", startedAt: "2026-05-29T10:00:00Z", updatedAt: "2026-05-29T10:05:00Z" }],
+  });
+  await page.route(
+    (url) => url.pathname === "/api/collections/dated-events",
+    (route) => route.fulfill({ json: DATED_EVENTS_DETAIL }),
+  );
+  await page.route(
+    (url) => url.pathname.startsWith("/api/sessions/") && url.pathname !== "/api/sessions",
+    (route) =>
+      route.fulfill({
+        json: [
+          { type: "session_meta", roleId: "general", sessionId: "watchlist-session" },
+          { type: "text", source: "user", message: "show me the events" },
+          {
+            type: "tool_result",
+            source: "tool",
+            // No `viewState` → embedded `initialView` is undefined.
+            result: {
+              uuid: "pc-result-2",
+              toolName: "presentCollection",
+              title: "Events",
+              message: "Presented collection dated-events",
+              data: { collectionSlug: "dated-events" },
+            },
+          },
+        ],
+      }),
+  );
+
+  await page.goto(SESSION_PATH);
+  await expect(page.getByTestId("present-collection")).toBeVisible({ timeout: 10_000 });
+  // The date field means the calendar toggle IS offered — so the card COULD
+  // have honoured the stored "calendar". It must not: the table is shown and
+  // the calendar grid never mounts.
+  await expect(page.getByTestId("collection-view-toggle-calendar")).toBeVisible();
+  await expect(page.getByTestId("collections-row-launch")).toBeVisible();
+  await expect(page.getByTestId("collection-calendar")).toHaveCount(0);
+
+  expect(pageErrors, pageErrors.join("\n")).toHaveLength(0);
+});
+
 test("saving an edit returns to the record's detail (does not close) in the embedded card", async ({ page }) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (err) => pageErrors.push(`${err.message}\n${err.stack ?? ""}`));

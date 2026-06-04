@@ -951,9 +951,13 @@ const canDeleteCollection = computed<boolean>(() => {
 type CollectionViewMode = "table" | "calendar" | "kanban";
 
 /** The view to open with: the embedded card's restored `initialView` if
- *  present, else the standalone slug's stored mode, else "table". */
+ *  present, else the standalone slug's stored mode, else "table". Embedded
+ *  mode never reads the localStorage store — its state lives in the card's
+ *  `viewState`, so a standalone preference must not leak into (and then be
+ *  re-persisted by) an embedded card. */
 function initialViewMode(): CollectionViewMode {
   if (props.initialView) return props.initialView;
+  if (embedded.value) return "table";
   const slug = activeSlug.value;
   return (slug && readCollectionViewMode(slug)) || "table";
 }

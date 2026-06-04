@@ -159,4 +159,18 @@ test.describe("collection calendar view", () => {
     await expect(page.getByTestId("collections-row-jane")).toBeVisible();
     await expect(page.getByTestId("collection-view-toggle-calendar")).toHaveCount(0);
   });
+
+  // The standalone route persists the last-used view mode per collection in
+  // localStorage, so reopening restores the prior view instead of the table.
+  test("restores the last-used view mode after a reload", async ({ page }) => {
+    await page.goto("/collections/events");
+    await page.getByTestId("collection-view-toggle-calendar").click();
+    await expect(page.getByTestId("collection-calendar")).toBeVisible();
+
+    await page.reload();
+
+    // Reopens on the calendar, not the default table.
+    await expect(page.getByTestId("collection-calendar")).toBeVisible();
+    await expect(page.getByTestId("collection-calendar-chip-launch")).toBeVisible();
+  });
 });
