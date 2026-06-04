@@ -293,15 +293,28 @@ function onInputKeydown(event: KeyboardEvent): void {
   }
 }
 
+function refocusInput(): void {
+  // Arm `suppressBlur` for the SINGLE blur that the focus() call
+  // may produce before settling, then clear it so the next real
+  // click-away triggers cancel-on-blur as expected. Without the
+  // post-focus clear the flag stays armed after a validation /
+  // save failure and silently swallows the user's next blur
+  // (CodeRabbit review on #1608).
+  suppressBlur = true;
+  void nextTick(() => {
+    newFileInputRef.value?.focus();
+    setTimeout(() => {
+      suppressBlur = false;
+    }, 0);
+  });
+}
+
 function onNewFileSubmit(): void {
   if (!createPolicy.value) return;
   const result = normaliseNewFileSlug(newFileSlug.value, createPolicy.value);
   if (!result.ok) {
     createError.value = result.reason === "empty" ? t("fileTree.newFileError.empty") : t("fileTree.newFileError.unsafe");
-    suppressBlur = true;
-    void nextTick(() => {
-      newFileInputRef.value?.focus();
-    });
+    refocusInput();
     return;
   }
   // Keep the input open until the parent's PUT resolves so a save
@@ -310,16 +323,14 @@ function onNewFileSubmit(): void {
   suppressBlur = true;
   emit("createFile", {
     folder: props.node.path,
-    filename: result.slug,
+    filename: result.filename,
     resolve: (ok, error) => {
       if (ok) {
         cancelCreate();
         return;
       }
       createError.value = error ?? t("fileTree.newFileError.saveFailed");
-      void nextTick(() => {
-        newFileInputRef.value?.focus();
-      });
+      refocusInput();
     },
   });
 }

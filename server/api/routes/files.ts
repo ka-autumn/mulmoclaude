@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import { ReadStream, Stats, createReadStream, readFileSync, realpathSync } from "fs";
+import { mkdir, realpath, writeFile } from "fs/promises";
 import path from "path";
 import { workspacePath } from "../../workspace/workspace.js";
 import { statSafe, statSafeAsync, readDirSafeAsync, resolveWithinRoot, writeFileAtomic } from "../../utils/files/index.js";
@@ -838,23 +839,61 @@ function jsonSyntaxError(relPath: string, content: string): string | null {
 // The file must already exist; creating new files is out of scope.
 // Resolve a path for a file we expect to NOT exist yet (POST create).
 // `resolveExistingTextFile` requires existence and bails with 404 for
-// new files, which is exactly the create case — so this helper does
-// the workspace-containment check without touching disk, then the
-// caller checks non-existence separately.
-function resolveNewFilePath(relPathRaw: string): { ok: true; absPath: string } | { ok: false; status: 400; message: string } {
+// new files, which is exactly the create case.
+//
+// Hardening (Codex iter-2..6 on #1598):
+//
+//   - **Syntactic checks** (containment, HIDDEN_DIRS, sensitive
+//     basenames, classifier) are equivalent to what `resolveSafe`
+//     applies to existing paths.
+//   - **realpath-walk** the deepest existing ancestor of the target.
+//     PUT inherits this via `resolveSafe`'s `realpathSync` on the
+//     existing file; for create the target is absent, so we walk up
+//     to the first ancestor that exists, realpath that, and
+//     reconstruct the final path under the resolved real ancestor.
+//     A symlinked workspace subtree pointing outside `workspaceReal`
+//     therefore can't route create writes outside the workspace.
+async function resolveNewFilePath(relPathRaw: string): Promise<{ ok: true; absPath: string } | { ok: false; status: 400; message: string }> {
   const normalised = path.normalize(relPathRaw);
   if (path.isAbsolute(normalised)) return { ok: false, status: 400, message: "Path must be workspace-relative" };
   const candidate = path.resolve(workspaceReal, normalised);
   const relativeFromWorkspace = path.relative(workspaceReal, candidate);
-  const escapesSyntactically = relativeFromWorkspace === ".." || relativeFromWorkspace.startsWith(`..${path.sep}`);
-  if (escapesSyntactically) return { ok: false, status: 400, message: "Path outside workspace" };
-  // Sensitive-path block: PUT inherits this via resolveSafe (which
-  // calls realpathSync, refused for non-existent paths) — for create
-  // we have to apply isSensitivePath explicitly. Without this guard,
-  // a malicious client could POST `.env` and write workspace secrets.
+  if (relativeFromWorkspace === ".." || relativeFromWorkspace.startsWith(`..${path.sep}`)) {
+    return { ok: false, status: 400, message: "Path outside workspace" };
+  }
+  // Mirror `resolveSafe`: refuse `.git/` (or any HIDDEN_DIRS) segment.
+  for (const seg of relativeFromWorkspace.split(path.sep)) {
+    if (HIDDEN_DIRS.has(seg)) return { ok: false, status: 400, message: "Path not allowed" };
+  }
   if (isSensitivePath(relativeFromWorkspace)) return { ok: false, status: 400, message: "Path not allowed" };
   if (classify(candidate) !== "text") return { ok: false, status: 400, message: "File type not editable" };
-  return { ok: true, absPath: candidate };
+  // Walk up the candidate's ancestors until we find one that exists.
+  // Realpath THAT ancestor — a symlinked in-workspace folder pointing
+  // outside `workspaceReal` would otherwise let the create land outside.
+  // Reconstruct the final path as the realpath'd ancestor + the
+  // remaining missing segments, then re-verify containment.
+  const trailing: string[] = [];
+  let probe = candidate;
+  let probeStat = await statSafeAsync(probe);
+  while (!probeStat) {
+    const parent = path.dirname(probe);
+    if (parent === probe) return { ok: false, status: 400, message: "Path outside workspace" };
+    trailing.unshift(path.basename(probe));
+    probe = parent;
+    probeStat = await statSafeAsync(probe);
+  }
+  let realProbe: string;
+  try {
+    realProbe = await realpath(probe);
+  } catch {
+    return { ok: false, status: 400, message: "Path not allowed" };
+  }
+  const finalAbs = trailing.length === 0 ? realProbe : path.join(realProbe, ...trailing);
+  const relFromReal = path.relative(workspaceReal, finalAbs);
+  if (relFromReal === ".." || relFromReal.startsWith(`..${path.sep}`) || path.isAbsolute(relFromReal)) {
+    return { ok: false, status: 400, message: "Path outside workspace" };
+  }
+  return { ok: true, absPath: finalAbs };
 }
 
 // Create a new text file. Refuses to overwrite — that's PUT's job and
@@ -872,15 +911,9 @@ router.post(API_ROUTES.files.create, async (req: Request<object, unknown, WriteC
   const { relPath, content, bytes: contentBytes } = validation;
   log.info("files", "POST create: start", { pathPreview: previewSnippet(relPath), bytes: contentBytes });
 
-  const resolved = resolveNewFilePath(relPath);
+  const resolved = await resolveNewFilePath(relPath);
   if (!resolved.ok) {
     badRequest(res, resolved.message);
-    return;
-  }
-  const existing = await statSafeAsync(resolved.absPath);
-  if (existing) {
-    log.warn("files", "POST create: conflict", { pathPreview: previewSnippet(relPath) });
-    sendError(res, 409, "File already exists");
     return;
   }
   const jsonError = jsonSyntaxError(relPath, content);
@@ -889,9 +922,26 @@ router.post(API_ROUTES.files.create, async (req: Request<object, unknown, WriteC
     badRequest(res, jsonError);
     return;
   }
+  // Atomic create: `wx` (POSIX O_EXCL) — fails with EEXIST if the
+  // target already exists, closing the check-then-write TOCTOU that
+  // Codex flagged on earlier iterations. Wiki pages route through
+  // `writeWikiPage` with `exclusive: true` so the same exclusive
+  // primitive applies after the frontmatter stamp.
   try {
-    await writeFileContent(resolved.absPath, content);
+    const wikiClass = classifyAsWikiPage(resolved.absPath, { workspaceRoot: workspaceReal });
+    if (wikiClass.wiki) {
+      await writeWikiPage(wikiClass.slug, content, { editor: "user" }, { workspaceRoot: workspaceReal, exclusive: true });
+    } else {
+      await mkdir(path.dirname(resolved.absPath), { recursive: true });
+      await writeFile(resolved.absPath, content, { flag: "wx" });
+    }
   } catch (err) {
+    const { code } = err as { code?: string };
+    if (code === "EEXIST") {
+      log.warn("files", "POST create: conflict", { pathPreview: previewSnippet(relPath) });
+      sendError(res, 409, "File already exists");
+      return;
+    }
     log.error("files", "POST create: write threw", { pathPreview: previewSnippet(relPath), error: errorMessage(err) });
     serverError(res, "Failed to create file");
     return;

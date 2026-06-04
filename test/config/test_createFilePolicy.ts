@@ -60,37 +60,37 @@ describe("normaliseNewFileSlug", () => {
   it("appends the policy extension to a clean slug", () => {
     assert.deepEqual(normaliseNewFileSlug("my-new-page", wikiPolicy), {
       ok: true,
-      slug: "my-new-page.md",
+      filename: "my-new-page.md",
     });
   });
 
   it("strips a user-supplied extension and uses the policy's", () => {
     assert.deepEqual(normaliseNewFileSlug("my-page.txt", wikiPolicy), {
       ok: true,
-      slug: "my-page.md",
+      filename: "my-page.md",
     });
     assert.deepEqual(normaliseNewFileSlug("my-page.md", wikiPolicy), {
       ok: true,
-      slug: "my-page.md",
+      filename: "my-page.md",
     });
     // Even an unrelated extension on a json folder gets coerced
     assert.deepEqual(normaliseNewFileSlug("script.txt", jsonPolicy), {
       ok: true,
-      slug: "script.json",
+      filename: "script.json",
     });
   });
 
   it("trims surrounding whitespace", () => {
     assert.deepEqual(normaliseNewFileSlug("  my-page  ", wikiPolicy), {
       ok: true,
-      slug: "my-page.md",
+      filename: "my-page.md",
     });
   });
 
   it("accepts non-ASCII slugs verbatim (the wiki tree already does)", () => {
     assert.deepEqual(normaliseNewFileSlug("旅行記-2026", wikiPolicy), {
       ok: true,
-      slug: "旅行記-2026.md",
+      filename: "旅行記-2026.md",
     });
   });
 

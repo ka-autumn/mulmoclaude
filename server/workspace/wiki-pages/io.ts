@@ -19,6 +19,7 @@
 // site wired up means PR 2 is purely an internal change.
 
 import path from "node:path";
+import { mkdir, writeFile } from "node:fs/promises";
 import { readTextSafe } from "../../utils/files/safe.js";
 import { writeFileAtomic } from "../../utils/files/atomic.js";
 import { mergeFrontmatter, parseFrontmatter, serializeWithFrontmatter } from "../../utils/markdown/frontmatter.js";
@@ -55,6 +56,12 @@ export interface WikiPageWriteOptions {
    *  injection. Tests pass a fixed `Date` so the round-trip is
    *  deterministic; production uses the wall clock. */
   now?: () => Date;
+  /** Create-only mode: write via `O_EXCL` (`flag: "wx"`) so the
+   *  call atomically refuses to overwrite an existing page. The
+   *  thrown error has `code: "EEXIST"` — used by the
+   *  `POST /api/files/create` route (#1598) to map to a 409 and
+   *  close the check-then-write TOCTOU surfaced in Codex review. */
+  exclusive?: boolean;
 }
 
 /** Absolute path for a slug. Throws on slugs that would escape
@@ -93,9 +100,20 @@ export async function readWikiPage(slug: string, opts: WikiPageWriteOptions = {}
  *  no-op stub today, real history pipeline in #763 PR 2. */
 export async function writeWikiPage(slug: string, content: string, meta: WikiWriteMeta, opts: WikiPageWriteOptions = {}): Promise<void> {
   const absPath = wikiPagePath(slug, opts);
-  const oldContent = await readTextSafe(absPath);
+  // Exclusive mode: don't read first — the `wx` flag itself is what
+  // closes the TOCTOU window. `oldContent` is null by definition
+  // (the file doesn't exist on the first successful write).
+  const oldContent = opts.exclusive ? null : await readTextSafe(absPath);
   const finalContent = stampFrontmatter(oldContent, content, meta, opts);
-  await writeFileAtomic(absPath, finalContent, { uniqueTmp: true });
+  if (opts.exclusive) {
+    await mkdir(path.dirname(absPath), { recursive: true });
+    // `flag: "wx"` is the POSIX `O_EXCL`: atomic create-or-fail.
+    // On a concurrent create race only one call wins; the other
+    // throws `EEXIST`, which the route handler maps to HTTP 409.
+    await writeFile(absPath, finalContent, { flag: "wx" });
+  } else {
+    await writeFileAtomic(absPath, finalContent, { uniqueTmp: true });
+  }
   // Snapshot trigger: only fire when the *body* changed (or the
   // user-supplied meta did) — auto-stamping `updated` on every
   // save would otherwise flood the snapshot store with no-op

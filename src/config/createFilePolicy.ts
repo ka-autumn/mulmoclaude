@@ -48,12 +48,17 @@ export function policyForFolder(folderPath: string): CreateFilePolicy | null {
   return CREATE_FILE_POLICIES.find((entry) => entry.folder === folderPath) ?? null;
 }
 
-export type SlugValidation = { ok: true; slug: string } | { ok: false; reason: "empty" | "unsafe" };
+export type SlugValidation = { ok: true; filename: string } | { ok: false; reason: "empty" | "unsafe" };
 
-/** Normalise a raw input into the slug portion of the eventual
- *  filename. Strips a trailing extension (whatever the user typed —
- *  the policy's extension wins) and trims whitespace. Returns
- *  `{ ok: false }` for inputs that can't safely become a filename:
+/** Normalise a raw input into the final basename to write
+ *  (slug + policy extension). Strips a trailing extension (whatever
+ *  the user typed — the policy's extension wins) and trims
+ *  whitespace. The `filename` field on the success case includes
+ *  the policy extension — it's exactly the basename the caller
+ *  should hand to the create endpoint.
+ *
+ *  Returns `{ ok: false }` for inputs that can't safely become a
+ *  filename:
  *
  *  - empty after trim/strip
  *  - contains `/` `\` NUL (would escape the target folder)
@@ -73,5 +78,5 @@ export function normaliseNewFileSlug(raw: string, policy: CreateFilePolicy): Slu
   const stripped = trimmed.replace(/\.[a-z0-9]+$/i, "");
   if (stripped.length === 0) return { ok: false, reason: "empty" };
   if (!isSafeSlug(stripped)) return { ok: false, reason: "unsafe" };
-  return { ok: true, slug: stripped + policy.extension };
+  return { ok: true, filename: stripped + policy.extension };
 }

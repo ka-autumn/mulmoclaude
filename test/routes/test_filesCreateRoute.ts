@@ -8,7 +8,7 @@
 import { after, before, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { mkdirSync, readdirSync } from "fs";
-import { mkdtemp, readFile, rm, writeFile } from "fs/promises";
+import { mkdtemp, readFile, rm, symlink, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";
 import type { Request, Response } from "express";
@@ -185,6 +185,35 @@ describe("POST /api/files/create — security", () => {
     const { state, res } = mockRes();
     await createHandler(req({ path: ".env", content: "SECRET=1" }), res);
     assert.equal(state.status, 400);
+  });
+
+  it("refuses a path that traverses a hidden directory (.git/)", async () => {
+    mkdirSync(path.join(workspaceDir, ".git"), { recursive: true });
+    const { state, res } = mockRes();
+    await createHandler(req({ path: ".git/config", content: "" }), res);
+    assert.equal(state.status, 400);
+  });
+
+  it("refuses a symlinked in-workspace folder that escapes the workspace", async () => {
+    // Set up: workspace/data/escape -> tmpRoot/outside.
+    // A naive containment check on `data/escape/file.md` would allow
+    // it because the syntactic path stays under workspaceDir; the
+    // realpath-walk in resolveNewFilePath must catch the escape.
+    const outside = path.join(tmpRoot, "outside");
+    mkdirSync(outside, { recursive: true });
+    mkdirSync(path.join(workspaceDir, "data"), { recursive: true });
+    await symlink(outside, path.join(workspaceDir, "data", "escape"));
+    const { state, res } = mockRes();
+    await createHandler(req({ path: "data/escape/leak.md", content: "secret" }), res);
+    assert.equal(state.status, 400);
+    // And the outside location stayed clean.
+    let leaked = true;
+    try {
+      await readFile(path.join(outside, "leak.md"));
+    } catch {
+      leaked = false;
+    }
+    assert.equal(leaked, false, "symlink escape should not have written outside the workspace");
   });
 });
 
