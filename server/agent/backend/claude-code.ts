@@ -81,7 +81,40 @@ function createMcpTracker() {
   };
 }
 
-async function* readAgentEvents(proc: ClaudeProc): AsyncGenerator<AgentEvent> {
+// Exit codes the claude CLI reports when it is terminated by one of the
+// signals our abort handler sends: 128 + signal number (SIGTERM=15 → 143,
+// SIGKILL=9 → 137). Node also reports a null code with `signal` set when a
+// signal kills the process directly without the CLI's own handler running.
+const ABORT_EXIT_CODES = new Set([143, 137]);
+const ABORT_SIGNALS = new Set<string>(["SIGTERM", "SIGKILL"]);
+
+// A non-zero exit caused by our own abort (stop button → proc.kill()) is
+// expected, not a failure — surfacing it as an error event makes a deliberate
+// stop look like a crash. Suppress it ONLY when we actually aborted AND the
+// exit is signal-shaped, so a genuine crash that happens to coincide with a
+// stop click still surfaces its real error.
+export function isAbortCausedExit(exitCode: number | null, signal: string | null, abortSignal?: AbortSignal): boolean {
+  if (!abortSignal?.aborted) return false;
+  if (signal !== null && ABORT_SIGNALS.has(signal)) return true;
+  return exitCode !== null && ABORT_EXIT_CODES.has(exitCode);
+}
+
+// Build the error event for a finished claude process, or null when nothing
+// should surface (clean exit, or a deliberate abort). exitCode is null when a
+// signal — not a code — ended the process, so name the signal in that case
+// rather than emitting "claude exited with code null".
+export function buildExitErrorEvent(
+  exitCode: number | null,
+  signal: string | null,
+  abortSignal: AbortSignal | undefined,
+  stderrOutput: string,
+): { type: typeof EVENT_TYPES.error; message: string } | null {
+  if (exitCode === 0 || isAbortCausedExit(exitCode, signal, abortSignal)) return null;
+  const exitSummary = exitCode !== null ? `claude exited with code ${exitCode}` : `claude terminated by signal ${signal ?? "unknown"}`;
+  return { type: EVENT_TYPES.error, message: stderrOutput || exitSummary };
+}
+
+async function* readAgentEvents(proc: ClaudeProc, abortSignal?: AbortSignal): AsyncGenerator<AgentEvent> {
   let stderrOutput = "";
   let stderrBuffer = "";
   proc.stderr.on("data", (chunk: Buffer) => {
@@ -107,6 +140,11 @@ async function* readAgentEvents(proc: ClaudeProc): AsyncGenerator<AgentEvent> {
   // "MCP invoked but consistently failing" pattern.
   const mcpFailureMonitor = createMcpFailureMonitor();
 
+  // Attach the close listener BEFORE draining stdout. The `close` event
+  // can fire on the same tick stdout ends; registering it only after the
+  // read loop risks missing it and hanging on the await below.
+  const closed = new Promise<{ code: number | null; signal: string | null }>((resolve) => proc.on("close", (code, sig) => resolve({ code, signal: sig })));
+
   let buffer = "";
   for await (const chunk of proc.stdout) {
     buffer += (chunk as Buffer).toString();
@@ -129,18 +167,14 @@ async function* readAgentEvents(proc: ClaudeProc): AsyncGenerator<AgentEvent> {
     }
   }
 
-  const exitCode = await new Promise<number>((resolve) => proc.on("close", resolve));
+  const { code: exitCode, signal } = await closed;
 
   if (stderrBuffer.trim()) log.error("agent-stderr", stderrBuffer);
-  log.info("agent", "claude exited", { exitCode });
+  log.info("agent", "claude exited", { exitCode, signal });
   mcpTracker.logIfSuspicious();
 
-  if (exitCode !== 0) {
-    yield {
-      type: EVENT_TYPES.error,
-      message: stderrOutput || `claude exited with code ${exitCode}`,
-    };
-  }
+  const errorEvent = buildExitErrorEvent(exitCode, signal, abortSignal, stderrOutput);
+  if (errorEvent) yield errorEvent;
 }
 
 async function* runClaudeAgent(input: AgentInput): AsyncGenerator<AgentEvent> {
@@ -197,7 +231,7 @@ async function* runClaudeAgent(input: AgentInput): AsyncGenerator<AgentEvent> {
   input.abortSignal?.addEventListener("abort", onAbort, { once: true });
 
   try {
-    yield* readAgentEvents(proc);
+    yield* readAgentEvents(proc, input.abortSignal);
   } finally {
     input.abortSignal?.removeEventListener("abort", onAbort);
     if (!proc.killed) proc.kill();
