@@ -81,6 +81,24 @@ function createMcpTracker() {
   };
 }
 
+// Exit codes the claude CLI reports when it is terminated by one of the
+// signals our abort handler sends: 128 + signal number (SIGTERM=15 → 143,
+// SIGKILL=9 → 137). Node also reports a null code with `signal` set when a
+// signal kills the process directly without the CLI's own handler running.
+const ABORT_EXIT_CODES = new Set([143, 137]);
+const ABORT_SIGNALS = new Set<string>(["SIGTERM", "SIGKILL"]);
+
+// A non-zero exit caused by our own abort (stop button → proc.kill()) is
+// expected, not a failure — surfacing it as an error event makes a deliberate
+// stop look like a crash. Suppress it ONLY when we actually aborted AND the
+// exit is signal-shaped, so a genuine crash that happens to coincide with a
+// stop click still surfaces its real error.
+export function isAbortCausedExit(exitCode: number | null, signal: string | null, abortSignal?: AbortSignal): boolean {
+  if (!abortSignal?.aborted) return false;
+  if (signal !== null && ABORT_SIGNALS.has(signal)) return true;
+  return exitCode !== null && ABORT_EXIT_CODES.has(exitCode);
+}
+
 async function* readAgentEvents(proc: ClaudeProc, abortSignal?: AbortSignal): AsyncGenerator<AgentEvent> {
   let stderrOutput = "";
   let stderrBuffer = "";
@@ -129,16 +147,15 @@ async function* readAgentEvents(proc: ClaudeProc, abortSignal?: AbortSignal): As
     }
   }
 
-  const exitCode = await new Promise<number>((resolve) => proc.on("close", resolve));
+  const { code: exitCode, signal } = await new Promise<{ code: number | null; signal: string | null }>((resolve) =>
+    proc.on("close", (code, sig) => resolve({ code, signal: sig })),
+  );
 
   if (stderrBuffer.trim()) log.error("agent-stderr", stderrBuffer);
-  log.info("agent", "claude exited", { exitCode });
+  log.info("agent", "claude exited", { exitCode, signal });
   mcpTracker.logIfSuspicious();
 
-  // A non-zero exit caused by our own abort (stop button → proc.kill()
-  // → SIGTERM → exit 143) is expected, not a failure. Surfacing it as an
-  // error event makes a deliberate stop look like a crash, so suppress it.
-  if (exitCode !== 0 && !abortSignal?.aborted) {
+  if (exitCode !== 0 && !isAbortCausedExit(exitCode, signal, abortSignal)) {
     yield {
       type: EVENT_TYPES.error,
       message: stderrOutput || `claude exited with code ${exitCode}`,
