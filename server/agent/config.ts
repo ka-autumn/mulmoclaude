@@ -16,6 +16,23 @@ export const CONTAINER_WORKSPACE_PATH = "/home/node/mulmoclaude";
 
 const BASE_ALLOWED_TOOLS = ["Bash", "Read", "Write", "Edit", "Glob", "Grep", "WebFetch", "WebSearch"];
 
+// Pre-allowlist every tool published by the user's claude.ai account-
+// level connectors (#1617 follow-up). The user enables / disables a
+// connector once via `claude` interactive `/mcp`; this list just
+// suppresses the per-tool runtime "Claude requested permission to
+// use ..." prompts inside MulmoClaude so the agent can call them
+// without UI interruption. Cross-server globs (`mcp__claude_ai_*`)
+// are NOT a documented `--allowedTools` form — we use the per-server
+// shorthand `mcp__<server>` instead, which the CLI guarantees to
+// expand to every tool that server publishes.
+//
+// Anthropic's current connector set as of CLI 2.1.x: Gmail / Google
+// Calendar / Google Drive / Slack (Canva is in `claudeAiMcpEverConnected`
+// as an old enable but isn't surfaced in `claude mcp list` for this
+// account, so it's deliberately omitted). When Anthropic adds a new
+// connector, append it here.
+const CLAUDE_AI_CONNECTOR_SERVERS = ["mcp__claude_ai_Gmail", "mcp__claude_ai_Google_Calendar", "mcp__claude_ai_Google_Drive", "mcp__claude_ai_Slack"];
+
 /** Tool names the agent is allowed to call this session. Drives
  *  `PLUGIN_NAMES` env (the MCP child's filter) and the CLI's
  *  `--allowedTools` arg. Static GUI / MCP plugins are gated by
@@ -249,7 +266,7 @@ export function buildCliArgs(params: CliArgsParams): string[] {
   // Claude's tool registry seems to require wildcard for runtime
   // discovery; specific names alone register permissions but not
   // the tool's existence.
-  const allowedTools = [...BASE_ALLOWED_TOOLS, ...extraAllowedTools, "mcp__mulmoclaude", ...mcpToolNames];
+  const allowedTools = [...BASE_ALLOWED_TOOLS, ...extraAllowedTools, "mcp__mulmoclaude", ...CLAUDE_AI_CONNECTOR_SERVERS, ...mcpToolNames];
 
   // stream-json input mode: the user message is streamed through
   // stdin (see `writeUserMessage` in server/agent.ts) rather than
