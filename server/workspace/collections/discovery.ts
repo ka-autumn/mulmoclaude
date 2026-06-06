@@ -500,6 +500,19 @@ interface LoadedCollection {
   skillDir: string;
 }
 
+// Fill the cosmetic / boilerplate top-level fields a feed schema may omit
+// (agent-authored feeds carry no register tool to default them): `icon`
+// defaults to a feed glyph, `dataPath` to `data/feeds/<slug>`. Explicit
+// values always win. Non-object input passes through so the Zod error
+// stays clear.
+function applyFeedSchemaDefaults(parsed: unknown, slug: string): unknown {
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return parsed;
+  const obj = parsed as Record<string, unknown>;
+  const icon = typeof obj.icon === "string" && obj.icon.trim().length > 0 ? obj.icon : "dynamic_feed";
+  const dataPath = typeof obj.dataPath === "string" && obj.dataPath.trim().length > 0 ? obj.dataPath : `data/feeds/${slug}`;
+  return { ...obj, icon, dataPath };
+}
+
 async function loadOneCollection(skillsRoot: string, slug: string, source: CollectionSource, workspaceRoot: string): Promise<LoadedCollection | null> {
   const safeName = safeSlugName(slug);
   if (safeName === null) return null;
@@ -525,7 +538,10 @@ async function loadOneCollection(skillsRoot: string, slug: string, source: Colle
     return null;
   }
 
-  const parsed = CollectionSchemaZ.safeParse(parsedJson);
+  // Feeds are authored by the agent as plain files (no register tool), so
+  // fill the boilerplate icon / dataPath if omitted before validation.
+  const candidate = source === "feed" ? applyFeedSchemaDefaults(parsedJson, safeName) : parsedJson;
+  const parsed = CollectionSchemaZ.safeParse(candidate);
   if (!parsed.success) {
     log.warn("collections", "schema.json failed validation, skipping", { slug: safeName, issues: parsed.error.issues });
     return null;

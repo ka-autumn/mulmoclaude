@@ -50,7 +50,6 @@ const pluginEndpointRegistry: EndpointRegistry = {
   mulmoScript: API_ROUTES.mulmoScript,
   skills: API_ROUTES.skills,
   sources: API_ROUTES.sources,
-  feeds: API_ROUTES.feeds,
   html: API_ROUTES.html,
   svg: API_ROUTES.svg,
   chart: API_ROUTES.chart,

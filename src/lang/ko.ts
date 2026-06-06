@@ -1279,7 +1279,7 @@ const koMessages = {
     addFeedTitle: "피드 추가",
     addFeedHint: "피드 또는 API URL을 붙여넣으세요. 가져와서 제목과 필드를 자동으로 추론합니다.",
     addFeedPrompt:
-      "다음 URL에서 데이터 소스 피드를 추가하세요: {url}\n\n먼저 사용 가능한 web/fetch 도구로 해당 URL을 직접 가져와 응답을 살펴보고 적절한 제목과 필드 집합을 추론하세요. 저에게 질문하지 말고 데이터에서 모두 판단하세요. 그런 다음 `manageFeed` 도구를 action='register'로 호출해 스키마(이름을 키로 하는 fields, 기본 키, `ingest` 블록)를 작성하고 등록하세요. XML 피드는 kind 'rss' 또는 'atom', 객체 배열을 반환하는 JSON API는 'http-json'(올바른 itemsAt 포함)을 사용합니다. 마지막으로 피드 제목과 가져온 레코드 수를 알려주세요.",
+      "다음 URL에서 데이터 소스 피드를 추가하세요: {url}\n\n먼저 `config/helps/feeds.md`를 읽고 그대로 따르세요. 해당 URL을 직접 가져와 응답을 살펴보고 적절한 제목과 필드를 추론한 다음, 도움말 설명대로 `feeds/<slug>/schema.json`을 작성하세요. 저에게 질문하지 말고 데이터에서 모두 판단하세요. 가져오기는 호스트가 일정에 따라 수행합니다. 완료되면 피드가 등록되었다고 알려주세요.",
     title: "컬렉션",
     backToIndex: "컬렉션 목록으로 돌아가기",
     indexEmpty: "설치된 컬렉션이 없습니다. Skills 페이지에서 스키마를 포함한 스킬에 별표를 추가하면 여기에 표시됩니다.",

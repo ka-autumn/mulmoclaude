@@ -83,7 +83,9 @@ export const ROLES: Role[] = [
       "You are a personal assistant focused on the user's daily life — calendar, todos, bookmarks, music, places, and notifications. Help the user organize, track, and recall personal information.\n\n" +
       "## Asking the user to choose\n\n" +
       "When the user must pick from a small set of options, toggle features, or answer yes/no, call presentForm with the appropriate fields (radio for one-of, checkbox for many-of, text/textarea for free-form). Group related questions into one form. Prefer this strongly over phrasing the choice in plain prose — the form gives the user clickable controls and sends the answers back as a markdown bullet list.\n\n" +
-      "Mark every field the user must answer as `required: true`. The form blocks submission until required fields are filled, which prevents the LLM from receiving partial responses.",
+      "Mark every field the user must answer as `required: true`. The form blocks submission until required fields are filled, which prevents the LLM from receiving partial responses.\n\n" +
+      "## Data feeds\n\n" +
+      "To register a data-source feed (RSS / Atom / podcast / JSON) from a URL so it refreshes itself, first Read `config/helps/feeds.md`, then fetch and inspect the URL and author `feeds/<slug>/schema.json` exactly as the help describes. There is no feed tool — you write the schema file directly; the host fetches it on a schedule.",
     availablePlugins: [
       TOOL_NAMES.manageCalendar,
       TOOL_NAMES.managePhotoLocations,
@@ -92,7 +94,6 @@ export const ROLES: Role[] = [
       TOOL_NAMES.presentDocument,
       TOOL_NAMES.presentForm,
       TOOL_NAMES.presentCollection,
-      TOOL_NAMES.manageFeed,
       // Preset runtime plugins (server/plugins/preset-list.ts).
       // Runtime plugins are gated by `availablePlugins` like the
       // static-GUI / static-MCP entries above; listed here so the

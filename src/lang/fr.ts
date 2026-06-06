@@ -1286,7 +1286,7 @@ const frMessages = {
     addFeedTitle: "Ajouter un flux",
     addFeedHint: "Collez l'URL d'un flux ou d'une API ; je la récupère et déduis le titre et les champs pour vous.",
     addFeedPrompt:
-      "Ajoute un nouveau flux de source de données depuis cette URL : {url}\n\nRécupère cette URL toi-même avec les outils web/fetch disponibles et inspecte la réponse pour déduire un titre pertinent et l'ensemble des champs. Ne me pose AUCUNE question — déduis tout à partir des données. Appelle ensuite l'outil `manageFeed` avec action='register' pour créer le schéma (champs indexés par nom, une clé primaire et un bloc `ingest`) et l'enregistrer : utilise kind 'rss' ou 'atom' pour un flux XML, ou 'http-json' (avec le bon itemsAt) pour une API JSON qui renvoie un tableau d'objets. Enfin, indique-moi le titre du flux et le nombre d'enregistrements récupérés.",
+      "Ajoute un nouveau flux de source de données depuis cette URL : {url}\n\nLis d'abord `config/helps/feeds.md` et suis-le exactement. Récupère cette URL toi-même, inspecte la réponse pour déduire un titre pertinent et les champs, puis crée `feeds/<slug>/schema.json` comme l'explique l'aide. Ne me pose AUCUNE question — déduis tout à partir des données. L'hôte le récupère selon sa planification ; quand tu as terminé, dis-moi que le flux est enregistré.",
     title: "Collections",
     backToIndex: "Retour aux collections",
     indexEmpty: "Aucune collection installée. Mettez une étoile sur une compétence avec un schema depuis la page Skills pour la voir ici.",

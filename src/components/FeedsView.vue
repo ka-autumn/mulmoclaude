@@ -107,7 +107,7 @@
 import { nextTick, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
-import { apiPost } from "../utils/api";
+import { apiGet, apiPost } from "../utils/api";
 import { API_ROUTES } from "../config/apiRoutes";
 import { PAGE_ROUTES } from "../router/pageRoutes";
 import { useAppApi } from "../composables/useAppApi";
@@ -121,9 +121,9 @@ interface FeedSummary {
   schedule: string;
   lastFetchedAt: string | null;
 }
-// The /api/feeds/manage success envelope: { message, instructions, data: { feeds } }.
-interface ManageFeedResponse {
-  data: { feeds: FeedSummary[] };
+// GET /api/feeds → { feeds }.
+interface FeedsListResponse {
+  feeds: FeedSummary[];
 }
 
 const { t } = useI18n();
@@ -143,13 +143,13 @@ const addInputEl = ref<HTMLInputElement | null>(null);
 async function load(): Promise<void> {
   loading.value = true;
   loadError.value = null;
-  const result = await apiPost<ManageFeedResponse>(API_ROUTES.feeds.manage.url, { action: "list" });
+  const result = await apiGet<FeedsListResponse>(API_ROUTES.feeds.list);
   loading.value = false;
   if (!result.ok) {
     loadError.value = result.error;
     return;
   }
-  feeds.value = result.data.data.feeds;
+  feeds.value = result.data.feeds;
 }
 
 function open(slug: string): void {
@@ -158,9 +158,10 @@ function open(slug: string): void {
 
 async function refresh(slug: string): Promise<void> {
   refreshingSlug.value = slug;
-  const result = await apiPost<ManageFeedResponse>(API_ROUTES.feeds.manage.url, { action: "refresh", slug });
+  const url = API_ROUTES.collections.refresh.replace(":slug", encodeURIComponent(slug));
+  const result = await apiPost<{ refreshed: boolean; written: number; errors: string[] }>(url, {});
   refreshingSlug.value = null;
-  if (result.ok) feeds.value = result.data.data.feeds;
+  if (result.ok) await load(); // reload to refresh lastFetchedAt
 }
 
 function startAddFeedChat(): void {
@@ -173,9 +174,9 @@ function closeAdd(): void {
   addOpen.value = false;
 }
 
-// Hand the URL to the agent with an autonomous seed prompt: fetch it,
-// infer title + fields from the data, and register via manageFeed —
-// without asking the user any follow-up questions.
+// Hand the URL to the agent with an autonomous seed prompt: it reads
+// config/helps/feeds.md, fetches the URL, infers the schema from the data,
+// and writes feeds/<slug>/schema.json — no follow-up questions, no tool.
 function submitAdd(): void {
   const url = addUrl.value.trim();
   if (!url) return;

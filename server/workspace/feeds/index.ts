@@ -1,7 +1,7 @@
 // Public surface of the Feeds module. Routes + the scheduler import
 // from here.
 
-export { writeFeed, listFeeds, removeFeed, type WriteFeedResult } from "./registry.js";
+export { listFeeds, removeFeed } from "./registry.js";
 export { refreshOne, refreshDue, type RefreshResult } from "./engine.js";
 export { feedsRoot, feedDir, feedStatePath, FEEDS_DIR } from "./paths.js";
 export { readFeedState, type FeedState } from "./state.js";

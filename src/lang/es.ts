@@ -1293,7 +1293,7 @@ const esMessages = {
     addFeedTitle: "Añadir un feed",
     addFeedHint: "Pega la URL de un feed o una API; la obtendré y deduciré el título y los campos por ti.",
     addFeedPrompt:
-      "Añade una nueva fuente de datos (feed) desde esta URL: {url}\n\nObtén esa URL tú mismo con las herramientas web/fetch disponibles e inspecciona la respuesta para deducir un título adecuado y el conjunto de campos. NO me hagas preguntas: dedúcelo todo a partir de los datos. Luego llama a la herramienta `manageFeed` con action='register' para crear el esquema (campos con clave por nombre, una clave primaria y un bloque `ingest`) y registrarlo: usa kind 'rss' o 'atom' para un feed XML, o 'http-json' (con el itemsAt correcto) para una API JSON que devuelve un array de objetos. Por último, dime el título del feed y cuántos registros se obtuvieron.",
+      "Añade una nueva fuente de datos (feed) desde esta URL: {url}\n\nPrimero lee `config/helps/feeds.md` y síguelo exactamente. Obtén esa URL tú mismo, inspecciona la respuesta para deducir un título adecuado y los campos, y luego crea `feeds/<slug>/schema.json` como indica la ayuda. NO me hagas preguntas: dedúcelo todo a partir de los datos. El host lo obtiene según su programación; cuando termines, dime que el feed está registrado.",
     title: "Colecciones",
     backToIndex: "Volver a colecciones",
     indexEmpty: "No hay colecciones instaladas. Marca con estrella una skill que incluya un schema desde la página Skills para verla aquí.",

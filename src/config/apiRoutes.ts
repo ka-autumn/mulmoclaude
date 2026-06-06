@@ -260,6 +260,16 @@ const HOST_API_ROUTES = {
     readState: "/api/news/read-state",
   },
 
+  // Data-source feeds. Read-only list for the /feeds UI; feeds are
+  // created/removed by the agent writing feeds/<slug>/schema.json files
+  // (config/helps/feeds.md), and refreshed via collections.refresh.
+  feeds: {
+    list: "/api/feeds",
+    /** DELETE → remove a feed's registry entry (records retained). Backs
+     *  the feed-delete button; the agent deletes via its own file tools. */
+    detail: "/api/feeds/:slug",
+  },
+
   hooks: {
     /** Internal endpoint hit by the PostToolUse dispatcher
      *  (`<workspace>/.claude/hooks/mulmoclaude-dispatcher.mjs`) to

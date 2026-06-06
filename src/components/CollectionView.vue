@@ -986,8 +986,8 @@ const canDeleteCollection = computed<boolean>(() => {
 });
 
 // True when this view was opened as a feed (`/feeds/:slug`): the schema
-// carries an `ingest` block. Feeds are deleted via the feeds registry
-// (manageFeed remove), not the project-scope collection delete above.
+// carries an `ingest` block. Feeds are deleted via DELETE /api/feeds/:slug,
+// not the project-scope collection delete above.
 const isFeed = computed<boolean>(() => Boolean(collection.value?.schema.ingest));
 const canDeleteFeed = computed<boolean>(() => isFeed.value && !embedded.value);
 
@@ -1449,8 +1449,8 @@ function goBack(): void {
   router.push({ name, params: {} }).catch(() => {});
 }
 
-// Delete a feed: remove its registry entry via manageFeed (records on
-// disk are retained), then return to the feed list. Distinct from
+// Delete a feed: remove its feeds/<slug>/ registry entry (records on disk
+// are retained), then return to the feed list. Distinct from
 // `confirmCollectionDelete`, which archives + deletes a skill-backed
 // collection through the project-scope collection-delete route.
 async function confirmFeedDelete(): Promise<void> {
@@ -1464,7 +1464,7 @@ async function confirmFeedDelete(): Promise<void> {
     variant: "danger",
   });
   if (!ok) return;
-  const result = await apiPost(API_ROUTES.feeds.manage.url, { action: "remove", slug });
+  const result = await apiDelete(API_ROUTES.feeds.detail.replace(":slug", encodeURIComponent(slug)));
   if (!result.ok) {
     loadError.value = result.error;
     return;

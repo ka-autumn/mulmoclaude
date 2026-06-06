@@ -1279,7 +1279,7 @@ const enMessages = {
     addFeedTitle: "Add a feed",
     addFeedHint: "Paste a feed or API URL — I'll fetch it and work out the title and fields for you.",
     addFeedPrompt:
-      "Add a new data-source feed from this URL: {url}\n\nFetch that URL yourself with the available web/fetch tools and inspect the response to infer a sensible title and the set of fields. Do NOT ask me any questions — work it all out from the data. Then call the `manageFeed` tool with action='register' to author the schema (fields keyed by name, a primary key, and an `ingest` block) and register it: use kind 'rss' or 'atom' for an XML feed, or 'http-json' (with the right itemsAt) for a JSON API that returns an array of objects. Finally, tell me the feed title and how many records were fetched.",
+      "Add a new data-source feed from this URL: {url}\n\nFirst Read `config/helps/feeds.md` and follow it exactly. Fetch that URL yourself, inspect the response to infer a sensible title and fields, then author `feeds/<slug>/schema.json` as the help describes — do NOT ask me any questions; work it all out from the data. The host fetches it on its schedule; when you're done, tell me the feed is registered.",
     title: "Collections",
     backToIndex: "Back to collections",
     indexEmpty: "No collections installed. Star a skill that ships a schema from the Skills page to see it here.",
