@@ -110,6 +110,7 @@ export const ROLES: Role[] = [
       "Create a bills collection to track recurring payments — payee, amount, due date, and status. Remind me 10 days before each bill is due, and when I mark one paid, automatically set up next month's bill.",
       "Set up client and time tracking for my consulting work. First read `config/helps/billing-clients-worklog.md` and follow it exactly to author the clients and worklog collections — do not redesign the schemas or ask me design questions.",
       "Set up invoicing for my business. First read `config/helps/billing-invoice.md` and follow it exactly to author the invoice and profile collections — do not redesign the schemas or ask me design questions.",
+      "Register this feed. https://feeds.captivate.fm/guy-kawasakis-remarkable/",
     ],
   },
   {
