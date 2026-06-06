@@ -62,4 +62,20 @@ describe("projectRecord", () => {
     assert.equal(record.tempC, 21);
     assert.equal(record.id, "2026-06-05t10-00");
   });
+
+  it("unwraps an XML text node ({#text}) when mapping a field", () => {
+    const ingest = rssIngest({ map: { id: "guid", author: "creator" } });
+    const record = projectRecord({ guid: "g1", creator: { "#text": "Jane Doe", "@_x": "1" }, title: "T" }, ingest, schema);
+    assert.equal(record.author, "Jane Doe");
+  });
+
+  it("parses a value mapped into a `date`-typed field to ISO (generic, by field type)", () => {
+    const dateSchema = {
+      primaryKey: "id",
+      fields: { id: { type: "string", primary: true }, when: { type: "date" } },
+    } as unknown as CollectionSchema;
+    const ingest = rssIngest({ map: { id: "guid", when: "pubDate" } });
+    const record = projectRecord({ guid: "g1", pubDate: "Wed, 03 Jun 2026 12:00:00 GMT" }, ingest, dateSchema);
+    assert.equal(record.when, "2026-06-03T12:00:00.000Z");
+  });
 });

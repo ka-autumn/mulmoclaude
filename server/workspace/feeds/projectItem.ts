@@ -20,6 +20,33 @@ function asKeyString(value: unknown): string | null {
   return null;
 }
 
+/** Collapse an XML element object that carries body text alongside
+ *  attributes (`{ "#text": "v", "@_x": "..." }`) or CDATA to its text.
+ *  Generic — the host knows no field names, only this fast-xml-parser
+ *  shape — so a tag like `<guid isPermaLink="false">id</guid>` maps to
+ *  its text without the caller needing to write `.#text`. */
+function unwrapTextNode(value: unknown): unknown {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    const obj = value as Record<string, unknown>;
+    if (typeof obj["#text"] === "string") return obj["#text"];
+    if (typeof obj["#cdata"] === "string") return obj["#cdata"];
+  }
+  return value;
+}
+
+/** Normalize a mapped value generically — driven by the SCHEMA's declared
+ *  field type, never by the source field name. Today: unwrap XML text
+ *  nodes, and parse anything mapped into a `date` field to an ISO string
+ *  (so a feed's RFC-822 / RFC-3339 timestamp renders as a real date). */
+function normalizeValue(value: unknown, fieldType: string | undefined): unknown {
+  const unwrapped = unwrapTextNode(value);
+  if (fieldType === "date" && typeof unwrapped === "string") {
+    const millis = Date.parse(unwrapped);
+    if (Number.isFinite(millis)) return new Date(millis).toISOString();
+  }
+  return unwrapped;
+}
+
 /** Slugify a natural key into a stable, filename-safe id. Short, safe
  *  keys pass through (lowercased); long or unsafe keys collapse to a
  *  hash so the filename stays bounded and valid. */
@@ -42,18 +69,21 @@ function naturalKey(record: CollectionItem, rawItem: unknown, ingest: IngestSpec
   const fromMapped = asKeyString(record[schema.primaryKey]);
   if (fromMapped) return fromMapped;
   if (ingest.idFrom) {
-    const fromId = asKeyString(getByPath(rawItem, ingest.idFrom));
+    const fromId = asKeyString(unwrapTextNode(getByPath(rawItem, ingest.idFrom)));
     if (fromId) return fromId;
   }
   return JSON.stringify(record);
 }
 
-/** Build a record from a raw item. The returned record's primaryKey is
- *  set to the derived safe id (so it doubles as the filename). */
+/** Build a record from a raw fetched item (a parsed RSS/Atom element or a
+ *  JSON object) using `ingest.map`. Each source path is resolved against
+ *  the raw item and normalized per the target field's declared type. The
+ *  returned record's primaryKey is set to the derived safe id (so it
+ *  doubles as the filename). */
 export function projectRecord(rawItem: unknown, ingest: IngestSpec, schema: CollectionSchema): CollectionItem {
   const record: CollectionItem = {};
   for (const [targetField, sourcePath] of Object.entries(ingest.map)) {
-    const value = getByPath(rawItem, sourcePath);
+    const value = normalizeValue(getByPath(rawItem, sourcePath), schema.fields?.[targetField]?.type);
     if (value !== undefined) record[targetField] = value;
   }
   record[schema.primaryKey] = toSafeId(naturalKey(record, rawItem, ingest, schema));
