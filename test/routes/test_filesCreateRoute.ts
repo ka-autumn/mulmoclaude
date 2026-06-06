@@ -112,7 +112,7 @@ describe("POST /api/files/create — happy path", () => {
     mkdirSync(path.join(workspaceDir, "conversations", "summaries"), { recursive: true });
     const { state, res } = mockRes();
     await createHandler(req({ path: "conversations/summaries/2026-06.md", content: "" }), res);
-    assert.equal(state.status, 200);
+    assert.equal(state.status, 200, `expected 200, got ${state.status} with body=${JSON.stringify(state.body)}`);
     const body = state.body as WriteBody;
     assert.equal(body.path, "conversations/summaries/2026-06.md");
     assert.equal(body.size, 0);

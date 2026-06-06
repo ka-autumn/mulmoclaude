@@ -859,13 +859,13 @@ async function resolveNewFilePath(relPathRaw: string): Promise<{ ok: true; absPa
   const candidate = path.resolve(workspaceReal, normalised);
   const relativeFromWorkspace = path.relative(workspaceReal, candidate);
   if (relativeFromWorkspace === ".." || relativeFromWorkspace.startsWith(`..${path.sep}`)) {
-    return { ok: false, status: 400, message: "Path outside workspace" };
+    return { ok: false, status: 400, message: "Path outside workspace (syntactic)" };
   }
   // Mirror `resolveSafe`: refuse `.git/` (or any HIDDEN_DIRS) segment.
   for (const seg of relativeFromWorkspace.split(path.sep)) {
-    if (HIDDEN_DIRS.has(seg)) return { ok: false, status: 400, message: "Path not allowed" };
+    if (HIDDEN_DIRS.has(seg)) return { ok: false, status: 400, message: `Path not allowed (hidden dir: ${seg})` };
   }
-  if (isSensitivePath(relativeFromWorkspace)) return { ok: false, status: 400, message: "Path not allowed" };
+  if (isSensitivePath(relativeFromWorkspace)) return { ok: false, status: 400, message: "Path not allowed (sensitive)" };
   if (classify(candidate) !== "text") return { ok: false, status: 400, message: "File type not editable" };
   // Walk up the candidate's ancestors until we find one that exists.
   // Realpath THAT ancestor — a symlinked in-workspace folder pointing
@@ -877,7 +877,7 @@ async function resolveNewFilePath(relPathRaw: string): Promise<{ ok: true; absPa
   let probeStat = await statSafeAsync(probe);
   while (!probeStat) {
     const parent = path.dirname(probe);
-    if (parent === probe) return { ok: false, status: 400, message: "Path outside workspace" };
+    if (parent === probe) return { ok: false, status: 400, message: `Path outside workspace (root reached at ${probe})` };
     trailing.unshift(path.basename(probe));
     probe = parent;
     probeStat = await statSafeAsync(probe);
@@ -885,13 +885,17 @@ async function resolveNewFilePath(relPathRaw: string): Promise<{ ok: true; absPa
   let realProbe: string;
   try {
     realProbe = await realpath(probe);
-  } catch {
-    return { ok: false, status: 400, message: "Path not allowed" };
+  } catch (err) {
+    return { ok: false, status: 400, message: `Path not allowed (realpath: ${errorMessage(err)})` };
   }
   const finalAbs = trailing.length === 0 ? realProbe : path.join(realProbe, ...trailing);
   const relFromReal = path.relative(workspaceReal, finalAbs);
   if (relFromReal === ".." || relFromReal.startsWith(`..${path.sep}`) || path.isAbsolute(relFromReal)) {
-    return { ok: false, status: 400, message: "Path outside workspace" };
+    return {
+      ok: false,
+      status: 400,
+      message: `Path outside workspace (real) — root="${workspaceReal}" real="${finalAbs}" rel="${relFromReal}"`,
+    };
   }
   return { ok: true, absPath: finalAbs };
 }
