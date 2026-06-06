@@ -14,6 +14,15 @@
         </button>
       </div>
 
+      <div
+        v-if="refreshError"
+        class="mb-4 flex items-center gap-2 rounded-xl border border-red-200 bg-red-50/50 p-3 text-sm text-red-800 shadow-sm"
+        data-testid="feeds-refresh-error"
+      >
+        <span class="material-icons text-base text-red-600">error</span>
+        <span>{{ refreshError }}</span>
+      </div>
+
       <div v-if="loading" class="flex flex-col items-center justify-center py-20 text-sm text-slate-500 gap-3">
         <div class="h-8 w-8 border-2 border-indigo-600/20 border-t-indigo-600 rounded-full animate-spin"></div>
         <span>{{ t("common.loading") }}</span>
@@ -134,6 +143,9 @@ const feeds = ref<FeedSummary[]>([]);
 const loading = ref(true);
 const loadError = ref<string | null>(null);
 const refreshingSlug = ref<string | null>(null);
+/** Non-destructive banner for a per-feed Refresh that failed (the
+ *  endpoint reports retriever errors via `errors` even on HTTP 200). */
+const refreshError = ref<string | null>(null);
 
 // Add-feed prompt state: the user types a URL, the agent does the rest.
 const addOpen = ref(false);
@@ -158,10 +170,19 @@ function open(slug: string): void {
 
 async function refresh(slug: string): Promise<void> {
   refreshingSlug.value = slug;
+  refreshError.value = null;
   const url = API_ROUTES.collections.refresh.replace(":slug", encodeURIComponent(slug));
   const result = await apiPost<{ refreshed: boolean; written: number; errors: string[] }>(url, {});
   refreshingSlug.value = null;
-  if (result.ok) await load(); // reload to refresh lastFetchedAt
+  if (!result.ok) {
+    refreshError.value = t("collectionsView.refreshFailed", { error: result.error });
+    return;
+  }
+  await load(); // reload to refresh lastFetchedAt
+  // refreshOne reports retriever failures via `errors` even on HTTP 200.
+  if (result.data.errors.length > 0) {
+    refreshError.value = t("collectionsView.refreshFailed", { error: result.data.errors.join("; ") });
+  }
 }
 
 function startAddFeedChat(): void {
