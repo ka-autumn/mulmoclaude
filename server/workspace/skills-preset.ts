@@ -469,6 +469,43 @@ function processActiveSlug(slug: string, opts: SyncActivePresetSkillsOptions, re
   }
 }
 
+/** Realpath targets of active symlinks. Used so the prune below never
+ *  deletes a directory that's serving as a symlink target (e.g. a
+ *  git-managed checkout the user symlinks an active slug to). */
+function collectSymlinkTargets(activeDir: string, entries: readonly string[]): Set<string> {
+  const targets = new Set<string>();
+  for (const slug of entries) {
+    const entryPath = path.join(activeDir, slug);
+    try {
+      if (lstatSync(entryPath).isSymbolicLink()) targets.add(realpathSync(entryPath));
+    } catch {
+      /* unreadable — ignore */
+    }
+  }
+  return targets;
+}
+
+/** True iff the active `slug` is a retired preset safe to delete: an
+ *  `mc-*` real directory inside `activeDir`, with no source preset, and
+ *  not itself a symlink or a symlink target. */
+function isRetiredActiveSlug(slug: string, activeDir: string, sourceSlugs: ReadonlySet<string>, symlinkTargets: ReadonlySet<string>): boolean {
+  if (!isPresetSlug(slug) || sourceSlugs.has(slug)) return false;
+  const destSlugDir = path.join(activeDir, slug);
+  let info;
+  try {
+    info = lstatSync(destSlugDir);
+  } catch {
+    return false;
+  }
+  if (info.isSymbolicLink() || !info.isDirectory()) return false;
+  if (!isRealpathInside(destSlugDir, activeDir)) return false;
+  try {
+    return !symlinkTargets.has(realpathSync(destSlugDir));
+  } catch {
+    return false;
+  }
+}
+
 /** Prune active `mc-*` slugs whose launcher source preset no longer
  *  exists (a retired preset). Without this, an upgraded workspace that
  *  had starred a since-removed preset (e.g. `mc-manage-sources`) keeps
@@ -482,36 +519,11 @@ function removeRetiredActivePresets(opts: SyncActivePresetSkillsOptions, result:
   } catch {
     return; // no active dir yet → nothing to prune
   }
-  // Realpath targets of active symlinks — never prune a directory that
-  // is serving as a symlink target (e.g. a git-managed checkout the
-  // user symlinks an active slug to).
-  const symlinkTargets = new Set<string>();
+  const symlinkTargets = collectSymlinkTargets(opts.activeDir, activeEntries);
   for (const slug of activeEntries) {
-    const p = path.join(opts.activeDir, slug);
+    if (!isRetiredActiveSlug(slug, opts.activeDir, sourceSlugs, symlinkTargets)) continue;
     try {
-      if (lstatSync(p).isSymbolicLink()) symlinkTargets.add(realpathSync(p));
-    } catch {
-      /* unreadable — ignore */
-    }
-  }
-  for (const slug of activeEntries) {
-    if (!isPresetSlug(slug) || sourceSlugs.has(slug)) continue;
-    const destSlugDir = path.join(opts.activeDir, slug);
-    let info;
-    try {
-      info = lstatSync(destSlugDir);
-    } catch {
-      continue;
-    }
-    if (info.isSymbolicLink() || !info.isDirectory()) continue;
-    if (!isRealpathInside(destSlugDir, opts.activeDir)) continue;
-    try {
-      if (symlinkTargets.has(realpathSync(destSlugDir))) continue; // serving as a symlink target
-    } catch {
-      continue;
-    }
-    try {
-      rmSync(destSlugDir, { recursive: true, force: true });
+      rmSync(path.join(opts.activeDir, slug), { recursive: true, force: true });
       result.removed.push(slug);
       opts.onInfo?.("removed retired active preset skill", { slug });
     } catch (err) {
