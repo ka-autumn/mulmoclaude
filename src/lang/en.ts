@@ -1309,6 +1309,7 @@ const enMessages = {
     embedMissingTitle: "Embedded reference missing",
     chat: "Chat",
     refreshFeed: "Refresh",
+    refreshFailed: "Refresh failed: {error}",
     feedsTitle: "Data-source feeds",
     feedsEmpty: "No feeds registered yet.",
     chatTitle: "Start a chat",

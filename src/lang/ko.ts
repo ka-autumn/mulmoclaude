@@ -1309,6 +1309,7 @@ const koMessages = {
     embedMissingTitle: "임베드된 참조 없음",
     chat: "채팅",
     refreshFeed: "새로고침",
+    refreshFailed: "새로고침 실패: {error}",
     feedsTitle: "데이터 소스 피드",
     feedsEmpty: "등록된 피드가 없습니다.",
     chatTitle: "채팅 시작",

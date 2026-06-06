@@ -1317,6 +1317,7 @@ const frMessages = {
     embedMissingTitle: "Référence intégrée manquante",
     chat: "Discussion",
     refreshFeed: "Actualiser",
+    refreshFailed: "Échec de l'actualisation : {error}",
     feedsTitle: "Flux de données",
     feedsEmpty: "Aucun flux enregistré pour le moment.",
     chatTitle: "Démarrer une discussion",

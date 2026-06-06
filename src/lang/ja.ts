@@ -1306,6 +1306,7 @@ const jaMessages = {
     embedMissingTitle: "埋め込み参照が見つかりません",
     chat: "チャット",
     refreshFeed: "更新",
+    refreshFailed: "更新に失敗しました: {error}",
     feedsTitle: "データソースフィード",
     feedsEmpty: "登録されたフィードはありません。",
     chatTitle: "チャットを開始",

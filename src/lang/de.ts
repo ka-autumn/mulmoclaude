@@ -1327,6 +1327,7 @@ const deMessages = {
     embedMissingTitle: "Eingebettete Referenz fehlt",
     chat: "Chat",
     refreshFeed: "Aktualisieren",
+    refreshFailed: "Aktualisierung fehlgeschlagen: {error}",
     feedsTitle: "Datenquellen-Feeds",
     feedsEmpty: "Noch keine Feeds registriert.",
     chatTitle: "Chat starten",

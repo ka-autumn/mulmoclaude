@@ -1299,6 +1299,7 @@ const zhMessages = {
     embedMissingTitle: "缺少嵌入引用",
     chat: "对话",
     refreshFeed: "刷新",
+    refreshFailed: "刷新失败：{error}",
     feedsTitle: "数据源订阅",
     feedsEmpty: "尚未注册任何订阅源。",
     chatTitle: "开始对话",

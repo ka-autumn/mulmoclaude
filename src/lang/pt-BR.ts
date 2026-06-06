@@ -1311,6 +1311,7 @@ const ptBRMessages = {
     embedMissingTitle: "Referência incorporada ausente",
     chat: "Chat",
     refreshFeed: "Atualizar",
+    refreshFailed: "Falha ao atualizar: {error}",
     feedsTitle: "Feeds de dados",
     feedsEmpty: "Nenhum feed registrado ainda.",
     chatTitle: "Iniciar um chat",

@@ -821,6 +821,7 @@ async function refreshFeed(): Promise<void> {
   const current = collection.value;
   if (!current?.schema.ingest || refreshing.value) return;
   refreshing.value = true;
+  inlineError.value = null;
   const url = API_ROUTES.collections.refresh.replace(":slug", encodeURIComponent(current.slug));
   const result = await apiPost<{ refreshed: boolean; written: number; errors: string[] }>(url, {});
   refreshing.value = false;
@@ -829,6 +830,11 @@ async function refreshFeed(): Promise<void> {
     return;
   }
   await loadCollection(current.slug);
+  // refreshOne reports retriever failures via `errors` even on HTTP 200, so
+  // surface them — otherwise a failed refresh looks like success.
+  if (result.data.errors.length > 0) {
+    inlineError.value = t("collectionsView.refreshFailed", { error: result.data.errors.join("; ") });
+  }
 }
 
 function itemsUrl(slug: string): string {

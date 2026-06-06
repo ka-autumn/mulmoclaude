@@ -271,20 +271,18 @@ function spawnSuccessorStartsInert(schema: {
 // collections omit it; only feeds discovered from `<workspace>/feeds/`
 // carry it. `http-json` needs a path to the items array; rss/atom
 // yield items natively and ignore `itemsAt`.
-const IngestSchemaZ = z
-  .object({
-    kind: z.enum(INGEST_KINDS),
-    url: z.string().url(),
-    schedule: z.enum(FEED_SCHEDULES),
-    itemsAt: z.string().trim().min(1).optional(),
-    map: z.record(z.string().trim().min(1), z.string().trim().min(1)),
-    idFrom: z.string().trim().min(1).optional(),
-    maxItems: z.number().int().min(0).optional(),
-  })
-  .refine((spec) => spec.kind !== "http-json" || (typeof spec.itemsAt === "string" && spec.itemsAt.trim().length > 0), {
-    message: "ingest.kind 'http-json' requires `itemsAt` — the path to the items array in the response (e.g. 'hourly[]')",
-    path: ["itemsAt"],
-  });
+const IngestSchemaZ = z.object({
+  kind: z.enum(INGEST_KINDS),
+  url: z.string().url(),
+  schedule: z.enum(FEED_SCHEDULES),
+  itemsAt: z.string().trim().min(1).optional(),
+  map: z.record(z.string().trim().min(1), z.string().trim().min(1)),
+  idFrom: z.string().trim().min(1).optional(),
+  maxItems: z.number().int().min(0).optional(),
+});
+// `itemsAt` is always optional: http-json omits it when the response body
+// is itself the items array (the engine falls back to the top-level array);
+// rss/atom ignore it. So no kind-specific requirement here.
 
 export const CollectionSchemaZ = z
   .object({

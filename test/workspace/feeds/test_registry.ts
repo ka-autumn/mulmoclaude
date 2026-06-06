@@ -47,6 +47,16 @@ describe("writeFeed", () => {
     if (result.kind === "error") assert.match(result.message, /schema validation failed/);
   });
 
+  it("accepts an http-json feed with no itemsAt (top-level array response)", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "feeds-registry-"));
+    const schema = {
+      ...minimalSchema(),
+      ingest: { kind: "http-json", url: "https://example.com/items.json", schedule: "hourly", idFrom: "id", map: { id: "id", title: "name" } },
+    };
+    const result = await writeFeed(root, "json-feed", schema);
+    assert.equal(result.kind, "ok");
+  });
+
   it("rejects a schema with no ingest block", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "feeds-registry-"));
     const noIngest = minimalSchema();

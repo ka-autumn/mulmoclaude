@@ -1323,6 +1323,7 @@ const esMessages = {
     embedMissingTitle: "Falta la referencia incrustada",
     chat: "Chat",
     refreshFeed: "Actualizar",
+    refreshFailed: "Error al actualizar: {error}",
     feedsTitle: "Fuentes de datos",
     feedsEmpty: "Aún no hay fuentes registradas.",
     chatTitle: "Iniciar un chat",
