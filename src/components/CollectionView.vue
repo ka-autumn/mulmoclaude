@@ -673,6 +673,9 @@ const loading = ref(true);
 const loadError = ref<string | null>(null);
 /** True while a feed collection's manual refresh is in flight. */
 const refreshing = ref(false);
+/** Slug already auto-refreshed on first open — prevents a reload loop
+ *  (the auto-refresh reloads the view, which would re-trigger otherwise). */
+const autoRefreshedSlug = ref<string | null>(null);
 const editing = ref<EditState | null>(null);
 /** The record currently shown in read-only "open" mode. Distinct
  *  from `editing`: open mode renders formatted values (no inputs)
@@ -944,6 +947,21 @@ async function loadCollection(slug: string): Promise<void> {
   // mode once its items are available. Guard against a stale load:
   // only act if we're still on the slug that triggered this fetch.
   if (collection.value?.slug === slug) syncViewToSelected();
+  maybeAutoRefreshFeed(slug);
+}
+
+// First-open auto-refresh: when a feed view opens with no records yet
+// (e.g. a just-registered feed that hasn't hit the scheduler), fetch once
+// so data appears without a manual Refresh. Guarded per slug so the reload
+// `refreshFeed` triggers can't loop; the view re-mounts per slug, so each
+// open retries at most once.
+function maybeAutoRefreshFeed(slug: string): void {
+  if (embedded.value) return;
+  const current = collection.value;
+  if (current?.slug !== slug || !current.schema.ingest) return;
+  if (items.value.length > 0 || autoRefreshedSlug.value === slug) return;
+  autoRefreshedSlug.value = slug;
+  void refreshFeed();
 }
 
 /** Schema fields excluding display-only `embed` fields — used by the
