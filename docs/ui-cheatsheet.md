@@ -19,9 +19,9 @@ A quick visual reference so chat instructions about UI ("the bell at the top rig
 │ │                                              ⚙ settings          │  │
 │ └──────────────────────────────────────────────────────────────────┘  │
 │ ┌─<PluginLauncher> [plugin-launcher]──────────────────────────────────┐│
-│ │ 📅Calendar│⏰Actions│📖Wiki│▦Collections│📶Feeds│📡Sources│📰News ‖ 🧠Skills│🎭Roles│📁Files ││
+│ │ 📅Calendar│⏰Actions│📖Wiki│▦Collections│📡Feeds ‖ 🧠Skills│🎭Roles│📁Files ││
 │ │ [plugin-launcher-calendar] … [plugin-launcher-feeds] …  (‖ = separator)││
-│ │ data plugins (0–6) │ separator │ management (Skills/Roles/Files)       ││
+│ │ data plugins (0–4) │ separator │ management (Skills/Roles/Files)       ││
 │ └─────────────────────────────────────────────────────────────────────┘│
 │ ┌─[main pane — route-specific]────┐ ┌─<SessionHistoryPanel>────────┐  │
 │ │                                 │ │ [session-history-side-panel] │  │
@@ -276,74 +276,6 @@ markup is identical:
 
 Tabs / PDF / chat composer / create-update buttons are hidden —
 this is a moment-in-time view, not the live page.
-
-## /news — news viewer
-
-`/news` reads the items the sources pipeline has fetched and presents them as a two-pane reader (list + detail) with unread tracking. Per-article chat composer lets the user spawn a new chat that's already aware of the article.
-
-```text
-┌─[<NewsView> data-testid="news-view"]─────────────────────────────────────┐
-│ Header row:                                                              │
-│   [news-counts] (e.g. "23 unread of 142")                                │
-│   Filters: [news-filter-all] [news-filter-unread]  [news-mark-all-read]  │
-│   Source selector: [news-source-<slug>] (one button per source)          │
-│                                                                          │
-│ ┌─[news-list] (left pane, 320px)────┐ ┌─[news-detail] (right pane)─────┐ │
-│ │ [news-item-<id>] · headline       │ │ Article title + metadata       │ │
-│ │ ◯ unread / ⚪ read                │ │ Author, source, published date │ │
-│ │ source · published date           │ │                                │ │
-│ │ ─────────────────────────────────  │ │ ┌─Article body (markdown)──┐  │ │
-│ │ ...                               │ │ │ ...                      │  │ │
-│ │                                   │ │ └──────────────────────────┘  │ │
-│ │                                   │ │ [news-open-original] (↗︎)      │ │
-│ │                                   │ │                                │ │
-│ │                                   │ │ Per-article chat composer:    │ │
-│ │                                   │ │ [news-article-chat-input]      │ │
-│ │                                   │ │ [news-article-chat-send]       │ │
-│ │                                   │ │ → spawns a new chat with a    │ │
-│ │                                   │ │ "read this article first"     │ │
-│ │                                   │ │ prepend                       │ │
-│ └───────────────────────────────────┘ └────────────────────────────────┘ │
-└──────────────────────────────────────────────────────────────────────────┘
-```
-
-Clicking a list row marks it read (badge decrements). The "Mark all read" button zeroes the counter for the current filter scope.
-
-## /sources — registered news/RSS feeds
-
-```
-┌─[<SourcesManager> — [sources-view-root]]───────────────────────────┐
-│ Top bar: [sources-add-btn] [sources-rebuild-btn]                   │
-│                                                                    │
-│ Add form (when adding) [sources-add-form]:                         │
-│ ┌────────────────────────────────────────────────────────────────┐ │
-│ │ kind ▼  [sources-draft-kind]                                   │ │
-│ │ url    [sources-draft-primary]                                 │ │
-│ │ title  [sources-draft-title]                                   │ │
-│ │ [sources-draft-cancel]   [sources-draft-add]                   │ │
-│ │ error  [sources-draft-error]                                   │ │
-│ └────────────────────────────────────────────────────────────────┘ │
-│                                                                    │
-│ Filter chips: [sources-filter-chip-<key>] [sources-filter-clear]   │
-│                                                                    │
-│ ┌─Source row [source-row-<slug>]─────────────────────────────────┐ │
-│ │  RSS │ Federal Reserve  · federal-reserve                      │ │
-│ │       https://www.federalreserve.gov/feeds/press_all.xml       │ │
-│ │       #central-bank                              [source-      │ │
-│ │                                                  remove-<slug>]│ │
-│ └────────────────────────────────────────────────────────────────┘ │
-│ ...                                                                │
-│                                                                    │
-│ Empty state: [sources-empty] (if no feeds yet) → preset buttons    │
-│   [sources-preset-<id>]                                            │
-│                                                                    │
-│ Last rebuild summary at the bottom: [sources-rebuild-summary]      │
-│                                                                    │
-│ Per-page chat composer (page mode only): [sources-page-chat-input] │
-│   [sources-page-chat-send] — spawns a fresh chat with a prepended  │
-│   pointer to config/helps/sources.md                               │
-└────────────────────────────────────────────────────────────────────┘
-```
 
 ## /files — workspace file explorer
 

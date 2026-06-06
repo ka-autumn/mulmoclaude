@@ -3,7 +3,6 @@
 //
 // The signature is preserved so the existing host call sites
 // (`server/agent/mcp-tools/notify.ts`,
-// `server/workspace/sources/pipeline/notify.ts`,
 // `server/plugins/diagnostics.ts`) keep working without source changes.
 // Internally it now:
 //   1. Maps the legacy `NotificationKind` source category to a

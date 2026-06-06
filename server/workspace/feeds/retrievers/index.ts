@@ -1,8 +1,7 @@
 // Pluggable retriever registry. Each `ingest.kind` maps to one
 // RetrieveFn that fetches the endpoint and returns projected records.
-// Mirrors the side-effect-registration pattern in
-// `server/workspace/sources/fetchers/registerAll.ts`. New kinds
-// (`code`, `prompt`) register here without touching the engine.
+// Side-effect registration keeps the engine decoupled from the kinds.
+// New kinds (`code`, `prompt`) register here without touching the engine.
 
 import type { CollectionItem, CollectionSchema } from "../../collections/index.js";
 import type { IngestSpec } from "../ingestTypes.js";

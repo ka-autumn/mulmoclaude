@@ -249,15 +249,13 @@ export const ROLES: Role[] = [
   // three focused preset skills so Claude's discovery layer can pick
   // the right one from a single user phrase:
   //   - `mc-manage-skills`      — `<workspace>/.claude/skills/<slug>/SKILL.md`
-  //   - `mc-manage-sources`     — `<workspace>/sources/<slug>.md`
   //   - `mc-manage-automations` — `<workspace>/config/scheduler/tasks.json`
   // Each skill edits the on-disk files directly; the post-write hook
   // installed by `provisionConfigRefreshHook` re-registers scheduled
   // skills and user tasks so changes activate without a server
-  // restart. Role-level `manageSource` / `manageSkills` /
-  // `manageAutomations` tools are therefore no longer needed as a
-  // bundle. The MCP tools themselves still exist for any role that
-  // wants the direct-call path.
+  // restart. Role-level `manageSkills` / `manageAutomations` tools are
+  // therefore no longer needed as a bundle. The MCP tools themselves
+  // still exist for any role that wants the direct-call path.
   {
     id: "accounting",
     name: "Accounting",
@@ -441,9 +439,9 @@ export const BUILTIN_ROLE_IDS = {
   tutor: "tutor",
   storyteller: "storyteller",
   // settings: removed (#1283) — replaced by `mc-manage-skills` /
-  // `mc-manage-sources` / `mc-manage-automations` preset skills (the
-  // single-skill `mc-settings` originally introduced in #1283 was
-  // split into three in #1295 for stronger discovery).
+  // `mc-manage-automations` preset skills (the single-skill
+  // `mc-settings` originally introduced in #1283 was split for
+  // stronger discovery).
   accounting: "accounting",
   investor: "investor",
   // cookingCoach: removed (#1286) — replaced by `mc-cooking-coach` preset skill.

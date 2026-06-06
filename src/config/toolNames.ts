@@ -29,7 +29,6 @@ const HOST_TOOL_NAMES = {
   // manageCalendar migrated — see `src/plugins/scheduler/calendarMeta.ts`.
   // manageAutomations migrated — see `src/plugins/scheduler/automationsMeta.ts`.
   // manageSkills migrated — see `src/plugins/manageSkills/meta.ts`.
-  // manageSource migrated — see `src/plugins/manageSource/meta.ts`.
   // manageWiki migrated — see `src/plugins/wiki/meta.ts`. Plugin is
   // GUI-only (no MCP binding — deprecated #963), so the sync test
   // pins "every binding → META", not the reverse.
