@@ -14,6 +14,10 @@ import { sameShortcut, type Shortcut, type ShortcutKind } from "../types/shortcu
 
 const shortcuts = ref<Shortcut[]>([]);
 const loadError = ref<string | null>(null);
+/** True only after a GET has authoritatively populated `shortcuts`. Until
+ *  then, mutations refuse to persist — a replace-all PUT built on the
+ *  empty default would clobber an existing `shortcuts.json`. */
+const loaded = ref(false);
 let loadPromise: Promise<void> | null = null;
 
 interface ShortcutsResponse {
@@ -22,17 +26,22 @@ interface ShortcutsResponse {
 
 /** Load once per session (deduped). Subsequent calls return the same
  *  promise; pass `force` to re-fetch (rarely needed — mutations keep the
- *  ref authoritative). */
+ *  ref authoritative). A FAILED load is not cached: `loadPromise` is
+ *  cleared so the next call retries, rather than permanently serving the
+ *  failed result (which would leave `loaded` false and block mutations
+ *  until reload). */
 async function load(force = false): Promise<void> {
   if (loadPromise && !force) return loadPromise;
   loadPromise = (async () => {
     const result = await apiGet<ShortcutsResponse>(API_ROUTES.shortcuts);
     if (!result.ok) {
       loadError.value = result.error;
+      loadPromise = null; // allow retry on the next call
       return;
     }
     loadError.value = null;
     shortcuts.value = result.data.shortcuts;
+    loaded.value = true;
   })();
   return loadPromise;
 }
@@ -83,6 +92,7 @@ function isPinned(kind: ShortcutKind, slug: string): boolean {
 function pin(shortcut: Shortcut): Promise<boolean> {
   return enqueue(async () => {
     await load();
+    if (!loaded.value) return false; // never overwrite an unread list
     if (isPinned(shortcut.kind, shortcut.slug)) return true;
     const previous = shortcuts.value;
     return persist([...previous, shortcut], previous);
@@ -93,6 +103,7 @@ function pin(shortcut: Shortcut): Promise<boolean> {
 function unpin(kind: ShortcutKind, slug: string): Promise<boolean> {
   return enqueue(async () => {
     await load();
+    if (!loaded.value) return false; // never overwrite an unread list
     if (!isPinned(kind, slug)) return true;
     const previous = shortcuts.value;
     return persist(
@@ -110,6 +121,7 @@ function unpin(kind: ShortcutKind, slug: string): Promise<boolean> {
 function reconcile(kind: ShortcutKind, live: { slug: string; title: string; icon: string }[]): Promise<void> {
   return enqueue(async () => {
     await load();
+    if (!loaded.value) return; // never overwrite an unread list
     const liveBySlug = new Map(live.map((entry) => [entry.slug, entry]));
     let drifted = false;
     const next = shortcuts.value.flatMap((entry) => {
