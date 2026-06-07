@@ -97,7 +97,7 @@ skipped, never crashes the host):
 | Key | Meaning |
 |---|---|
 | `title` | Human name shown in the sidebar / header. Required. |
-| `icon` | A **Material Icons** name (`receipt_long`, `people`, `schedule`, `menu_book`). Required. |
+| `icon` | A **Material Symbols** name (`receipt_long`, `people`, `schedule`, `menu_book`). Required. |
 | `dataPath` | Workspace-relative records folder, e.g. `data/recipes/items`. Must stay under the workspace. Required. |
 | `primaryKey` | The field name whose value is the filename. That field MUST set `primary: true`. Required. |
 | `singleton` | Optional. When set, at most one record exists, pinned to this exact id (e.g. `me`). Host pre-fills + locks the create form and hides Add once it exists. |
@@ -260,7 +260,7 @@ journals, drafting an email) gets delegated to natural language.
 {
   "id": "pdf",                      // unique within the schema
   "label": "Generate PDF",          // button text (English)
-  "icon": "picture_as_pdf",         // Material Icons name
+  "icon": "picture_as_pdf",         // Material Symbols name
   "kind": "chat",
   "role": "accounting",             // which role the new chat runs in
   "template": "templates/invoice.md", // skill-relative; no `..`, no leading `/`

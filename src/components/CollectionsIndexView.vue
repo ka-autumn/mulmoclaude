@@ -59,7 +59,7 @@
                 : 'bg-violet-50 text-violet-600 group-hover:bg-violet-100/80 border border-violet-100/50'
             "
           >
-            <span class="material-icons text-2xl">{{ collection.icon }}</span>
+            <span class="material-symbols-outlined text-2xl">{{ collection.icon }}</span>
           </div>
 
           <div class="flex-1 min-w-0">
