@@ -39,8 +39,23 @@ The deeper idea, for readers who lean in: the structured form is a **harness the
 
 ### Product Hunt listing fields
 
-- **Name / headline (≤60):** `MulmoClaude — Build AI-powered apps by asking Claude` *(52 chars — leads with the phenomenon: app generation, the newest thing we ship)*
+- **Name / headline (≤60) — primary:** `MulmoClaude — Build apps by asking. They remember.` *(50 chars)*
 - **Tagline (≤60):** `Your wiki remembers. Your data becomes apps.` *(44 chars — surprise first, then the memory payoff)*
+
+**Why "they remember" is in the headline (the differentiation, not optional).** "Build apps by asking" alone is a crowded 2026 category — Lovable, Bolt, Replit, V0 all say it. A viewer who sees only app-generation thinks *"another AI app builder"* and scrolls. Our moat isn't generating an app; it's that **the app becomes part of a memory system** — a loop no competitor closes:
+
+> **Ask → an app appears → the app is structured memory → the agent reads that memory → the app (and what it knows) compounds.**
+
+So the headline must carry both halves: the *phenomenon* (build by asking) **and** the *differentiator* (it remembers / it compounds). App-gen earns the click; "they remember" is why you stay.
+
+**A/B candidates (test on social; the listing name is one field, so pick the winner there):**
+
+| | Headline | Bet |
+|---|---|---|
+| **A (primary)** | `Build apps by asking. They remember.` | Phenomenon + moat in one breath — recommended |
+| B | `Ask Claude for an app. It remembers.` | More conversational; "Claude" up front |
+| C | `Apps that grow from memory.` | Moat-first; intriguing but softer on the phenomenon |
+| D | `Build AI-powered apps by asking Claude` | Pure app-gen (prior primary) — the crowded-category control |
 
 ### Supporting taglines (A/B for social + hero imagery)
 
@@ -152,41 +167,41 @@ and environment. Powerful, but living in a terminal. Terminals were
 the OS shell of 1975. We can do better.
 
 MulmoClaude is my attempt at the **shell for that new kernel** — an
-open-source, AI-native application platform. Three commitments:
+open-source, AI-native application platform. Three things make it
+different, in the order you'll care about them:
 
-**1. Claude is a universal controller.** Capabilities are plugins in
-one registry, and Claude composes across them in a single turn.
-"Summarize Q1 expenses as a chart" reads the accounting plugin and
-writes a chart — no app-switching, no copy-paste. Real apps running
-today: a full accounting system with server-side bookkeeping, a
-personal wiki, an SEC-filings reader (Edgar), and schema-driven
-collections.
-
-**2. Chat summons the GUI.** The reply isn't a string. Claude picks
-the format for the content — markdown, chart, form, wiki, spreadsheet,
-3D scene, or a narrated video via the built-in MulmoScript/MulmoCast
-engine. It can also ask *you* for structured input via a form when
-free text isn't the right modality. The contract is an open protocol,
-`gui-chat-protocol`, that extends MCP for the visual layer.
-
-**3. You extend it by asking — no code, no plugin install.**
-This is the part I'm most excited about. Need a tool the platform
-doesn't have? *Ask.* "Build me an invoicing app with line items and a
-PDF button" and a real app appears — fields, a computed total, an
-action button. Under the hood it's a `schema.json` Claude wrote plus
-plain-JSON records; Claude itself is the runtime, and the host
-contains zero code about invoices. My portfolio holdings carry
+**1. You extend it by asking — no code, no plugin install.**
+Need a tool the platform doesn't have? *Ask.* "Build me an invoicing
+app with line items and a PDF button" and a real app appears — fields,
+a computed total, an action button. Under the hood it's a `schema.json`
+Claude wrote plus plain-JSON records; Claude itself is the runtime, and
+the host contains zero code about invoices. My portfolio holdings carry
 `value = shares × ticker.price` following a reference into my quotes
 collection — update one quote and every holding revalues itself, no
 sync code. That's not a feature I wrote; it's a schema I asked for.
-(Written up in docs/collections-architecture.md and docs/dsl-as-harness.md —
-applications as data, the user authoring the harness, Claude as runtime.)
 
-And it remembers: a cross-linked wiki grows from every chat
-(inspired by @karpathy's *LLM Knowledge Bases* post) — the
-unstructured half of memory; collections are the structured half.
-Both plain Markdown/JSON in ~/mulmoclaude/ — git-friendly, yours.
-Every other Claude client starts from zero; this one compounds.
+**2. The apps are memory — and the memory compounds.** This is the
+part that's actually new. The app you just asked for isn't a throwaway;
+it's *structured memory* that the agent reads and acts on later. Beside
+it grows a cross-linked **wiki** from every chat (inspired by
+@karpathy's *LLM Knowledge Bases* post) — the unstructured half;
+collections are the structured half. So the loop closes: ask → an app
+appears → the app is memory → the agent uses it → what you can do
+compounds. Every other Claude client starts from zero; this one builds
+on itself. All plain Markdown/JSON in ~/mulmoclaude/ — git-friendly,
+yours. (Written up in docs/collections-architecture.md and
+docs/dsl-as-harness.md — applications as data, Claude as runtime.)
+
+**3. Claude is the controller; chat summons the GUI.** One chat
+composes across the whole plugin registry in a single turn —
+"summarize Q1 expenses as a chart" reads the accounting plugin and
+writes a chart, no app-switching. The reply isn't a string: Claude
+picks the format — markdown, chart, form, wiki, spreadsheet, 3D scene,
+or a narrated video (MulmoScript/MulmoCast) — and can ask *you* for
+structured input via a form. The agent↔GUI contract is an open
+protocol, `gui-chat-protocol`, extending MCP. Real apps running today:
+a full accounting system with server-side bookkeeping, a personal wiki,
+an SEC-filings reader (Edgar), and schema-driven collections.
 
 Two details that matter:
 - **Not a wrapper.** It doesn't call the Claude API — it runs the
@@ -216,12 +231,12 @@ designs the environment.
 
 ### Gallery captions (one per screenshot — 6 shots, no orphans)
 
-1. **Hook — Ask → app appears** — "Type 'build me an invoicing app with line items and a PDF button.' Watch a real app materialize — no code, no plugin install. Just ask."
-2. **#1 Collections depth** — "Update one stock quote — every holding revalues itself. `value = shares × ticker.price`, following a reference. You asked for it; you didn't code it."
-3. **#2 Universal controller** — "One chat composes across every plugin in a single turn. 'Summarize Q1 expenses as a chart' reads accounting, writes a chart. No app-switching."
-4. **#2 Chat summons GUIs** — "The reply isn't a string. Claude picks the format: chart, form, wiki, spreadsheet, 3D scene, or a narrated video — and asks you for structured input via a form when text isn't right."
-5. **#3 Memory + autonomy** — "Every AI agent has amnesia. This one doesn't — a cross-linked wiki grows from every chat. Register a source, get a morning briefing while you sleep."
-6. **#4 Ownership / not a wrapper** — "Your data AND your apps live in `~/mulmoclaude/` as plain text. Runs the Claude Code CLI directly, zero domain code in the host, sandboxed in Docker."
+1. **Hook — Ask → app appears (msg #1)** — "Type 'build me an invoicing app with line items and a PDF button.' Watch a real app materialize — no code, no plugin install. Just ask."
+2. **Collections depth (msg #1)** — "Update one stock quote — every holding revalues itself. `value = shares × ticker.price`, following a reference. You asked for it; you didn't code it."
+3. **The loop / memory (msg #2)** — "The app you asked for IS memory. Beside it, a cross-linked wiki grows from every chat. Ask → app → memory → the agent compounds. Every other Claude client starts from zero."
+4. **Works while you sleep (msg #2)** — "Register a source, get a morning briefing. Declare a recurring obligation as a collection — it nudges you before each due date and rolls to the next cycle."
+5. **Controller + chat summons GUIs (msg #3)** — "One chat composes across every plugin in a single turn. The reply isn't a string — chart, form, wiki, spreadsheet, 3D scene, or a narrated video, whatever the content needs."
+6. **Ownership / not a wrapper (msg #4)** — "Your data AND your apps live in `~/mulmoclaude/` as plain text. Runs the Claude Code CLI directly, zero domain code in the host, sandboxed in Docker."
 
 ---
 
@@ -305,10 +320,10 @@ Newsletter sends (dev.to, Hacker Newsletter, TLDR Dev); a "day after — what we
 ### X / Twitter — launch thread (7 tweets)
 
 1. **[Hook — ask→app GIF]** *"I typed 'build me an invoicing app with line items and a PDF button.' No code, no plugin install — a working app appeared. You extend MulmoClaude by *asking*. Live on Product Hunt today. 🧵"*
-2. **[#1 Collections]** *Every app ships the features its engineers chose. This one grows new ones when you ask. Each app is a `schema.json` Claude wrote + plain JSON; Claude is the runtime. Update one quote → my whole portfolio revalues, no sync code. [portfolio gif]*
-3. **[#2 Controller + GUIs]** *And it's a platform: one chat composes across every plugin in a single turn. "Summarize Q1 expenses as a chart" reads accounting, writes a chart. The reply isn't text — it's the right GUI. [compose gif]*
-4. **[#3 Memory]** *It never forgets. A cross-linked wiki grows from every chat, in plain Markdown. The wiki is what Claude knows; collections are what it can do. ChatGPT Memory is a bullet list; this is the moat. [wiki gif]*
-5. **[#4 Ownership]** *Your data AND your apps live in `~/mulmoclaude/` as plain text. `git push` is the backup. No cloud, no lock-in, no export flow. [folder + git gif]*
+2. **[msg #1 — Collections]** *Every app ships the features its engineers chose. This one grows new ones when you ask. Each app is a `schema.json` Claude wrote + plain JSON; Claude is the runtime. Update one quote → my whole portfolio revalues, no sync code. [portfolio gif]*
+3. **[msg #2 — the moat: it remembers]** *"Another AI app builder?" No. The app you asked for IS memory — the agent reads it and acts on it later. Ask → app → memory → it compounds. A cross-linked wiki grows alongside. Every other Claude client starts from zero. [wiki gif]*
+4. **[msg #3 — Controller + GUIs]** *And it's a platform: one chat composes across every plugin in a single turn. "Summarize Q1 expenses as a chart" reads accounting, writes a chart. The reply isn't text — it's the right GUI. [compose gif]*
+5. **[msg #4 — Ownership]** *Your data AND your apps live in `~/mulmoclaude/` as plain text. `git push` is the backup. No cloud, no lock-in, no export flow. [folder + git gif]*
 6. **[Anti-wrapper]** *Not an API wrapper. It runs the Claude Code CLI directly — your auth, your tools, your files — and the host contains zero domain code. That's why it can do what it does.*
 7. **[CTA]** *Install: `npx mulmoclaude` — open source, MIT. One upvote on PH costs nothing and means everything today: [link]* *(swap first clause for the hosted demo URL if §10.5 ships.)*
 
