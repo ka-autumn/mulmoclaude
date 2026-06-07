@@ -50,9 +50,9 @@
         :tabindex="0"
         :aria-label="t('collectionsView.dayViewOpen', { date: cell.key })"
         :data-testid="`collection-calendar-day-${cell.key}`"
-        @click="openDay = cell.ymd"
-        @keydown.enter.self.prevent="openDay = cell.ymd"
-        @keydown.space.self.prevent="openDay = cell.ymd"
+        @click="emit('openDay', cell.ymd)"
+        @keydown.enter.self.prevent="emit('openDay', cell.ymd)"
+        @keydown.space.self.prevent="emit('openDay', cell.ymd)"
       >
         <div class="flex items-center justify-end">
           <span
@@ -90,22 +90,6 @@
         {{ entry.label }}
       </button>
     </div>
-
-    <!-- Day (time-allocation) popup, opened from a day-number badge. -->
-    <CollectionDayView
-      v-if="openDay"
-      :schema="schema"
-      :items="items"
-      :day="openDay"
-      :anchor-field="anchorField"
-      :end-field="endField"
-      :time-field="timeField"
-      :selected="selected"
-      :can-create="canCreate"
-      @select="emit('select', $event)"
-      @create-on="emit('createOn', $event)"
-      @close="openDay = null"
-    />
   </div>
 </template>
 
@@ -114,7 +98,6 @@ import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { bucketRecords, buildMonthGrid, ymdKey, daySlice, MINUTES_PER_DAY, type Ymd, type RecordSpan, type DaySlice } from "../utils/collections/calendarGrid";
 import { labelFieldFor, itemIdOf, itemLabelOf } from "../utils/collections/itemLabel";
-import CollectionDayView from "./CollectionDayView.vue";
 import type { CollectionItem, CollectionSchema } from "./collectionTypes";
 
 const props = defineProps<{
@@ -128,18 +111,13 @@ const props = defineProps<{
   timeField?: string;
   /** Primary-key of the currently-open record (highlighted chip). */
   selected?: string;
-  /** Whether empty-cell clicks create a record (Add gated for singletons). */
-  canCreate: boolean;
 }>();
 
 const emit = defineEmits<{
   select: [id: string | null];
-  createOn: [iso: string];
+  /** A day cell was activated → the host opens the time-allocation popup. */
+  openDay: [day: Ymd];
 }>();
-
-// The day whose time-allocation popup is open, or null. Opened from a day's
-// number badge; re-emits select/createOn upward like the month grid does.
-const openDay = ref<Ymd | null>(null);
 
 const { t, locale } = useI18n();
 
