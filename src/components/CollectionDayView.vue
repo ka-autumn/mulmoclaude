@@ -74,12 +74,12 @@
                 @click="onSelect(entry.id)"
               >
                 <span class="block truncate text-[11px] font-semibold leading-tight">
-                  <span v-if="entry.slice.bleedsBefore" aria-hidden="true">▲ </span
-                  ><span v-if="entry.slice.kind === 'line'" class="tabular-nums opacity-70">{{ clock(entry.slice.startMin) }} </span>{{ entry.label }}
+                  <span v-if="entry.slice.bleedsBefore" aria-hidden="true">▲ </span>{{ entry.label
+                  }}<span v-if="entry.slice.bleedsAfter" aria-hidden="true"> ▼</span>
                 </span>
-                <span v-if="entry.slice.kind === 'block'" class="block truncate text-[10px] tabular-nums leading-tight opacity-80">
-                  {{ entry.timeText }}<span v-if="entry.slice.bleedsAfter" aria-hidden="true"> ▼</span>
-                </span>
+                <!-- A few non-date/time fields under the title. The chip's height
+                     stays proportional to its duration; extra lines just clip. -->
+                <span v-for="(text, i) in entry.secondary" :key="i" class="block truncate text-[10px] leading-tight opacity-70">{{ text }}</span>
               </button>
             </div>
           </div>
@@ -175,16 +175,34 @@ function hourLabel(hour: number): string {
   return `${String(hour).padStart(2, "0")}:00`;
 }
 
-function clock(minutes: number): string {
-  const clamped = Math.max(0, Math.min(MINUTES_PER_DAY, minutes));
-  return `${String(Math.floor(clamped / 60)).padStart(2, "0")}:${String(clamped % 60).padStart(2, "0")}`;
-}
-
 const labelField = computed<string | null>(() => labelFieldFor(props.schema));
+
+// Field types with no compact inline representation for a chip subtitle.
+const CHIP_SKIP_TYPES = new Set<string>(["date", "datetime", "table", "embed", "image", "markdown"]);
+const MAX_CHIP_FIELDS = 3;
+
+/** A few scalar field values to show under a chip's title — excludes the label
+ *  (already the title), the primary key, the date/time fields that position the
+ *  record, and non-scalar field types. */
+function secondaryFieldsOf(item: CollectionItem): string[] {
+  const out: string[] = [];
+  for (const [key, field] of Object.entries(props.schema.fields)) {
+    if (out.length >= MAX_CHIP_FIELDS) break;
+    if (key === props.schema.primaryKey || key === labelField.value) continue;
+    if (key === props.anchorField || key === props.endField || key === props.timeField) continue;
+    if (CHIP_SKIP_TYPES.has(field.type)) continue;
+    const value = item[key];
+    if (value === undefined || value === null || typeof value === "object") continue;
+    const text = String(value);
+    if (text.length > 0) out.push(text);
+  }
+  return out;
+}
 
 interface DayEntry {
   id: string;
   label: string;
+  secondary: string[];
   slice: DaySlice;
 }
 
@@ -194,7 +212,13 @@ const dayEntries = computed<DayEntry[]>(() => {
   const entries: DayEntry[] = [];
   for (const span of spans) {
     const slice = daySlice(span, props.day);
-    if (slice) entries.push({ id: itemIdOf(span.item, props.schema), label: itemLabelOf(span.item, props.schema, labelField.value), slice });
+    if (!slice) continue;
+    entries.push({
+      id: itemIdOf(span.item, props.schema),
+      label: itemLabelOf(span.item, props.schema, labelField.value),
+      secondary: secondaryFieldsOf(span.item),
+      slice,
+    });
   }
   return entries;
 });
@@ -202,7 +226,6 @@ const dayEntries = computed<DayEntry[]>(() => {
 const allDayEntries = computed<DayEntry[]>(() => dayEntries.value.filter((entry) => entry.slice.kind === "allDay"));
 
 interface TimedEntry extends DayEntry {
-  timeText: string;
   style: Record<string, string>;
 }
 
@@ -217,7 +240,6 @@ const timedEntries = computed<TimedEntry[]>(() => {
     const heightPx = entry.slice.kind === "line" ? LINE_PX : Math.max((entry.slice.endMin - entry.slice.startMin) * PX_PER_MIN, MIN_BLOCK_PX);
     return {
       ...entry,
-      timeText: `${clock(entry.slice.startMin)}–${clock(entry.slice.endMin)}`,
       style: {
         top: `${entry.slice.startMin * PX_PER_MIN}px`,
         height: `${heightPx}px`,

@@ -67,6 +67,7 @@ const AGENDA = {
         name: { type: "string", label: "Name", required: true },
         on: { type: "date", label: "Date" },
         time: { type: "string", label: "Time" },
+        location: { type: "string", label: "Location" },
       },
       displayField: "name",
       calendarField: "on",
@@ -74,9 +75,9 @@ const AGENDA = {
     },
   },
   items: [
-    { id: "block", name: "Workshop", on: MID, time: "14:00-17:00" }, // range → block
-    { id: "line", name: "Standup", on: MID, time: "09:30" }, // start only → single line
-    { id: "allday", name: "Conference", on: MID, time: "終日" }, // no clock → all-day strip
+    { id: "block", name: "Workshop", on: MID, time: "14:00-17:00", location: "Room 5" }, // range → block
+    { id: "line", name: "Standup", on: MID, time: "09:30", location: "Hall" }, // start only → single line
+    { id: "allday", name: "Conference", on: MID, time: "終日", location: "Expo" }, // no clock → all-day strip
   ],
 };
 
@@ -257,8 +258,13 @@ test.describe("collection calendar view", () => {
     await cell.press("Enter");
     await expect(page.getByTestId("collection-day-view")).toBeVisible();
     // "14:00-17:00" → a proportional block; "09:30" → a single line (both chips).
-    await expect(page.getByTestId("collection-day-view-chip-block")).toBeVisible();
+    const blockChip = page.getByTestId("collection-day-view-chip-block");
+    await expect(blockChip).toBeVisible();
     await expect(page.getByTestId("collection-day-view-chip-line")).toBeVisible();
+    // The chip shows a non-date/time field under the title, not the time range.
+    await expect(blockChip).toContainText("Workshop");
+    await expect(blockChip).toContainText("Room 5");
+    await expect(blockChip).not.toContainText("14:00");
     // "終日" has no parseable clock → the bottom all-day strip.
     await expect(page.getByTestId("collection-day-view-allday-allday")).toBeVisible();
     // Selecting an entry opens its detail in the right pane; the popup stays open.
