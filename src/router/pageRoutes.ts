@@ -12,8 +12,6 @@ export const PAGE_ROUTES = {
   files: "files",
   automations: "automations",
   wiki: "wiki",
-  skills: "skills",
-  roles: "roles",
   feeds: "feeds",
   debug: "debug",
   collections: "collections",

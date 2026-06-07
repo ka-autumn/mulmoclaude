@@ -12,9 +12,9 @@
 
 **On every 3-second surface — headline, hero-video cold open, tweet #1 — lead with what it DOES, not what it IS:**
 
-> **Ask Claude for an app, and it appears.** Type *"build me an invoicing app with line items and a PDF button"* and a real, working app materializes — fields, a live computed total, an action button — with **no code and no plugin to install.**
+> **Ask Claude for an app, and it appears — then tomorrow it answers from that app's own data.** Type *"build me an invoicing app with line items and a PDF button"* and a real, working app materializes (fields, a live computed total, an action button) with **no code and no plugin**; a beat later a fresh session reads it back as memory.
 
-That is the hook. A PH viewer must feel "wait — you build apps just by *asking*?" before anything else. Never open with abstractions ("file-system memory," "DSL," "harness," "runtime") — they answer a question the viewer hasn't asked yet. Show the phenomenon; the theory comes right after.
+That is the hook — and note it has **two beats**, because the locked headline (*"Ask for an app. It becomes memory."*) promises both. The phenomenon (*ask → app*) earns attention; the twist (*it becomes memory*) is what separates us from app builders. A PH viewer must feel "wait — you build apps just by *asking*?" **and then** "...and the app is *memory*?" Never open with abstractions ("file-system memory," "DSL," "harness," "runtime") — they answer a question the viewer hasn't asked yet. **On any moving surface (hero video, 15s loop), carry the loop all the way to "it becomes memory" inside the first 15 seconds** — stopping at "app appears" proves only half the headline. Show the phenomenon; the theory comes right after.
 
 **Then — and only then — explain *why* it's more than a no-code toy. This is the product's philosophy: use it in the body, the maker comment, HN, and the blog, not in the headline.**
 
@@ -39,34 +39,34 @@ The deeper idea, for readers who lean in: the structured form is a **harness the
 
 ### Product Hunt listing fields
 
-- **Name / headline (≤60) — primary:** `MulmoClaude — Build apps by asking. They remember.` *(50 chars)*
-- **Tagline (≤60) — primary:** `An AI-native database where your data becomes apps.` *(50 chars)*
+- **Name / headline (≤60) — FINAL:** `MulmoClaude — Ask for an app. It becomes memory.` *(50 chars)*
+- **Tagline (≤60) — FINAL:** `An AI-native database where your data becomes apps.` *(50 chars)*
 
-*Pairing logic:* the **headline** hooks with the consumer phenomenon (build apps by asking — the crowded-but-legible part); the **tagline** reframes the category (an AI-native database — the uncontested part). *remember* vs *compound*: "remember" lands in 3 seconds, so it leads the headline; "compound" is the deeper moat, carried by the tagline and the body. Headline → tagline mirrors phenomenon → theory.
+*Pairing logic:* the **headline** does double duty in one breath — *"Ask for an app"* is the consumer phenomenon that earns the click, and *"It becomes memory"* is the differentiator in plain language (the reason this isn't just another app builder). The **tagline** then names the category outright — *an AI-native database* — for the reader who leans in. The arc is **phenomenon → differentiator → category**, headline flowing into tagline.
 
-**Why "they remember" is in the headline (the differentiation, not optional).** "Build apps by asking" alone is a crowded 2026 category — Lovable, Bolt, Replit, V0 all say it. A viewer who sees only app-generation thinks *"another AI app builder"* and scrolls. Our moat isn't generating an app; it's that **the app becomes part of a memory system** — a loop no competitor closes:
+**Why the headline carries "It becomes memory" (the differentiation, not optional).** "Build apps by asking" alone is a crowded 2026 category — Lovable, Bolt, Replit, V0 all say it. A viewer who sees only app-generation thinks *"another AI app builder"* and scrolls. Our moat isn't generating an app; it's that **the app becomes memory** — structured memory the agent reads and builds on — a loop no competitor closes:
 
-> **Ask → an app appears → the app is structured memory → the agent reads that memory → the app (and what it knows) compounds.**
+> **Ask → an app appears → the app is structured memory → the agent reads it → your capability compounds.**
 
-So the headline must carry both halves: the *phenomenon* (build by asking) **and** the *differentiator* (it remembers / it compounds). App-gen earns the click; "they remember" is why you stay.
+The headline states the first two beats (*ask → it becomes memory*); the payoff (*it compounds*) is carried by the body and by the tagline's "database" reframe. App-gen earns the click; "it becomes memory" is why you stay.
 
-**A/B candidates (test on social; the listing name is one field, so pick the winner there):**
+**Headline — locked for the listing. Alternates kept only for social A/B (the PH name is one field):**
 
-| | Headline | Bet |
+| | Headline | Note |
 |---|---|---|
-| **A (primary)** | `Build apps by asking. They remember.` | Phenomenon + moat in one breath — recommended |
-| B | `Ask Claude for an app. It remembers.` | More conversational; "Claude" up front |
-| C | `Apps that grow from memory.` | Moat-first; intriguing but softer on the phenomenon |
-| D | `Build AI-powered apps by asking Claude` | Pure app-gen (prior primary) — the crowded-category control |
+| **Chosen** | `Ask for an app. It becomes memory.` | Phenomenon + the memory differentiator in one line |
+| alt | `Build apps by asking. They remember.` | Phenomenon-forward; lighter on the "it's memory" twist |
+| alt | `Apps that grow from memory.` | Moat-first; softer on the phenomenon |
+| alt | `Build AI-powered apps by asking Claude` | Pure app-gen — the crowded-category control |
 
-**Tagline A/B (carry the *compound* / database dimension the headline can't):**
+**Tagline — locked. Alternates for social A/B:**
 
-| | Tagline | Bet |
+| | Tagline | Note |
 |---|---|---|
-| **A (primary)** | `An AI-native database where your data becomes apps.` | Reframes the category — uncontested |
-| B | `Ask for an app. Keep it forever.` | Ownership + permanence; warm, consumer |
-| C | `Your data becomes apps — and they compound.` | Names the network effect directly |
-| D | `Your wiki remembers. Your data becomes apps.` | Prior tagline — concrete but more abstract on the moat |
+| **Chosen** | `An AI-native database where your data becomes apps.` | Names the uncontested category |
+| alt | `Ask for an app. Keep it forever.` | Ownership + permanence; warm, consumer |
+| alt | `Your data becomes apps — and they compound.` | Names the network effect directly |
+| alt | `Your wiki remembers. Your data becomes apps.` | Prior tagline — concrete but more abstract on the moat |
 
 ### The bigger positioning bet — "AI-native database," not "AI app builder"
 
@@ -75,7 +75,7 @@ The single sharpest reframe available to us. **"AI app builder" is a knife fight
 > A normal app reads from a database. Here **the app *is* the database** — you describe a schema, it becomes both your data store *and* its UI, and the agent reads/writes it as memory. Ask → app → structured memory → the agent uses it → your capability compounds. That loop is the product.
 
 **How to deploy it (don't over-rotate):**
-- **PH / consumer surfaces:** keep the *phenomenon* hook ("build apps by asking") to earn the click, and use the **consumer phrasing** of the database idea — *"your data becomes apps," "memory that turns into apps"* — never the literal word "database," which reads as dev-infra/boring to a PH skimmer.
+- **PH / consumer surfaces:** lead with the *phenomenon* + the consumer phrasing of the memory idea — the locked headline does exactly this (*"Ask for an app. It becomes memory."*). The **tagline is the one deliberate place the literal "AI-native database" is introduced** — the category reframe for the reader who gets to the second line. Don't spread the literal word "database" further into captions, tweets, or the hero video, where it reads as dev-infra/boring to a skimmer; there, stay with *"your data becomes apps" / "memory that turns into apps."*
 - **HN / investor / technical surfaces:** lead with **"AI-native database"** outright — there it's a feature, not a yawn, and it's the most defensible framing we have.
 - **Don't claim a category we can't back:** we're not a Postgres replacement. The claim is narrow and true — *a local, schema-defined store whose records render as apps and serve as the agent's structured memory.*
 
@@ -269,15 +269,16 @@ Three videos, different channels. **Always record silent first; add one narratio
 ### Video A — 60s hero (PH gallery + X)
 
 - **Goal:** one upvote per viewer. No feature-listing.
-- **Two money shots, back to back:** (1) the **ask→app** moment (novelty no competitor can show); (2) the **memory** payoff (the moat that makes leaving painful).
-- 0:00–0:10 — Cold open: type *"build me an invoicing app with line items and a PDF button."* App materializes — fields, live total, "Generate PDF". No logo. Caption: *"No code. No plugins. Just ask."*
-- 0:10–0:18 — Collections depth: edit one stock quote; every holding revalues. Caption: *"Update a quote — your whole portfolio revalues itself. No sync code."*
-- 0:18–0:28 — Universal controller: one chat, *"summarize Q1 expenses as a chart"* → reads accounting, renders a chart inline. Caption: *"One chat. Every app. Composed in a single turn."*
-- 0:28–0:40 — **Memory payoff (money shot):** wiki sidebar auto-cross-links; time-cut overlay *"Tomorrow"*; a fresh session answers a question grounded in yesterday's wiki page. Caption: *"Every AI agent has amnesia. This one doesn't."*
-- 0:40–0:48 — Autonomy + ownership: a scheduled source fires a morning briefing; Finder opens `~/mulmoclaude/` showing plain Markdown + `schema.json`; a `git push` scrolls by. Caption: *"It works while you sleep. Your data and your apps — plain text, git-friendly."*
-- 0:48–0:54 — Anti-wrapper frame: *"Not an API wrapper. Claude Code, directly. Zero domain code."*
-- 0:54–1:00 — Logo + `npx mulmoclaude` + github URL. *(Swap to "try it in your browser" if the hosted demo (§10.5) ships.)*
-- **Notes:** 1080p, 24fps, monospace captions, one lo-fi track at 40% cut at 0:54. Shoot the 0:00 ask→app and 0:28 memory beats twice; pick the crisper take.
+- **One money window — the first 15 seconds ARE the headline.** The headline promises two things (*ask for an app* **and** *it becomes memory*), so the opener must prove **both, back to back**, before anything else. If a viewer watches only 15 seconds, they must see the whole loop: **Ask → app appears → "Tomorrow" → Claude uses it.** Stopping the opener at "app appears" (as a draft once did) proves only half the headline and reads as "another app builder." Everything after 0:15 is supporting evidence.
+- **0:00–0:15 — THE loop (the shot the whole video lives or dies on):**
+  - 0:00–0:07 — type *"build me an invoicing app with line items and a PDF button"* → a real app materializes (fields, a live total, "Generate PDF"). No logo, no title card. Caption: *"Ask for an app."*
+  - 0:07–0:15 — time-cut overlay *"Tomorrow."* A fresh session opens; the user asks something about that invoicing data and Claude answers **from the app's own records** — the app read back as memory, a wiki cross-link visible. Caption: *"It becomes memory."*
+- 0:15–0:23 — Collections depth: edit one stock quote; every holding revalues. Caption: *"Update a quote — your whole portfolio revalues itself. No sync code."*
+- 0:23–0:33 — Universal controller: one chat, *"summarize Q1 expenses as a chart"* → reads accounting, renders a chart inline. Caption: *"One chat. Every app. Composed in a single turn."*
+- 0:33–0:43 — Autonomy + ownership: a scheduled source fires a morning briefing; Finder opens `~/mulmoclaude/` showing plain Markdown + `schema.json`; a `git push` scrolls by. Caption: *"It works while you sleep. Your data and your apps — plain text, git-friendly."*
+- 0:43–0:50 — Anti-wrapper frame: *"Not an API wrapper. Claude Code, directly. Zero domain code."*
+- 0:50–1:00 — Logo + `npx mulmoclaude` + github URL. *(Swap to "try it in your browser" if the hosted demo (§10.5) ships.)*
+- **Notes:** 1080p, 24fps, monospace captions, one lo-fi track at 40% cut at 0:50. The **0:00–0:15 loop is THE shot** — rehearse the prompts cold, shoot it several times, pick the crispest take; the rest is B-roll by comparison. The "Tomorrow" cut must land instantly (pre-seed the workspace so the fresh session answers with zero spinner).
 
 ### Video B — 3-min deep-dive (YouTube + landing)
 
@@ -293,7 +294,7 @@ Three videos, different channels. **Always record silent first; add one narratio
 
 ### Video C — 15s loop (IG / LinkedIn / PH gallery motion, muted)
 
-Three variants: **(a)** ask→app (lead), **(b)** update one quote → portfolio revalues, **(c)** three parallel sessions. Use (a) for PH; post the others launch day.
+Three variants: **(a)** the headline loop — *ask → app appears → "Tomorrow" → Claude uses it* (the full "Ask for an app. It becomes memory." in 15s; this IS the PH cut), **(b)** update one quote → portfolio revalues, **(c)** three parallel sessions. Use (a) for PH — it must prove *both* halves of the headline, not just app-gen; post the others launch day.
 
 ### Filming checklist (all videos)
 
@@ -341,7 +342,7 @@ Newsletter sends (dev.to, Hacker Newsletter, TLDR Dev); a "day after — what we
 
 ### X / Twitter — launch thread (7 tweets)
 
-1. **[Hook — ask→app GIF]** *"I typed 'build me an invoicing app with line items and a PDF button.' No code, no plugin install — a working app appeared. You extend MulmoClaude by *asking*. Live on Product Hunt today. 🧵"*
+1. **[Hook — the loop GIF: ask→app→"Tomorrow"→Claude uses it]** *"I typed 'build me an invoicing app with line items and a PDF button.' A working app appeared — no code, no plugin. Then tomorrow a fresh chat answered from that app's own data. You ask for an app; it becomes memory. Live on Product Hunt today. 🧵"*
 2. **[msg #1 — Collections]** *Every app ships the features its engineers chose. This one grows new ones when you ask. Each app is a `schema.json` Claude wrote + plain JSON; Claude is the runtime. Update one quote → my whole portfolio revalues, no sync code. [portfolio gif]*
 3. **[msg #2 — the moat: it remembers]** *"Another AI app builder?" No. The app you asked for IS memory — the agent reads it and acts on it later. Ask → app → memory → it compounds. A cross-linked wiki grows alongside. Every other Claude client starts from zero. [wiki gif]*
 4. **[msg #3 — Controller + GUIs]** *And it's a platform: one chat composes across every plugin in a single turn. "Summarize Q1 expenses as a chart" reads accounting, writes a chart. The reply isn't text — it's the right GUI. [compose gif]*
@@ -413,7 +414,7 @@ The single biggest gap. Even with `npx mulmoclaude`, the path is Node + Claude C
 
 ## 12. The two bets
 
-**Bet 1 — show both forms of memory in one sequence (earns the upvote).** Hero video 0:00–0:40: the **structured** form first — type "build me an invoicing app" and a real app appears (no code), portfolio revalues on a quote change — then the **unstructured** form — a fresh "tomorrow" session answers grounded in the wiki it built itself. Lead with the novelty (DSL→app), land with the moat (it remembers). Without the ask→app open we're "another Claude wrapper with a pretty UI"; without the memory close we're "a neat no-code toy." With both — a linked wiki *and* apps grown by schema — a new category.
+**Bet 1 — prove the headline in the first 15 seconds (earns the upvote).** The headline is *"Ask for an app. It becomes memory."* — so the hero video's **0:00–0:15** must show the whole loop back to back: type "build me an invoicing app" → a real app appears (no code) → time-cut *"Tomorrow"* → a fresh session answers **from that app's own data**, read back as memory. That 15-second loop *is* the headline, demonstrated. Lead with the novelty (ask→app), land with the moat (it becomes memory) — and land it inside 15s, not 40, because most viewers won't reach 0:40. Stop at "app appears" and we're "another app builder"; show the loop and we're a new category. (The portfolio-revalue and the self-growing wiki are elaboration for 0:15+.)
 
 **Bet 2 — the activation path (earns the try).** A zero-install way to experience the ask→app and memory moments (§10.5 A/B/C). Without one, Bet 1's upvote never converts to a star, a follow, or a build. **Decision owed by T-10. This is the unstarted critical-path item — assign an owner now.**
 

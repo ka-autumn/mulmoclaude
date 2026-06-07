@@ -134,9 +134,15 @@ describe("classifyWorkspacePath", () => {
       assert.deepEqual(classifyWorkspacePath("/scheduler"), { kind: "spa-route", path: "/scheduler" });
     });
 
-    it("classifies /skills and /roles as spa-route", () => {
-      assert.deepEqual(classifyWorkspacePath("/skills"), { kind: "spa-route", path: "/skills" });
-      assert.deepEqual(classifyWorkspacePath("/roles"), { kind: "spa-route", path: "/roles" });
+    it("does NOT classify /skills or /roles as spa-route (moved into the Settings modal; no standalone route)", () => {
+      // Skills and Roles are no longer PAGE_ROUTES — they live in the
+      // Settings modal now, so SPA_ROUTE_NAMES (auto-derived from
+      // PAGE_ROUTES) no longer contains them. A bare `skills` / `roles`
+      // segment falls through to file classification, which is correct:
+      // `.claude/skills` and `data/skills` are real workspace dirs, so
+      // aliasing the segment to a (now defunct) route would shadow them.
+      assert.deepEqual(classifyWorkspacePath("/skills"), { kind: "file", path: "skills" });
+      assert.deepEqual(classifyWorkspacePath("/roles"), { kind: "file", path: "roles" });
     });
 
     it("does NOT classify /chat/<id> as spa-route (preserves session-load flow via conversations/chat/<id>.jsonl)", () => {

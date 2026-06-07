@@ -9,6 +9,8 @@ import {
   deleteProjectSkillViaUi,
   deleteSession,
   getCurrentSessionId,
+  invokeSkillViaSlashCommand,
+  openSkillsPanel,
   placeProjectSkill,
   readProjectSkillBody,
   readSessionToolCalls,
@@ -148,17 +150,17 @@ test.describe("skills (real LLM / static)", () => {
     }
   });
 
-  test("L-22: 合成 skill を seed → Run → agent が skill body 通りに応答する (B-08 end-to-end)", async ({ page }, testInfo) => {
+  test("L-22: 合成 skill を seed → /<slug> slash invoke → agent が skill body 通りに応答する (B-08 end-to-end)", async ({ page }, testInfo) => {
     test.setTimeout(L22_TIMEOUT_MS);
     // Covers B-08 end-to-end: a skill on disk has to (a) surface in
-    // `/skills`, (b) load its body into the detail pane, AND (c)
-    // be picked up by the Claude SDK when invoked as `/<slug>`. The
-    // earlier draft of this spec stopped at (a)+(b) on the theory
+    // the Skills settings tab, (b) load its body into the detail pane,
+    // AND (c) be picked up by the Claude SDK when invoked as `/<slug>`.
+    // The earlier draft of this spec stopped at (a)+(b) on the theory
     // that the dangling failure mode trips before (c) — true for
     // Docker dangling (real B-08), but in non-Docker mode (a)+(b)
-    // are a happy-path smoke test only. Pressing Run lifts the
-    // canary into a true end-to-end check: the skill row visible
-    // proves nothing if the body never reaches the agent.
+    // are a happy-path smoke test only. The `/<slug>` slash invoke
+    // lifts the canary into a true end-to-end check: the skill row
+    // visible proves nothing if the body never reaches the agent.
     //
     // Synthetic skill body: we instruct the agent to reply with a
     // unique marker (`L22-OK-<nonce>`). The marker has to be in the
@@ -197,28 +199,28 @@ test.describe("skills (real LLM / static)", () => {
     let sessionIdForCleanup: string | null = null;
     try {
       await placeProjectSkill(skillSlug, description, body);
-      await page.goto("/skills");
+      await openSkillsPanel(page);
 
       // Sanity layer (a)+(b): the row is keyed by the seeded slug.
       // If the workspace's `.claude/skills/` were unreadable
       // (dangling symlink, permission error, server cache miss),
       // the seeded file would not surface and the row would never
-      // appear.
+      // appear in the Skills settings tab.
       const skillRow = page.getByTestId(`skill-item-${skillSlug}`);
-      await expect(skillRow, "seeded project skill must appear in /skills list").toBeVisible({ timeout: ONE_MINUTE_MS });
+      await expect(skillRow, "seeded project skill must appear in the Skills settings tab").toBeVisible({ timeout: ONE_MINUTE_MS });
       await skillRow.click();
       const bodyView = page.getByTestId("skill-body-rendered");
       await expect(bodyView, "detail body must hydrate (proves SKILL.md is readable)").toBeVisible({ timeout: ONE_MINUTE_MS });
       await expect(bodyView, "rendered body must echo the seeded marker").toContainText(replyMarker);
 
-      // Layer (c): Run = `appApi.startNewChat('/<slug>')` — the
-      // SPA navigates to /chat/<id> and the agent receives the
-      // slash command as its first turn. Capture the new session
-      // id immediately after the URL settles so cleanup runs even
-      // if the assistant turn below times out.
-      await page.getByTestId("skill-run-btn").click();
-      await page.waitForURL(SESSION_URL_PATTERN);
-      sessionIdForCleanup = getCurrentSessionId(page);
+      // Layer (c): the only surviving invoke path is the `/<slug>`
+      // slash command typed as the first turn of a fresh chat (the
+      // in-view Run button was removed when Skills moved into the
+      // Settings modal). `invokeSkillViaSlashCommand` dismisses the
+      // modal, starts a new session, sends the command, and returns
+      // the new session id once /chat/<id> settles — captured here so
+      // cleanup runs even if the assistant turn below times out.
+      sessionIdForCleanup = await invokeSkillViaSlashCommand(page, skillSlug);
 
       await waitForAssistantResponseComplete(page, 2 * ONE_MINUTE_MS);
 
@@ -310,7 +312,7 @@ test.describe("skills (real LLM / static)", () => {
     }
   });
 
-  test("L-32: 「skill 化して」 (slug 任せ) → bridge mirror landing → /skills 一覧に出現 → Run で marker echo (post-#1298 end-to-end canary)", async ({
+  test("L-32: 「skill 化して」 (slug 任せ) → bridge mirror landing → Skills 設定タブに出現 → /<slug> slash invoke で marker echo (post-#1298 end-to-end canary)", async ({
     page,
   }, testInfo) => {
     // Same as L-31 — requires the agent to land a real Write +
@@ -326,18 +328,18 @@ test.describe("skills (real LLM / static)", () => {
     //   Write (staging file lands) →
     //   bridge hook (mirror copy fires) →
     //   refresh (server rescan picks it up + /api/config/refresh) →
-    //   /skills listing surfaces the new entry →
-    //   Run / slash dispatch loads the body into the agent →
+    //   Skills settings tab surfaces the new entry →
+    //   /<slug> slash dispatch loads the body into the agent →
     //   agent echoes the marker
-    // collapses into a missing file, a missing /skills row, or a
+    // collapses into a missing file, a missing Skills-tab row, or a
     // missing marker in the assistant reply.
     //
-    // Why bother with the Run leg in addition to the file landing
-    // assertion: the bridge fires `POST /api/config/refresh` after
+    // Why bother with the slash-invoke leg in addition to the file
+    // landing assertion: the bridge fires `POST /api/config/refresh` after
     // the mirror, and a silent failure there leaves the file on disk
     // (assertion (1) passes) but the skill registry never re-scans
-    // (assertion (2) and (3) fail). L-22 covers Run+marker on a
-    // direct fs seed (no bridge), so this canary is the only place
+    // (assertion (2) and (3) fail). L-22 covers slash-invoke+marker on
+    // a direct fs seed (no bridge), so this canary is the only place
     // that proves bridge → refresh → registry rescan → invocability
     // is wired end-to-end.
     //
@@ -384,32 +386,31 @@ test.describe("skills (real LLM / static)", () => {
       ).toBeGreaterThan(0);
 
       // (2) /api/config/refresh succeeded → the new skill surfaces
-      // in /skills. We pick the first marker-bearing slug; if the
-      // agent created multiple (rare), the first one is enough to
-      // prove the registry refreshed — every dir was mirrored
+      // in the Skills settings tab. We pick the first marker-bearing
+      // slug; if the agent created multiple (rare), the first one is
+      // enough to prove the registry refreshed — every dir was mirrored
       // through the same code path. The default helper is fine here
       // because we have a UI gate (`skill-item-<slug>` visibility)
       // that masks the fast-path race waitForAssistantTurn guards.
       const [runSlug] = createdSlugs;
-      await page.goto("/skills");
+      await openSkillsPanel(page);
       const skillRow = page.getByTestId(`skill-item-${runSlug}`);
       await expect(
         skillRow,
-        "newly-bridged skill must surface in /skills — proves /api/config/refresh triggered the registry rescan after the mirror",
+        "newly-bridged skill must surface in the Skills settings tab — proves /api/config/refresh triggered the registry rescan after the mirror",
       ).toBeVisible({ timeout: ONE_MINUTE_MS });
 
-      // (3) Run via the detail-pane button → slash dispatch →
+      // (3) Invoke via the `/<slug>` slash command → slash dispatch →
       // agent loads the bridged SKILL.md body → echoes the marker.
-      // Click order matches L-22's Run leg exactly so a regression
-      // in the detail-pane / Run wiring trips both.
+      // Click the row first to confirm the detail pane still hydrates,
+      // then dispatch the same way L-22 does so a regression in either
+      // the detail pane or the slash-dispatch wiring trips both.
       await skillRow.click();
-      await page.getByTestId("skill-run-btn").click();
-      await page.waitForURL(SESSION_URL_PATTERN);
-      runSessionId = getCurrentSessionId(page);
+      runSessionId = await invokeSkillViaSlashCommand(page, runSlug);
       await waitForAssistantResponseComplete(page, 2 * ONE_MINUTE_MS);
       await expect(
         page.getByTestId("text-response-assistant-body").last(),
-        "assistant must echo the marker on Run — proves slash-dispatch loaded the bridged skill body into the agent context",
+        "assistant must echo the marker after slash-command invoke — proves slash-dispatch loaded the bridged skill body into the agent context",
       ).toContainText(replyMarker, { timeout: 2 * ONE_MINUTE_MS });
     } finally {
       if (runSessionId !== null) await deleteSession(page, runSessionId);
@@ -431,7 +432,9 @@ test.describe("skills (real LLM / static)", () => {
     }
   });
 
-  test("L-33: mc-cooking-coach preset が catalog → /skills → Run の chain で agent に届く (#1287 preset chain canary)", async ({ page }) => {
+  test("L-33: mc-cooking-coach preset が catalog → Skills 設定タブ → /<slug> slash invoke の chain で agent に届く (#1287 preset chain canary)", async ({
+    page,
+  }) => {
     // The slash command `/mc-cooking-coach` reaches the agent and the
     // bundled SKILL.md body conditions the first turn — neither half
     // is fakeable by fake-echo, which has no skill resolver.
@@ -465,13 +468,13 @@ test.describe("skills (real LLM / static)", () => {
     // one-time setup and **do not unstar** in finally — unstarring
     // would create user-visible state churn for no win, and the next
     // boot's `syncActivePresetSkills` would re-mirror the body
-    // anyway. Only the Run-time chat session is reaped.
+    // anyway. Only the slash-command chat session is reaped.
     const sessionsToCleanup: string[] = [];
     try {
-      await page.goto("/skills");
+      await openSkillsPanel(page);
       await ensurePresetStarred(page, L33_PRESET_SLUG);
       await verifyPresetBody(page, L33_PRESET_SLUG, L33_BODY_SIGNATURE);
-      const sessionId = await runPresetAndCaptureSessionId(page);
+      const sessionId = await runPresetAndCaptureSessionId(page, L33_PRESET_SLUG);
       sessionsToCleanup.push(sessionId);
       await waitForAssistantResponseComplete(page, 2 * ONE_MINUTE_MS);
 
@@ -493,10 +496,11 @@ test.describe("skills (real LLM / static)", () => {
     }
   });
 
-  test("L-33B: catalog → ☆ Star → /skills active row 出現 (catalog→active UI rail canary)", async ({ page }) => {
+  test("L-33B: catalog → ☆ Star → Skills 設定タブに active row 出現 (catalog→active UI rail canary)", async ({ page }) => {
     test.setTimeout(L33B_TIMEOUT_MS);
     // L-33 verifies the FULL preset chain end-to-end (catalog → active
-    // → /skills → /<slug> dispatch → LLM-conditioned response). But
+    // → Skills settings tab → /<slug> dispatch → LLM-conditioned
+    // response). But
     // L-33's `starPresetViaCatalog` path runs ONLY when the target
     // preset isn't already starred — and in normal dev / CI
     // environments `mc-cooking-coach` is starred from a previous
@@ -507,10 +511,10 @@ test.describe("skills (real LLM / static)", () => {
     // catalog→active UI rail:
     //   (a) fs-unstar the target preset (idempotent — no-op when the
     //       slot is already absent)
-    //   (b) navigate /skills → catalog row visible + project-skill
-    //       row count === 0 (pre-state assertion)
+    //   (b) open Settings → Skills tab → catalog row visible +
+    //       project-skill row count === 0 (pre-state assertion)
     //   (c) click the catalog row → click ☆ Star
-    //   (d) wait for `skill-item-<slug>` to surface in /skills
+    //   (d) wait for `skill-item-<slug>` to surface in the Skills tab
     //       (proves starCatalogEntry copied `data/skills/catalog/preset/<slug>/`
     //       → `.claude/skills/<slug>/` AND the subsequent registry
     //       refresh picked it up)
@@ -545,7 +549,7 @@ test.describe("skills (real LLM / static)", () => {
       if (wasOriginallyStarred) {
         await removeProjectSkill(L33B_PRESET_SLUG);
       }
-      await page.goto("/skills");
+      await openSkillsPanel(page);
       await expectCatalogRowVisible(page, L33B_PRESET_SLUG);
       const skillRow = page.getByTestId(`skill-item-${L33B_PRESET_SLUG}`);
       await expect(skillRow, `${L33B_PRESET_SLUG} project-skill row must be absent before star — pre-test fs-unstar must have taken effect`).toHaveCount(0);
@@ -597,9 +601,9 @@ test.describe("skills (real LLM / static)", () => {
  * L-33 setup step: make sure `<slug>` is in `.claude/skills/` before
  * the spec opens the active-skill detail pane. The primary decision
  * uses {@link snapshotProjectSkillSlugs} (disk-authoritative) rather
- * than a `/skills` DOM count, which has its own load race — the
+ * than a Skills-tab DOM count, which has its own load race — the
  * project-skill row often hasn't hydrated yet right after
- * `page.goto("/skills")`, so a DOM-count check would falsely report
+ * `openSkillsPanel(page)`, so a DOM-count check would falsely report
  * "not starred" and then collide with a "Starred" badge in the
  * catalog detail pane. The Star path itself is defensive against the
  * Codex iter-1 race (a parallel worker stars between this snapshot
@@ -661,7 +665,7 @@ async function starPresetViaCatalog(page: Page, slug: string): Promise<void> {
   }
   await expect(
     page.getByTestId(`skill-item-${slug}`),
-    `${slug} must surface in /skills after starring — proves catalog→active rail (.claude/skills/) is wired`,
+    `${slug} must surface in the Skills settings tab after starring — proves catalog→active rail (.claude/skills/) is wired`,
   ).toBeVisible({ timeout: ONE_MINUTE_MS });
 }
 
@@ -685,24 +689,19 @@ async function verifyPresetBody(page: Page, slug: string, signature: string): Pr
 }
 
 /**
- * Click the active-skill Run button. The handler issues
- * `appApi.startNewChat('/<slug>')` which routes to /chat/<id> with
- * the slash command as the first user message. Capture the new
- * session id immediately for the spec's `finally` cleanup so a
- * downstream assertion timeout still reaps the chat.
+ * Invoke the preset via its `/<slug>` slash command — the only path
+ * the UI still offers now that the in-view Run button was removed.
+ * Starts a fresh chat that routes to /chat/<id> with the slash command
+ * as the first user message, and returns the new session id for the
+ * spec's `finally` cleanup so a downstream assertion timeout still
+ * reaps the chat.
  */
-async function runPresetAndCaptureSessionId(page: Page): Promise<string> {
-  await page.getByTestId("skill-run-btn").click();
-  await page.waitForURL(SESSION_URL_PATTERN);
-  const sessionId = getCurrentSessionId(page);
-  if (sessionId === null) {
-    throw new Error("runPresetAndCaptureSessionId: getCurrentSessionId returned null after waitForURL — SESSION_URL_PATTERN likely drifted");
-  }
-  return sessionId;
+async function runPresetAndCaptureSessionId(page: Page, slug: string): Promise<string> {
+  return await invokeSkillViaSlashCommand(page, slug);
 }
 
 // Composite cleanup: prefer the user-facing UI delete (keeps the
-// server registry / `/skills` listing in sync) but always finish
+// server registry / Skills settings listing in sync) but always finish
 // with the fs-level rm so a UI hiccup or a stale staging dir cannot
 // leak state into the next run. Order matters — the API path only
 // touches the canonical dir; the staging dir under

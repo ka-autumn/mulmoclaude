@@ -140,16 +140,19 @@ test.describe("page routing", () => {
     expect(new URL(page.url()).pathname).toBe("/wiki");
   });
 
-  test("/skills loads the skills page", async ({ page }) => {
+  // Skills and Roles moved into the Settings modal (Management group);
+  // the old standalone routes now redirect to /chat so existing
+  // bookmarks don't 404.
+  test("/skills redirects to /chat", async ({ page }) => {
     await page.goto("/skills");
-    await expect(page.getByText("MulmoClaude")).toBeVisible();
-    expect(new URL(page.url()).pathname).toBe("/skills");
+    await page.waitForURL(/\/chat/);
+    expect(new URL(page.url()).pathname).toMatch(/^\/chat/);
   });
 
-  test("/roles loads the roles page", async ({ page }) => {
+  test("/roles redirects to /chat", async ({ page }) => {
     await page.goto("/roles");
-    await expect(page.getByText("MulmoClaude")).toBeVisible();
-    expect(new URL(page.url()).pathname).toBe("/roles");
+    await page.waitForURL(/\/chat/);
+    expect(new URL(page.url()).pathname).toMatch(/^\/chat/);
   });
 
   test("unknown path redirects to /chat", async ({ page }) => {

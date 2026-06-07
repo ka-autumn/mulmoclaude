@@ -88,7 +88,7 @@ export type PluginLauncherKind = "view"; // Switch the canvas to a dedicated vie
 // out of this file avoids duplication across the 8 locales.
 export interface PluginLauncherTarget {
   /** Stable key for testid + dispatch in App.vue. */
-  key: "automations" | "wiki" | "collections" | "feeds" | "skills" | "roles" | "files" | "debug";
+  key: "automations" | "wiki" | "collections" | "feeds" | "files" | "debug";
   kind: PluginLauncherKind;
   /** Material-icons glyph. */
   icon: string;
@@ -125,8 +125,10 @@ const TARGETS: PluginLauncherTarget[] = [
   // surface is gone.
   { key: "feeds", kind: "view", icon: "rss_feed" },
   // ─── Management / navigation ───
-  { key: "skills", kind: "view", icon: "psychology" },
-  { key: "roles", kind: "view", icon: "manage_accounts" },
+  // Skills and Roles moved into the Settings modal (Management group) —
+  // both are static configuration surfaces (what Claude can do / which
+  // role a chat uses), not dynamic workspace data you monitor, so they
+  // belong with Tools / MCP rather than as top-level launcher pages.
   { key: "files", kind: "view", icon: "folder" },
   // ─── Dev-only ───
   // Encore plan PR 1 follow-up. Hidden in production builds; the
@@ -140,7 +142,7 @@ const TARGETS: PluginLauncherTarget[] = [
 // Index AFTER which the visual separator is inserted (between data
 // plugins on the left and management on the right). Data plugins are
 // automations / wiki / collections / feeds (indices 0-3), so the
-// divider renders before index 4 (skills).
+// divider renders before index 4 (files).
 const SEPARATOR_AFTER_INDEX = 4;
 
 // Dev-mode flag — set `VITE_DEV_MODE=1` in `.env`. Anything else

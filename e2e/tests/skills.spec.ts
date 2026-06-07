@@ -1,11 +1,10 @@
-// E2E for the manageSkills plugin — list rendering + Run button
-// dispatch. The server's /api/skills endpoint is mocked via
-// page.route so tests run without a real ~/.claude/skills/ tree.
+// E2E for the manageSkills plugin — list rendering, markdown body,
+// delete/edit, and the external catalog. The server's /api/skills
+// endpoint is mocked via page.route so tests run without a real
+// ~/.claude/skills/ tree.
 
 import { test, expect, type Page, type Route } from "@playwright/test";
 import { mockAllApis } from "../fixtures/api";
-
-import { ONE_SECOND_MS } from "../../server/utils/time.ts";
 
 function urlEndsWith(suffix: string): (url: URL) => boolean {
   return (url) => url.pathname === suffix;
@@ -171,40 +170,9 @@ test.describe("manageSkills plugin", () => {
     await expect(rendered.locator("li").first()).toContainText("Add workflow");
   });
 
-  test("Run button sends the skill invocation as a slash command", async ({ page }) => {
-    // Capture the body of the agent POST so we can assert what
-    // sendMessage forwarded. Registered AFTER mockAllApis so this
-    // route wins (Playwright matches last-registered first).
-    const agentPosts: Record<string, unknown>[] = [];
-    await page.route(urlEndsWith("/api/agent"), async (route: Route) => {
-      if (route.request().method() === "POST") {
-        agentPosts.push(route.request().postDataJSON());
-        return route.fulfill({
-          status: 202,
-          json: { chatSessionId: "skills-session" },
-        });
-      }
-      return route.fallback();
-    });
-
-    await page.goto("/chat/skills-session");
-    await expect(page.getByText("MulmoClaude")).toBeVisible();
-    await page.getByText("2 skills").first().click();
-    await expect(page.getByTestId("skill-item-ci_enable")).toBeVisible();
-
-    // Wait for the detail endpoint to resolve before clicking Run.
-    await expect(page.getByTestId("skill-body-rendered")).toContainText("CI Enable");
-    await page.getByTestId("skill-run-btn").click();
-
-    // Run button routes through App.vue's startNewChat via the
-    // useAppApi() provide/inject contract (#227) — startNewChat (not
-    // sendMessage) so the user is routed to /chat to see the response,
-    // since Skills view is only rendered on /skills. The slash command
-    // form (`/<name>`) is what Claude CLI resolves against
-    // ~/.claude/skills/ natively, so we don't need to ship the body.
-    await expect.poll(() => agentPosts.length, { timeout: 5 * ONE_SECOND_MS }).toBeGreaterThan(0);
-    expect(agentPosts[0]?.message).toBe("/ci_enable");
-  });
+  // The in-view Run button was removed — skill execution is no longer
+  // offered from the Skills surface (invoke a skill via its `/<name>`
+  // slash command in chat instead).
 });
 
 // ---- Delete (phase 1) ----------------------------------------------

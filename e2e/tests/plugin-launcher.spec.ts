@@ -28,13 +28,8 @@ test.describe("plugin launcher — navigation path", () => {
     await clickLauncherAndAssertPath(page, "wiki", "/wiki");
   });
 
-  test("Skills button navigates to /skills", async ({ page }) => {
-    await clickLauncherAndAssertPath(page, "skills", "/skills");
-  });
-
-  test("Roles button navigates to /roles", async ({ page }) => {
-    await clickLauncherAndAssertPath(page, "roles", "/roles");
-  });
+  // Skills and Roles are no longer launcher buttons — they moved into
+  // the Settings modal (Management group).
 
   test("Files button navigates to /files with no path param", async ({ page }) => {
     await page.goto("/chat");

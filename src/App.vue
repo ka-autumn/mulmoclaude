@@ -202,8 +202,8 @@
             @update:layout-mode="setLayoutMode"
             @toggle-right-sidebar="toggleRightSidebar"
           />
-          <!-- Distinct pages. Plugin-owned views (Calendar /
-               Automations / Wiki / Skills) call `useRuntime()` from
+          <!-- Distinct pages. Plugin-owned views (Automations / Wiki)
+               call `useRuntime()` from
                `gui-chat-protocol/vue` inside their composables — that
                throws unless mounted under `<PluginScopedRoot>`. The
                plugin registry's `wrapWithScope` wraps the chat-mounted
@@ -217,10 +217,6 @@
           <PluginScopedRoot v-else-if="currentPage === 'wiki'" pkg-name="wiki" :endpoints="API_ROUTES.wiki">
             <WikiView />
           </PluginScopedRoot>
-          <PluginScopedRoot v-else-if="currentPage === 'skills'" pkg-name="skills" :endpoints="API_ROUTES.skills">
-            <SkillsView />
-          </PluginScopedRoot>
-          <RolesView v-else-if="currentPage === 'roles'" />
           <CollectionView v-else-if="currentPage === 'feeds' && route.params.slug" :key="`feed-${route.params.slug}`" />
           <FeedsView v-else-if="currentPage === 'feeds'" />
           <!-- Schema-driven collections. The route is
@@ -325,8 +321,6 @@ import FilesView from "./components/FilesView.vue";
 import AutomationsView from "./plugins/scheduler/AutomationsView.vue";
 import WikiView from "./plugins/wiki/View.vue";
 import { buildWikiRouteParams } from "./plugins/wiki/route";
-import SkillsView from "./plugins/manageSkills/View.vue";
-import RolesView from "./components/RolesView.vue";
 import FeedsView from "./components/FeedsView.vue";
 import CollectionsIndexView from "./components/CollectionsIndexView.vue";
 import CollectionView from "./components/CollectionView.vue";

@@ -20,9 +20,6 @@
           <template #star>
             <span class="material-icons !text-sm align-middle leading-none text-amber-500" aria-hidden="true">star</span>
           </template>
-          <template #runOnce>
-            <span class="material-icons !text-sm align-middle leading-none text-blue-600" aria-hidden="true">play_arrow</span>
-          </template>
         </i18n-t>
       </div>
     </div>
@@ -287,16 +284,6 @@
                 <span class="material-icons text-sm" aria-hidden="true">star</span>
                 {{ t("pluginManageSkills.catalogStarred") }}
               </button>
-              <button
-                class="h-8 px-2.5 flex items-center gap-1 text-sm rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40"
-                :disabled="catalogActioningKey === selectedCatalogKey || !catalogDetail"
-                :title="t('pluginManageSkills.catalogRunOnce')"
-                data-testid="skill-catalog-detail-run-btn"
-                @click="runOnceCatalogEntry(selectedCatalog)"
-              >
-                <span class="material-icons text-sm" aria-hidden="true">play_arrow</span>
-                {{ t("pluginManageSkills.catalogRunOnce") }}
-              </button>
             </div>
           </div>
           <div v-if="catalogDetailLoading" class="text-sm text-gray-400 italic">{{ t("pluginManageSkills.loading") }}</div>
@@ -360,15 +347,6 @@
                     isSelectedPreset ? "star_border" : "delete"
                   }}</span>
                   {{ isSelectedPreset ? t("pluginManageSkills.btnUnstar") : t("pluginManageSkills.btnDelete") }}
-                </button>
-                <button
-                  class="h-8 px-2.5 flex items-center gap-1 text-sm rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40"
-                  :disabled="detailLoading || !detail"
-                  data-testid="skill-run-btn"
-                  @click="runSkill"
-                >
-                  <span class="material-icons text-sm">play_arrow</span>
-                  {{ t("pluginManageSkills.btnRun") }}
                 </button>
               </template>
             </div>
@@ -507,7 +485,6 @@ import { useI18n } from "vue-i18n";
 import { marked } from "marked";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
 import type { ManageSkillsData, SkillSummary } from "./index";
-import { useAppApi } from "../../composables/useAppApi";
 import { apiGet, apiPost, apiPut, apiDelete } from "../../utils/api";
 import { handleExternalLinkClick } from "../../utils/dom/externalLink";
 import { sanitizeMarkdownHtml } from "../../utils/markdown/sanitize";
@@ -683,10 +660,6 @@ const catalogActioningKey = ref<string | null>(null);
 const selectedCatalog = ref<CatalogEntry | null>(null);
 const catalogDetail = ref<CatalogDetail | null>(null);
 const catalogDetailLoading = ref(false);
-// `appApi` is also referenced lower down by the existing `runSkill`
-// (slash-command invocation for active skills); hoisting one
-// declaration so the catalog handlers don't need their own lookup.
-const catalogAppApi = useAppApi();
 
 const catalogRenderedBody = computed(() => {
   const body = catalogDetail.value?.body;
@@ -915,7 +888,7 @@ async function updateRepo(repo: ExternalRepo): Promise<void> {
   updatingRepoId.value = repo.repoId;
   // try/finally so the in-flight gate always clears even if the
   // request throws — otherwise the button stays disabled forever
-  // (same hardening as runOnceCatalogEntry, Codex review #1374).
+  // (same hardening as the star handler, Codex review #1374).
   try {
     const body: Record<string, string> = { url: repo.url };
     if (repo.subpath) body.subpath = repo.subpath;
@@ -998,30 +971,6 @@ async function selectCatalogEntry(entry: CatalogEntry): Promise<void> {
   if (!selectedCatalog.value || entryKey(selectedCatalog.value) !== keyAtRequest) return;
   catalogDetailLoading.value = false;
   if (fetched !== null) catalogDetail.value = fetched;
-}
-
-async function runOnceCatalogEntry(entry: CatalogEntry): Promise<void> {
-  // Use the already-fetched detail when the entry is the current
-  // right-pane selection (the common case — user reads body, then
-  // clicks Run once). Falls back to a fresh fetch when the click
-  // somehow lands without a prior selection (defensive — the right
-  // pane is the only place Run once is exposed today).
-  //
-  // The shared in-flight gate is held for the whole flow so a
-  // rapid double-click can't enqueue two `startNewChat` calls
-  // and spawn duplicate sessions. (Codex review on PR #1374.)
-  catalogActioningKey.value = entryKey(entry);
-  try {
-    const isSelectedEntry = selectedCatalog.value !== null && entryKey(selectedCatalog.value) === entryKey(entry) && catalogDetail.value !== null;
-    const body = isSelectedEntry && catalogDetail.value !== null ? catalogDetail.value.body : (await fetchCatalogDetail(entry))?.body;
-    if (!body || !body.trim()) {
-      catalogError.value = t("pluginManageSkills.errCatalogRunOnceEmpty");
-      return;
-    }
-    catalogAppApi.startNewChat(body);
-  } finally {
-    catalogActioningKey.value = null;
-  }
 }
 
 // Standalone mode: if no selectedResult was passed, fetch the skill
@@ -1116,18 +1065,6 @@ async function saveEdit(): Promise<void> {
     };
   }
   editing.value = false;
-}
-
-// Run = send the skill invocation as a Claude Code slash command.
-// Claude CLI already knows about every ~/.claude/skills/<name>/SKILL.md
-// at spawn, so sending `/<name>` is enough — no need to ship the body.
-// Uses startNewChat (not sendMessage) so the user is routed to /chat
-// to see the response — Skills view is only rendered on /skills.
-const appApi = useAppApi();
-
-function runSkill(): void {
-  if (!selectedName.value) return;
-  appApi.startNewChat(`/${selectedName.value}`);
 }
 
 // Delete is project-scope only — see saveProjectSkill / deleteProjectSkill

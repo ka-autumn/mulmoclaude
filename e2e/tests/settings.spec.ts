@@ -141,6 +141,31 @@ test.describe("Settings modal", () => {
   });
 });
 
+// Skills and Roles relocated from the top-bar launcher into the
+// Settings modal's Management group. These tabs mount the full
+// management surfaces (no standalone /skills or /roles route anymore).
+test.describe("Settings modal — Management tabs (Skills / Roles)", () => {
+  test("Skills tab mounts the manageSkills surface", async ({ page }) => {
+    await mockConfigApi(page);
+    await page.goto("/chat");
+
+    await openSettingsModal(page);
+    await page.locator('[data-testid="settings-tab-skills"]').click();
+    // The catalog accordion is always rendered, even on an empty
+    // workspace — it's the stable mount anchor for the Skills surface.
+    await expect(page.locator('[data-testid="skill-section-catalog"]')).toBeVisible();
+  });
+
+  test("Roles tab mounts the roles manager", async ({ page }) => {
+    await mockConfigApi(page);
+    await page.goto("/chat");
+
+    await openSettingsModal(page);
+    await page.locator('[data-testid="settings-tab-roles"]').click();
+    await expect(page.locator('[data-testid="roles-view-root"]')).toBeVisible();
+  });
+});
+
 test.describe("Settings MCP tab — HTTP servers (Phase 2a)", () => {
   test("adds an HTTP server via the form", async ({ page }) => {
     const { state } = await mockConfigApi(page);

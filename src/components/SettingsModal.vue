@@ -1,7 +1,8 @@
 <template>
   <div v-if="open" class="fixed inset-0 z-50 bg-black/40 flex items-start justify-center pt-16" data-testid="settings-modal-backdrop" @click="close">
     <div
-      class="bg-white rounded-lg shadow-xl w-[52rem] max-w-[95vw] max-h-[85vh] flex flex-col"
+      class="bg-white rounded-lg shadow-xl max-w-[95vw] max-h-[85vh] flex flex-col"
+      :class="isFullTab ? 'w-[64rem] h-[85vh]' : 'w-[52rem]'"
       role="dialog"
       aria-modal="true"
       aria-labelledby="settings-modal-title"
@@ -40,88 +41,105 @@
           </div>
         </nav>
 
-        <div class="px-5 py-4 overflow-y-auto flex-1 space-y-4 text-gray-900">
-          <div v-if="loadError" class="text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2" role="alert" data-testid="settings-load-error">
-            ⚠ {{ loadError }}
-          </div>
+        <div :class="isFullTab ? 'flex-1 min-h-0 overflow-hidden text-gray-900' : 'px-5 py-4 overflow-y-auto flex-1 space-y-4 text-gray-900'">
+          <!-- Full management surfaces (relocated from the top-bar
+               launcher). Each ships its own header / scrolling / save,
+               so they render full-bleed. SkillsView calls useRuntime()
+               and must be wrapped in PluginScopedRoot; RolesView talks
+               to /api/roles directly and needs no wrapper. -->
+          <PluginScopedRoot v-if="activeTab === 'skills'" pkg-name="skills" :endpoints="API_ROUTES.skills">
+            <SkillsView />
+          </PluginScopedRoot>
+          <RolesView v-else-if="activeTab === 'roles'" />
 
-          <div v-if="activeTab === 'gemini'" class="space-y-3">
-            <div class="rounded border border-yellow-400 bg-yellow-50 p-3 text-sm text-yellow-800" data-testid="settings-gemini-warning">
-              <span class="material-icons text-sm align-middle mr-1">warning</span>
-              <i18n-t keypath="settingsModal.geminiRequired" tag="span">
-                <template #envKey><code class="font-mono">GEMINI_API_KEY</code></template>
-                <template #envFile><code class="font-mono">.env</code></template>
-              </i18n-t>
+          <!-- Form-style config tabs -->
+          <template v-else>
+            <div v-if="loadError" class="text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2" role="alert" data-testid="settings-load-error">
+              ⚠ {{ loadError }}
             </div>
-            <button class="px-3 py-1.5 text-sm rounded bg-blue-500 text-white hover:bg-blue-600" data-testid="settings-gemini-ask-btn" @click="askAboutGemini">
-              {{ t("settingsModal.geminiAskButton") }}
-            </button>
-          </div>
 
-          <div v-else-if="activeTab === 'tools'" class="space-y-3">
-            <i18n-t keypath="settingsToolsTab.explanation" tag="p" class="text-xs text-gray-600 leading-relaxed">
-              <template #allowedTools><code class="bg-gray-100 px-1 rounded">--allowedTools</code></template>
-              <template #claudeMcp><code class="bg-gray-100 px-1 rounded">claude mcp</code></template>
-            </i18n-t>
-            <label class="block">
-              <span class="text-xs font-semibold text-gray-700">{{ t("settingsModal.toolNamesLabel") }}</span>
-              <textarea
-                v-model="toolsText"
-                class="mt-1 w-full h-48 px-2 py-1.5 text-sm font-mono border border-gray-300 rounded focus:outline-none focus:border-blue-400"
-                placeholder="mcp__claude_ai_Gmail&#10;mcp__claude_ai_Google_Calendar"
-                data-testid="settings-tools-textarea"
-                @keydown.stop
-              ></textarea>
-            </label>
-            <p v-if="invalidToolNames.length > 0" class="text-xs text-amber-700">
-              {{ t("settingsModal.invalidToolNamesPrefix") }}
-              <code class="bg-gray-100 px-1 rounded">mcp__</code>{{ t("settingsModal.invalidToolNamesSuffix") }}
-              {{ invalidToolNames.join(", ") }}
-            </p>
-            <div class="flex items-center gap-2">
+            <div v-if="activeTab === 'gemini'" class="space-y-3">
+              <div class="rounded border border-yellow-400 bg-yellow-50 p-3 text-sm text-yellow-800" data-testid="settings-gemini-warning">
+                <span class="material-icons text-sm align-middle mr-1">warning</span>
+                <i18n-t keypath="settingsModal.geminiRequired" tag="span">
+                  <template #envKey><code class="font-mono">GEMINI_API_KEY</code></template>
+                  <template #envFile><code class="font-mono">.env</code></template>
+                </i18n-t>
+              </div>
               <button
-                class="px-3 py-1.5 text-sm rounded bg-blue-500 text-white hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
-                :disabled="toolsSaving || loading || !!loadError || !toolsDirty"
-                :title="loadError ? t('settingsModal.cannotSaveTooltip') : undefined"
-                data-testid="settings-tools-save-btn"
-                @click="saveTools"
+                class="px-3 py-1.5 text-sm rounded bg-blue-500 text-white hover:bg-blue-600"
+                data-testid="settings-gemini-ask-btn"
+                @click="askAboutGemini"
               >
-                {{ toolsSaving ? t("settingsModal.saving") : t("common.save") }}
+                {{ t("settingsModal.geminiAskButton") }}
               </button>
-              <span v-if="toolsDirty" class="text-xs text-amber-600" data-testid="settings-tools-dirty">
-                {{ t("settingsModal.unsavedMarker") }}
-              </span>
             </div>
-          </div>
 
-          <div v-else-if="activeTab === 'mcp'" class="space-y-3">
-            <div
-              v-if="mcpToolsError"
-              class="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1"
-              role="alert"
-              data-testid="mcp-tools-error"
-            >
-              {{ t("settingsModal.mcpToolsError", { error: mcpToolsError }) }}
+            <div v-else-if="activeTab === 'tools'" class="space-y-3">
+              <i18n-t keypath="settingsToolsTab.explanation" tag="p" class="text-xs text-gray-600 leading-relaxed">
+                <template #allowedTools><code class="bg-gray-100 px-1 rounded">--allowedTools</code></template>
+                <template #claudeMcp><code class="bg-gray-100 px-1 rounded">claude mcp</code></template>
+              </i18n-t>
+              <label class="block">
+                <span class="text-xs font-semibold text-gray-700">{{ t("settingsModal.toolNamesLabel") }}</span>
+                <textarea
+                  v-model="toolsText"
+                  class="mt-1 w-full h-48 px-2 py-1.5 text-sm font-mono border border-gray-300 rounded focus:outline-none focus:border-blue-400"
+                  placeholder="mcp__claude_ai_Gmail&#10;mcp__claude_ai_Google_Calendar"
+                  data-testid="settings-tools-textarea"
+                  @keydown.stop
+                ></textarea>
+              </label>
+              <p v-if="invalidToolNames.length > 0" class="text-xs text-amber-700">
+                {{ t("settingsModal.invalidToolNamesPrefix") }}
+                <code class="bg-gray-100 px-1 rounded">mcp__</code>{{ t("settingsModal.invalidToolNamesSuffix") }}
+                {{ invalidToolNames.join(", ") }}
+              </p>
+              <div class="flex items-center gap-2">
+                <button
+                  class="px-3 py-1.5 text-sm rounded bg-blue-500 text-white hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                  :disabled="toolsSaving || loading || !!loadError || !toolsDirty"
+                  :title="loadError ? t('settingsModal.cannotSaveTooltip') : undefined"
+                  data-testid="settings-tools-save-btn"
+                  @click="saveTools"
+                >
+                  {{ toolsSaving ? t("settingsModal.saving") : t("common.save") }}
+                </button>
+                <span v-if="toolsDirty" class="text-xs text-amber-600" data-testid="settings-tools-dirty">
+                  {{ t("settingsModal.unsavedMarker") }}
+                </span>
+              </div>
             </div>
-            <SettingsMcpTab
-              ref="mcpTabRef"
-              :servers="mcpServers"
-              :docker-mode="dockerMode"
-              @add="addMcpServer"
-              @update="updateMcpServer"
-              @remove="removeMcpServer"
-            />
-          </div>
 
-          <SettingsWorkspaceDirsTab v-else-if="activeTab === 'dirs'" />
+            <div v-else-if="activeTab === 'mcp'" class="space-y-3">
+              <div
+                v-if="mcpToolsError"
+                class="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1"
+                role="alert"
+                data-testid="mcp-tools-error"
+              >
+                {{ t("settingsModal.mcpToolsError", { error: mcpToolsError }) }}
+              </div>
+              <SettingsMcpTab
+                ref="mcpTabRef"
+                :servers="mcpServers"
+                :docker-mode="dockerMode"
+                @add="addMcpServer"
+                @update="updateMcpServer"
+                @remove="removeMcpServer"
+              />
+            </div>
 
-          <SettingsReferenceDirsTab v-else-if="activeTab === 'refs'" />
+            <SettingsWorkspaceDirsTab v-else-if="activeTab === 'dirs'" />
 
-          <SettingsMapTab v-else-if="activeTab === 'map'" :reload-token="mapReloadToken" @saved="onMapSaved" />
+            <SettingsReferenceDirsTab v-else-if="activeTab === 'refs'" />
 
-          <SettingsPhotosTab v-else-if="activeTab === 'photos'" :reload-token="photosReloadToken" />
+            <SettingsMapTab v-else-if="activeTab === 'map'" :reload-token="mapReloadToken" @saved="onMapSaved" />
 
-          <SettingsModelTab v-else-if="activeTab === 'model'" :reload-token="modelReloadToken" @saved="emit('saved')" />
+            <SettingsPhotosTab v-else-if="activeTab === 'photos'" :reload-token="photosReloadToken" />
+
+            <SettingsModelTab v-else-if="activeTab === 'model'" :reload-token="modelReloadToken" @saved="emit('saved')" />
+          </template>
         </div>
       </div>
 
@@ -131,7 +149,7 @@
            via the ✕ button in the header (which prompts on unsaved
            tools edits or a pending MCP draft). Hidden on the gemini
            tab since it has no settings to save. -->
-      <div v-if="activeTab !== 'gemini'" class="px-5 py-3 border-t border-gray-200 min-h-[2.75rem] flex items-center gap-3">
+      <div v-if="activeTab !== 'gemini' && !isFullTab" class="px-5 py-3 border-t border-gray-200 min-h-[2.75rem] flex items-center gap-3">
         <span v-if="statusMessage" class="text-xs" :class="statusError ? 'text-red-600' : 'text-green-600'" data-testid="settings-status">
           {{ statusMessage }}
         </span>
@@ -150,6 +168,9 @@ import SettingsReferenceDirsTab from "./SettingsReferenceDirsTab.vue";
 import SettingsMapTab from "./SettingsMapTab.vue";
 import SettingsPhotosTab from "./SettingsPhotosTab.vue";
 import SettingsModelTab from "./SettingsModelTab.vue";
+import SkillsView from "../plugins/manageSkills/View.vue";
+import RolesView from "./RolesView.vue";
+import PluginScopedRoot from "./PluginScopedRoot.vue";
 import type { McpServerEntry } from "./SettingsMcpTab.vue";
 import { apiGet, apiPut } from "../utils/api";
 import { API_ROUTES } from "../config/apiRoutes";
@@ -195,9 +216,16 @@ const emit = defineEmits<{
 // update / remove persist immediately).
 const mcpTabRef = ref<{ flushDraft: () => boolean; hasPendingDraft: () => boolean } | null>(null);
 
-type TabId = "gemini" | "tools" | "mcp" | "dirs" | "refs" | "map" | "photos" | "model";
+type TabId = "gemini" | "tools" | "mcp" | "dirs" | "refs" | "map" | "photos" | "model" | "skills" | "roles";
 
 const activeTab = ref<TabId>("tools");
+
+// "Full" tabs host an entire management surface (Skills / Roles) that
+// ships its own header, scrolling, and auto-save. They render full-bleed
+// (no body padding) and widen the dialog for the Skills two-pane layout,
+// unlike the form-style config tabs above.
+const FULL_TABS: readonly TabId[] = ["skills", "roles"];
+const isFullTab = computed(() => FULL_TABS.includes(activeTab.value));
 
 // Sidebar nav layout (#1333). Order within each group reflects expected
 // access frequency; order of groups reflects the same. The `gemini`
@@ -208,6 +236,9 @@ const GROUPS: readonly { key: string; items: readonly TabId[] }[] = [
   { key: "servers", items: ["mcp"] },
   { key: "workspace", items: ["dirs", "refs"] },
   { key: "plugins", items: ["map", "photos"] },
+  // Management surfaces relocated from the top-bar launcher (#skills /
+  // #roles). Both are static configuration, not dynamic workspace data.
+  { key: "management", items: ["skills", "roles"] },
 ];
 
 const visibleGroups = computed(() =>

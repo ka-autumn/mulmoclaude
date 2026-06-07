@@ -1,7 +1,9 @@
 // Vue-router setup (history mode — clean URLs without #).
 //
 // Each page has its own route: /chat, /files, /automations, /wiki,
-// /skills, /roles, /feeds, /collections. Layout preference
+// /feeds, /collections. (Skills and Roles are not pages — they live in
+// the Settings modal; /skills and /roles redirect to /chat.) Layout
+// preference
 // (single vs. stack) is a separate concern persisted in localStorage
 // — it is not part of the URL. Several pages accept an optional
 // identifier (automations :taskId, feeds/collections :slug) so
@@ -54,8 +56,11 @@ const routes: RouteRecordRaw[] = [
   // catch-all redirect below. `slug` only applies when `section ===
   // "pages"`. See plans/done/feat-wiki-path-urls.md.
   { path: "/wiki/:section(pages|log|lint-report|graph)?/:slug?", name: PAGE_ROUTES.wiki, component: Stub },
-  { path: "/skills", name: PAGE_ROUTES.skills, component: Stub },
-  { path: "/roles", name: PAGE_ROUTES.roles, component: Stub },
+  // Skills and Roles are no longer standalone pages — they moved into
+  // the Settings modal (Management group). Redirect old bookmarks to
+  // chat; the surfaces are reachable via the gear → Skills / Roles tabs.
+  { path: "/skills", redirect: "/chat" },
+  { path: "/roles", redirect: "/chat" },
   // Data-source Feeds — the declarative retrieval registry. `/feeds`
   // lists every feed; `/feeds/:slug` opens that feed's records in
   // <CollectionView> (the same component collections use), with the

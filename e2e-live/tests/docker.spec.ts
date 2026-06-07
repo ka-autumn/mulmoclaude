@@ -39,6 +39,7 @@ import {
   getMcpToolsList,
   getSandboxStatus,
   listSkillsViaApi,
+  openSkillsPanel,
   placeBrokenSymlinkSkill,
   placeProjectSkill,
   readSessionToolCalls,
@@ -525,9 +526,9 @@ async function assertSkillsDiscoveryApiState(page: Page, fixture: L30Fixture): P
  * that hasn't yet populated rows is given time before failing.
  */
 async function assertSkillsDiscoveryUiState(page: Page, fixture: L30Fixture): Promise<void> {
-  await page.goto("/skills");
+  await openSkillsPanel(page);
   const siblingRow = page.getByTestId(`skill-item-${fixture.siblingSlug}`);
-  await expect(siblingRow, "valid sibling skill must surface in /skills — proves discovery survived the dangling symlink").toBeVisible({
+  await expect(siblingRow, "valid sibling skill must surface in the Skills settings tab — proves discovery survived the dangling symlink").toBeVisible({
     timeout: ONE_MINUTE_MS,
   });
   const danglingRow = page.getByTestId(`skill-item-${fixture.danglingSlug}`);

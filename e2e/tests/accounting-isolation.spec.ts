@@ -31,12 +31,12 @@ test.describe("accounting plugin — isolation regression", () => {
     expect(pathname).toMatch(/^\/chat(?:\/[\w-]+)?$/);
   });
 
-  test("/roles surfaces no manageAccounting plugin on a fresh workspace", async ({ page }) => {
-    // Smoke check that the /roles page doesn't accidentally surface
-    // the accounting tool — currently passes because /roles only
-    // renders custom roles on a fresh workspace, so the assertion
-    // is more of a "the page is clean" guard than a strict
-    // role-config check.
+  test("Roles settings tab surfaces no manageAccounting plugin on a fresh workspace", async ({ page }) => {
+    // Smoke check that the Roles tab (Settings modal → Roles) doesn't
+    // accidentally surface the accounting tool — currently passes
+    // because the Roles view only renders custom roles on a fresh
+    // workspace, so the assertion is more of a "the surface is clean"
+    // guard than a strict role-config check.
     //
     // The strict "the General role's availablePlugins must not
     // include manageAccounting" invariant lives in
@@ -45,8 +45,14 @@ test.describe("accounting plugin — isolation regression", () => {
     // this e2e check stays as a defense against a future RolesView
     // change that starts surfacing built-in role plugin lists with
     // manageAccounting on display.
-    await page.goto("/roles");
-    await page.waitForLoadState("networkidle");
+    //
+    // Roles moved out of the standalone /roles route into the Settings
+    // modal, so we reach the surface via the gear button → Roles tab.
+    await page.goto("/chat");
+    await page.waitForURL(/\/chat\//);
+    await page.getByTestId("settings-btn").click();
+    await page.getByTestId("settings-tab-roles").click();
+    await expect(page.getByTestId("roles-view-root")).toBeVisible();
     await expect(page.getByText("manageAccounting")).toHaveCount(0);
   });
 });
