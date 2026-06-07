@@ -316,6 +316,11 @@ const koMessages = {
     roles: { label: "역할" },
     files: { label: "파일" },
   },
+  shortcuts: {
+    pin: "런처에 고정",
+    unpin: "런처에서 고정 해제",
+    zoneAriaLabel: "고정된 바로가기",
+  },
   fileContentHeader: {
     showRendered: "렌더링된 Markdown 표시",
     showRaw: "원본 표시",

@@ -1,20 +1,55 @@
 <template>
-  <div class="inline-flex w-fit border border-gray-300 rounded overflow-hidden text-xs" data-testid="plugin-launcher">
-    <template v-for="(target, idx) in visibleTargets" :key="target.key">
-      <!-- Visual separator between data plugins and management plugins -->
-      <div v-if="idx === separatorAfterIndex" class="w-px bg-gray-300 my-0.5" />
-      <button
-        :class="[
-          'h-8 w-8 flex items-center justify-center rounded border-r border-gray-200 last:border-r-0 transition-colors',
-          isActive(target) ? 'bg-blue-50 text-blue-600' : 'bg-white text-gray-600 hover:bg-gray-50',
-        ]"
-        :title="target.literalTitle ?? t(`pluginLauncher.${target.key}.label`)"
-        :aria-label="target.literalLabel ?? t(`pluginLauncher.${target.key}.label`)"
-        :data-testid="`plugin-launcher-${target.key}`"
-        @click="emit('navigate', target)"
+  <div class="inline-flex max-w-full items-stretch border border-gray-300 rounded overflow-hidden text-xs" data-testid="plugin-launcher">
+    <!-- Fixed groups (data plugins + management). Never shrink / scroll. -->
+    <div class="flex flex-none items-stretch">
+      <template v-for="(target, idx) in visibleTargets" :key="target.key">
+        <!-- Visual separator between data plugins and management plugins -->
+        <div v-if="idx === separatorAfterIndex" class="w-px bg-gray-300 my-0.5" />
+        <button
+          :class="[
+            'h-8 w-8 flex items-center justify-center rounded border-r border-gray-200 last:border-r-0 transition-colors',
+            isActive(target) ? 'bg-blue-50 text-blue-600' : 'bg-white text-gray-600 hover:bg-gray-50',
+          ]"
+          :title="target.literalTitle ?? t(`pluginLauncher.${target.key}.label`)"
+          :aria-label="target.literalLabel ?? t(`pluginLauncher.${target.key}.label`)"
+          :data-testid="`plugin-launcher-${target.key}`"
+          @click="emit('navigate', target)"
+        >
+          <span class="material-icons text-base">{{ target.icon }}</span>
+        </button>
+      </template>
+    </div>
+
+    <!-- Pinned shortcuts zone (#feat-shortcut-bar). Appears only when the
+         user has pinned at least one collection / feed. Separated by a
+         second divider; scrolls horizontally on overflow (no cap on the
+         pin count) so a long list never pushes the chrome past the
+         viewport. The fixed groups above stay put. -->
+    <template v-if="shortcuts.length > 0">
+      <div class="w-px bg-gray-300 my-0.5 flex-none" />
+      <div
+        class="flex min-w-0 items-stretch overflow-x-auto [scrollbar-width:thin]"
+        :aria-label="t('shortcuts.zoneAriaLabel')"
+        data-testid="plugin-launcher-shortcuts"
       >
-        <span class="material-icons text-base">{{ target.icon }}</span>
-      </button>
+        <button
+          v-for="shortcut in shortcuts"
+          :key="`${shortcut.kind}:${shortcut.slug}`"
+          :class="[
+            'h-8 px-2.5 flex items-center gap-1 flex-none border-r border-gray-200 last:border-r-0 transition-colors max-w-[10rem]',
+            isShortcutActive(shortcut) ? 'bg-blue-50 text-blue-600' : 'bg-white text-gray-600 hover:bg-gray-50',
+          ]"
+          :title="shortcut.title"
+          :data-testid="`plugin-launcher-shortcut-${shortcut.kind}-${shortcut.slug}`"
+          @click="emit('navigateShortcut', shortcut)"
+        >
+          <!-- Collections / feeds use the material-symbols font for their
+               glyphs (matches the index cards), distinct from the
+               material-icons used by the fixed launcher buttons. -->
+          <span class="material-symbols-outlined text-base">{{ shortcut.icon }}</span>
+          <span class="truncate">{{ shortcut.title }}</span>
+        </button>
+      </div>
     </template>
   </div>
 </template>
@@ -22,8 +57,12 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
+import { useRoute } from "vue-router";
+import { PAGE_ROUTES } from "../router/pageRoutes";
+import type { Shortcut, ShortcutKind } from "../types/shortcuts";
 
 const { t } = useI18n();
+const route = useRoute();
 
 // Quick-access toolbar sitting above the canvas. Each button
 // navigates to a dedicated page (/wiki, /automations, etc.). The "invoke"
@@ -33,7 +72,11 @@ const { t } = useI18n();
 const props = defineProps<{
   /** Current page route name — the matching button lights up. */
   activeViewMode?: string | null;
+  /** Pinned shortcuts (collections / feeds) rendered as the third zone. */
+  shortcuts?: Shortcut[];
 }>();
+
+const shortcuts = computed<Shortcut[]>(() => props.shortcuts ?? []);
 
 export type PluginLauncherKind = "view"; // Switch the canvas to a dedicated view mode
 
@@ -121,7 +164,21 @@ function isActive(target: PluginLauncherTarget): boolean {
   return props.activeViewMode === target.key;
 }
 
+// A shortcut's `kind` is singular ("collection" / "feed"); the route
+// name (and `activeViewMode`) is plural ("collections" / "feeds").
+const ROUTE_NAME_BY_KIND: Record<ShortcutKind, string> = {
+  collection: PAGE_ROUTES.collections,
+  feed: PAGE_ROUTES.feeds,
+};
+
+// A shortcut lights up only when its route AND slug both match — so the
+// active collection's pill highlights but its siblings don't.
+function isShortcutActive(shortcut: Shortcut): boolean {
+  return props.activeViewMode === ROUTE_NAME_BY_KIND[shortcut.kind] && route.params.slug === shortcut.slug;
+}
+
 const emit = defineEmits<{
   navigate: [target: PluginLauncherTarget];
+  navigateShortcut: [shortcut: Shortcut];
 }>();
 </script>

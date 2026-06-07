@@ -318,6 +318,11 @@ const esMessages = {
     roles: { label: "Roles" },
     files: { label: "Archivos" },
   },
+  shortcuts: {
+    pin: "Fijar en el lanzador",
+    unpin: "Quitar del lanzador",
+    zoneAriaLabel: "Accesos directos fijados",
+  },
   fileContentHeader: {
     showRendered: "Mostrar Markdown renderizado",
     showRaw: "Mostrar código fuente",

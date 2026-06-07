@@ -314,6 +314,11 @@ const jaMessages = {
     roles: { label: "ロール" },
     files: { label: "ファイル" },
   },
+  shortcuts: {
+    pin: "ランチャーに固定",
+    unpin: "ランチャーから外す",
+    zoneAriaLabel: "固定したショートカット",
+  },
   fileContentHeader: {
     showRendered: "レンダリング表示",
     showRaw: "ソース表示",

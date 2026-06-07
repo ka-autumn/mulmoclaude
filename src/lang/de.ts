@@ -315,6 +315,11 @@ const deMessages = {
     roles: { label: "Rollen" },
     files: { label: "Dateien" },
   },
+  shortcuts: {
+    pin: "An Launcher anheften",
+    unpin: "Vom Launcher lösen",
+    zoneAriaLabel: "Angeheftete Verknüpfungen",
+  },
   fileContentHeader: {
     showRendered: "Gerendertes Markdown anzeigen",
     showRaw: "Rohquelltext anzeigen",

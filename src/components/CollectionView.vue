@@ -26,6 +26,14 @@
         </span>
       </div>
 
+      <PinToggle
+        v-if="collection && !embedded"
+        :kind="isFeedRoute ? 'feed' : 'collection'"
+        :slug="collection.slug"
+        :title="collection.title"
+        :icon="collection.icon"
+      />
+
       <button
         v-if="collection?.schema.ingest"
         type="button"
@@ -587,11 +595,13 @@ import { API_ROUTES } from "../config/apiRoutes";
 import { PAGE_ROUTES } from "../router/pageRoutes";
 import { BUILTIN_ROLE_IDS } from "../config/roles";
 import ConfirmModal from "./ConfirmModal.vue";
+import PinToggle from "./PinToggle.vue";
 import CollectionRecordPanel from "./CollectionRecordPanel.vue";
 import CollectionCalendarView from "./CollectionCalendarView.vue";
 import CollectionKanbanView from "./CollectionKanbanView.vue";
 import { useConfirm } from "../composables/useConfirm";
 import { useAppApi } from "../composables/useAppApi";
+import { useShortcuts } from "../composables/useShortcuts";
 import { actionVisible, fieldVisible } from "../utils/collections/actionVisible";
 import { readCollectionViewMode, writeCollectionViewMode } from "../utils/collections/collectionViewMode";
 import { useCollectionRendering } from "../composables/collections/useCollectionRendering";
@@ -645,6 +655,7 @@ const route = useRoute();
 const router = useRouter();
 const { openConfirm } = useConfirm();
 const appApi = useAppApi();
+const { unpin } = useShortcuts();
 
 /** Embedded when a `slug` prop is supplied; standalone (route-driven)
  *  otherwise. Switches the slug/selected source and the open/close
@@ -930,6 +941,13 @@ async function loadCollection(slug: string): Promise<void> {
   loading.value = false;
   if (!result.ok) {
     loadError.value = result.status === 404 ? "not-found" : result.error;
+    // Dead-click safety net: a pinned shortcut for a collection/feed
+    // deleted out-of-band (e.g. via chat) lands here. Self-prune it so
+    // the launcher doesn't keep a button that 404s. Standalone only —
+    // embedded cards carry no shortcut.
+    if (result.status === 404 && !embedded.value) {
+      void unpin(route.name === PAGE_ROUTES.feeds ? "feed" : "collection", slug);
+    }
     return;
   }
   collection.value = result.data.collection;

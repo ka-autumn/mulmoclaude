@@ -56,6 +56,11 @@ const HOST_API_ROUTES = {
   health: "/api/health",
   sandbox: "/api/sandbox",
 
+  // Manually-pinned launcher shortcuts (collections / feeds). GET reads
+  // the list; PUT replaces it wholesale (client owns add / remove /
+  // order). Single replace-endpoint — no add/remove route sprawl.
+  shortcuts: "/api/shortcuts",
+
   agent: {
     run: "/api/agent",
     cancel: "/api/agent/cancel",

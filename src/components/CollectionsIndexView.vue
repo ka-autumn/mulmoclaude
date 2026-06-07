@@ -73,6 +73,8 @@
             </span>
           </div>
 
+          <PinToggle kind="collection" :slug="collection.slug" :title="collection.title" :icon="collection.icon" />
+
           <div
             class="h-8 w-8 flex items-center justify-center rounded-lg bg-slate-50 group-hover:bg-indigo-50 text-slate-400 group-hover:text-indigo-600 transition-all duration-300"
           >
@@ -92,7 +94,9 @@ import { apiGet } from "../utils/api";
 import { API_ROUTES } from "../config/apiRoutes";
 import { PAGE_ROUTES } from "../router/pageRoutes";
 import { useAppApi } from "../composables/useAppApi";
+import { useShortcuts } from "../composables/useShortcuts";
 import { BUILTIN_ROLE_IDS } from "../config/roles";
+import PinToggle from "./PinToggle.vue";
 
 interface CollectionSummary {
   slug: string;
@@ -109,6 +113,7 @@ interface CollectionsListResponse {
 const { t } = useI18n();
 const router = useRouter();
 const appApi = useAppApi();
+const { reconcile } = useShortcuts();
 
 const collections = ref<CollectionSummary[]>([]);
 const loading = ref(true);
@@ -126,6 +131,13 @@ async function loadCollections(): Promise<void> {
   // Feeds (source "feed") have their own /feeds surface — keep the
   // Collections index to skill-backed collections so they don't double-list.
   collections.value = result.data.collections.filter((collection) => collection.source !== "feed");
+  // Bulk-reconcile pinned collection shortcuts against this authoritative
+  // list (free — we already fetched it): prune dead slugs, refresh stale
+  // titles/icons, self-heal the file. Feed shortcuts are left to FeedsView.
+  void reconcile(
+    "collection",
+    collections.value.map((collection) => ({ slug: collection.slug, title: collection.title, icon: collection.icon })),
+  );
 }
 
 function openCollection(slug: string): void {

@@ -66,6 +66,27 @@ export async function mockAllApis(page: Page, opts: MockApiOptions = {}): Promis
 
   await page.route(urlEndsWith("/api/roles"), (route) => route.fulfill({ json: DEFAULT_ROLES }));
 
+  // Pinned launcher shortcuts. Stateful within a page: GET returns the
+  // current list, PUT replaces it and echoes back — so pin/unpin specs
+  // exercise the full round-trip (and App.vue's boot GET stays quiet)
+  // without a backend. Specs needing a seeded list override before
+  // mockAllApis (Playwright checks last-registered-first).
+  let shortcutsState: unknown[] = [];
+  await page.route(urlEndsWith("/api/shortcuts"), (route) => {
+    const method = route.request().method();
+    if (method === "PUT") {
+      try {
+        const body = JSON.parse(route.request().postData() ?? "{}") as { shortcuts?: unknown[] };
+        shortcutsState = Array.isArray(body.shortcuts) ? body.shortcuts : [];
+      } catch {
+        shortcutsState = [];
+      }
+      return route.fulfill({ json: { shortcuts: shortcutsState } });
+    }
+    if (method === "GET") return route.fulfill({ json: { shortcuts: shortcutsState } });
+    return route.fallback();
+  });
+
   await page.route(urlEndsWith("/api/sessions"), (route) => {
     if (route.request().method() === "GET") {
       // Envelope shape from #205. Any test that wants to simulate

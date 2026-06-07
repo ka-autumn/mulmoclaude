@@ -331,6 +331,11 @@ const enMessages = {
     roles: { label: "Roles" },
     files: { label: "Files" },
   },
+  shortcuts: {
+    pin: "Pin to launcher",
+    unpin: "Unpin from launcher",
+    zoneAriaLabel: "Pinned shortcuts",
+  },
   fileContentHeader: {
     showRendered: "Show rendered Markdown",
     showRaw: "Show raw source",

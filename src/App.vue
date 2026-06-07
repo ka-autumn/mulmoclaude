@@ -17,7 +17,13 @@
           @home="handleHomeClick"
         />
         <div class="flex-1 min-w-0">
-          <PluginLauncher :active-tool-name="selectedResult?.toolName ?? null" :active-view-mode="currentPage" @navigate="onPluginNavigate" />
+          <PluginLauncher
+            :active-tool-name="selectedResult?.toolName ?? null"
+            :active-view-mode="currentPage"
+            :shortcuts="shortcuts"
+            @navigate="onPluginNavigate"
+            @navigate-shortcut="onShortcutNavigate"
+          />
         </div>
       </div>
       <!-- Row 2: role selector + session tabs. Shown whenever the
@@ -354,6 +360,8 @@ import { useSidePanelVisible } from "./composables/useSidePanelVisible";
 import { useMcpTools } from "./composables/useMcpTools";
 import { useRoles } from "./composables/useRoles";
 import { useCurrentRole } from "./composables/useCurrentRole";
+import { useShortcuts } from "./composables/useShortcuts";
+import type { Shortcut } from "./types/shortcuts";
 import { useTranslatedQueries } from "./composables/useTranslatedQueries";
 import { BUILTIN_ROLE_IDS, type Role } from "./config/roles";
 import { usePubSub } from "./composables/usePubSub";
@@ -443,6 +451,10 @@ watch(
 // `sessionRole` below, which derives from the active session.
 const { roles, refreshRoles } = useRoles();
 const { currentRoleId } = useCurrentRole(roles);
+
+// Pinned launcher shortcuts (collections / feeds). The host owns the
+// list and passes it down; the launcher stays presentational.
+const { shortcuts } = useShortcuts();
 
 const userInput = ref("");
 const pastedFile = ref<PastedFile | null>(null);
@@ -605,6 +617,14 @@ function onPluginNavigate(target: { key: string }): void {
 
 function isPageRouteName(value: string): value is PageRouteName {
   return Object.values(PAGE_ROUTES).includes(value as PageRouteName);
+}
+
+// A pinned shortcut reuses the existing collection / feed routes — the
+// host gains no shortcut-specific navigation logic beyond mapping the
+// singular `kind` to the plural route name.
+function onShortcutNavigate(shortcut: Shortcut): void {
+  const name = shortcut.kind === "feed" ? PAGE_ROUTES.feeds : PAGE_ROUTES.collections;
+  router.push({ name, params: { slug: shortcut.slug } }).catch(() => {});
 }
 
 // Layout only matters on /chat; other pages are full-width by design.

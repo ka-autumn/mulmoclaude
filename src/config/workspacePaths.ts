@@ -26,6 +26,10 @@ export const WORKSPACE_FILES = {
   schedulerUserTasks: "config/scheduler/tasks.json",
   schedulerOverrides: "config/scheduler/overrides.json",
   newsReadState: "config/news-read-state.json",
+  /** Manually-pinned launcher shortcuts (collections / feeds). Workspace
+   *  data — tied to specific content slugs — so it lives with the
+   *  workspace, not in browser localStorage. Shape: `{ shortcuts: [] }`. */
+  shortcuts: "config/shortcuts.json",
   /** Install ledger for runtime-loaded plugins (#1043 C-2). One row
    *  per installed plugin; the tgz files sit alongside in `plugins/`,
    *  extracted to `plugins/.cache/<name>/<version>/` on first boot. */

@@ -19,9 +19,10 @@ A quick visual reference so chat instructions about UI ("the bell at the top rig
 │ │                                              ⚙ settings          │  │
 │ └──────────────────────────────────────────────────────────────────┘  │
 │ ┌─<PluginLauncher> [plugin-launcher]──────────────────────────────────┐│
-│ │ ⏰Actions│📖Wiki│▦Collections│📡Feeds ‖ 🧠Skills│🎭Roles│📁Files       ││
-│ │ [plugin-launcher-automations] … [plugin-launcher-feeds] … (‖ = separator)││
-│ │ data plugins (0–3) │ separator │ management (Skills/Roles/Files)       ││
+│ │ ⏰Actions│📖Wiki│▦Collections│📡Feeds ‖ 🧠Skills│🎭Roles│📁Files ‖ ▦Invoices│📡Weather ││
+│ │ [plugin-launcher-automations] … [plugin-launcher-feeds] …            ││
+│ │   [plugin-launcher-shortcuts]→[plugin-launcher-shortcut-<kind>-<slug>]││
+│ │ data plugins (0–3) │ ‖ │ management (Skills/Roles/Files) │ ‖ │ pinned shortcuts (scrolls) ││
 │ └─────────────────────────────────────────────────────────────────────┘│
 │ ┌─[main pane — route-specific]────┐ ┌─<SessionHistoryPanel>────────┐  │
 │ │                                 │ │ [session-history-side-panel] │  │
