@@ -57,8 +57,10 @@
         <span>{{ t("collectionsView.chat") }}</span>
       </button>
 
+      <!-- Hidden in calendar view: there, creation happens via the day view's
+           + button, which opens the new-item form in the popup's right pane. -->
       <button
-        v-if="canCreate"
+        v-if="canCreate && !calendarActive"
         type="button"
         class="h-8 px-2.5 flex items-center gap-1 rounded bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition-colors shadow-sm"
         data-testid="collections-add-item"
@@ -216,12 +218,59 @@
           :end-field="calendarEndField"
           :time-field="calendarTimeField"
           :selected="viewing ? String(viewing[collection.schema.primaryKey] ?? '') : undefined"
+          @select="onCalendarSelect"
+          @open-day="onOpenDay"
+        />
+
+        <!-- Day (time-allocation) popup. Selecting a record opens it on the
+             right of this modal (the `#detail` slot), replacing the old panel
+             that sat below the grid. -->
+        <CollectionDayView
+          v-if="openDay"
+          :schema="collection.schema"
+          :items="filteredItems"
+          :day="openDay"
+          :anchor-field="calendarAnchorField"
+          :end-field="calendarEndField"
+          :time-field="calendarTimeField"
+          :selected="viewing ? String(viewing[collection.schema.primaryKey] ?? '') : undefined"
           :can-create="canCreate"
+          :show-detail="Boolean(viewing || editing)"
           @select="onCalendarSelect"
           @create-on="createOnDate"
-        />
+          @close="onDayClose"
+        >
+          <template #detail>
+            <CollectionRecordPanel
+              v-model:editing="editing"
+              :collection="collection"
+              :viewing="viewing"
+              :saving="saving"
+              :save-error="saveError"
+              :action-error="actionError"
+              :action-pending="actionPending"
+              :visible-actions="visibleActions"
+              :live-record="liveRecord"
+              :live-derived="liveDerived"
+              :view-title="viewTitle"
+              :is-singleton="isSingleton"
+              :render="render"
+              :locale="locale"
+              @submit="saveEditor"
+              @cancel="cancelEditor"
+              @edit="editFromView"
+              @close="onDayClose"
+              @delete="viewing && confirmDelete(viewing)"
+              @run-action="runAction"
+            />
+          </template>
+        </CollectionDayView>
+
+        <!-- Fallback panel for records with no resolvable day (the "no date"
+             tray): they can't appear on a timeline, so their detail still
+             opens below the grid. -->
         <div
-          v-if="viewing || editing"
+          v-if="(viewing || editing) && !openDay"
           class="mt-4 rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden"
           data-testid="collections-calendar-panel"
         >
@@ -599,7 +648,9 @@ import ConfirmModal from "./ConfirmModal.vue";
 import PinToggle from "./PinToggle.vue";
 import CollectionRecordPanel from "./CollectionRecordPanel.vue";
 import CollectionCalendarView from "./CollectionCalendarView.vue";
+import CollectionDayView from "./CollectionDayView.vue";
 import CollectionKanbanView from "./CollectionKanbanView.vue";
+import { dateOf, type Ymd } from "../utils/collections/calendarGrid";
 import { useConfirm } from "../composables/useConfirm";
 import { useAppApi } from "../composables/useAppApi";
 import { useShortcuts } from "../composables/useShortcuts";
@@ -695,6 +746,10 @@ const editing = ref<EditState | null>(null);
  *  lands on. Mutually exclusive with `editing` in practice —
  *  `editFromView` hands off from one to the other. */
 const viewing = ref<CollectionItem | null>(null);
+/** The calendar day whose time-allocation popup is open, or null. The
+ *  selected record (`viewing`) renders in that popup's right pane; a record
+ *  with no resolvable day falls back to the panel below the grid. */
+const openDay = ref<Ymd | null>(null);
 const saving = ref(false);
 const saveError = ref<string | null>(null);
 /** Error from an inline table-cell edit (checkbox/dropdown). Distinct
@@ -943,6 +998,7 @@ async function loadCollection(slug: string): Promise<void> {
   searchQuery.value = ""; // Reset search query on collection load
   render.resetLinkedCaches();
   viewing.value = null;
+  openDay.value = null; // never carry a previous collection's open day over
   const result = await apiGet<CollectionDetailResponse>(detailUrl(slug));
   loading.value = false;
   if (!result.ok) {
@@ -971,7 +1027,10 @@ async function loadCollection(slug: string): Promise<void> {
   // A `?selected=<id>` deep link opens that record in read-only
   // mode once its items are available. Guard against a stale load:
   // only act if we're still on the slug that triggered this fetch.
-  if (collection.value?.slug === slug) syncViewToSelected();
+  if (collection.value?.slug === slug) {
+    syncViewToSelected();
+    maybeOpenCalendarForSelected();
+  }
   maybeAutoRefreshFeed(slug);
 }
 
@@ -1542,9 +1601,25 @@ function createOnDate(iso: string): void {
   editing.value.text[anchor] = anchorType === "datetime" ? `${iso}T00:00` : iso;
 }
 
-/** Calendar chip / kanban card click → open that record's detail below the
- *  grid (or close when a deselect is reported). Unlike `openView`, this
- *  never toggles — a second click on the same record keeps it open. */
+/** The civil day a record sits on, from its calendar anchor field (handles
+ *  both `date` and `datetime`). Null for undated records. */
+function dayOfItem(item: CollectionItem): Ymd | null {
+  return dateOf(item[calendarAnchorField.value]);
+}
+
+/** Mirror the open record into the `?selected=<id>` query (standalone mode)
+ *  so the calendar's day-view + selection is a copy-pasteable link. In-app
+ *  selection didn't previously touch the URL; the calendar now does. */
+function writeSelectedToUrl(itemId: string): void {
+  if (embedded.value || route.query.selected === itemId) return;
+  router.replace({ query: { ...route.query, selected: itemId } }).catch(() => {});
+}
+
+/** Calendar chip / kanban card click → open that record's detail. In the
+ *  calendar it opens the day (time-allocation) popup on the record's day with
+ *  the detail in the right pane; an undated record falls back to the panel
+ *  below the grid. Unlike `openView`, this never toggles — a second click on
+ *  the same record keeps it open. */
 function onCalendarSelect(itemId: string | null): void {
   if (!itemId) {
     closeView();
@@ -1553,7 +1628,37 @@ function onCalendarSelect(itemId: string | null): void {
   const item = findItemById(itemId);
   if (!item) return;
   if (editing.value) closeEditor();
+  // Anchor the popup on the record's day; null for an undated record, which
+  // closes the popup so its detail falls back to the panel below the grid.
+  if (calendarActive.value) openDay.value = dayOfItem(item);
   showDetail(item);
+  writeSelectedToUrl(itemId);
+}
+
+/** A calendar day cell was activated → open its popup on a clean slate
+ *  (clear any prior selection so the popup opens timeline-only). */
+function onOpenDay(day: Ymd): void {
+  if (editing.value) closeEditor();
+  closeView();
+  openDay.value = day;
+}
+
+/** Close the day popup: drop the open day and the selection together. */
+function onDayClose(): void {
+  openDay.value = null;
+  closeView();
+}
+
+/** Deep-link entry: a `?selected=<id>` link to a calendar-capable collection
+ *  opens in calendar view with the popup focused on the record's day. Runs
+ *  on load / slug change only (not on in-app selection), so table users
+ *  aren't forced into the calendar. */
+function maybeOpenCalendarForSelected(): void {
+  if (embedded.value || !hasCalendar.value || !viewing.value) return;
+  const day = dayOfItem(viewing.value);
+  if (!day) return;
+  view.value = "calendar";
+  openDay.value = day;
 }
 
 /** Kanban card dropped in a column → set the record's group field to the
@@ -1621,6 +1726,13 @@ watch([activeView, calendarAnchorField, kanbanGroupField, loading], () => {
 // The initial / cross-collection case is handled by `loadCollection`;
 // here we only act once items are loaded.
 watch(activeSelected, () => {
-  if (!loading.value && collection.value) syncViewToSelected();
+  if (loading.value || !collection.value) return;
+  syncViewToSelected();
+  // Keep the calendar-owned openDay in step with the selection — re-anchor it on
+  // the selected record's day, or clear it when the selection is gone. Do this
+  // even when the calendar isn't the active view: openDay is calendar state, so
+  // a selection cleared in the table must not survive into a later calendar
+  // visit. Never force a view switch here — that's loadCollection's deep-link job.
+  openDay.value = viewing.value ? dayOfItem(viewing.value) : null;
 });
 </script>

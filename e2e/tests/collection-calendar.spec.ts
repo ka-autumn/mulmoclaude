@@ -1,10 +1,11 @@
 // E2E coverage for the collection calendar view (feat-collections-calendar-view).
 // Any collection with a `date` field gains a table↔calendar toggle; the
-// calendar lays each record on its day cell, lists undated records in a
-// "No date" tray, and opens the shared detail panel on a chip click. A
-// collection with no date field shows no toggle at all. Clicking any day cell
-// opens the day (time-allocation) view, where a `calendarTimeField` time
-// string renders records as proportional blocks / single lines / all-day chips.
+// calendar lays each record on its day cell and lists undated records in a
+// "No date" tray. A collection with no date field shows no toggle at all.
+// Clicking any day cell — or any record chip — opens the day (time-allocation)
+// view, where a `calendarTimeField` time string renders records as proportional
+// blocks / single lines / all-day chips. Selecting a record shows its detail in
+// the day view's right pane and mirrors the selection into `?selected=`.
 //
 // Records are placed on the 15th of the *current* month so they land on
 // the calendar's default-visible grid without mocking the clock.
@@ -66,6 +67,7 @@ const AGENDA = {
         name: { type: "string", label: "Name", required: true },
         on: { type: "date", label: "Date" },
         time: { type: "string", label: "Time" },
+        location: { type: "string", label: "Location" },
       },
       displayField: "name",
       calendarField: "on",
@@ -73,9 +75,9 @@ const AGENDA = {
     },
   },
   items: [
-    { id: "block", name: "Workshop", on: MID, time: "14:00-17:00" }, // range → block
-    { id: "line", name: "Standup", on: MID, time: "09:30" }, // start only → single line
-    { id: "allday", name: "Conference", on: MID, time: "終日" }, // no clock → all-day strip
+    { id: "block", name: "Workshop", on: MID, time: "14:00-17:00", location: "Room 5" }, // range → block
+    { id: "line", name: "Standup", on: MID, time: "09:30", location: "Hall" }, // start only → single line
+    { id: "allday", name: "Conference", on: MID, time: "終日", location: "Expo" }, // no clock → all-day strip
   ],
 };
 
@@ -160,7 +162,7 @@ test.describe("collection calendar view", () => {
     await expect(page.getByTestId("collection-view-toggle-calendar")).toBeVisible();
   });
 
-  test("renders a record on its day cell and opens detail on chip click", async ({ page }) => {
+  test("renders a record on its day cell and opens detail in the day view on chip click", async ({ page }) => {
     await page.goto("/collections/events");
     await page.getByTestId("collection-view-toggle-calendar").click();
     // Grid + the record's chip on the 15th.
@@ -169,11 +171,42 @@ test.describe("collection calendar view", () => {
     const chip = page.getByTestId("collection-calendar-chip-launch");
     await expect(chip).toBeVisible();
     await expect(chip).toHaveText("Launch party");
-    // Clicking the chip opens the shared record panel below the grid.
+    // Clicking the chip opens the day view with the record in its right pane,
+    // and mirrors the selection into the URL so the link is shareable.
     await chip.click();
-    await expect(page.getByTestId("collections-calendar-panel")).toBeVisible();
+    await expect(page.getByTestId("collection-day-view")).toBeVisible();
+    await expect(page.getByTestId("collection-day-view-detail")).toBeVisible();
     await expect(page.getByTestId("collections-detail")).toBeVisible();
     await expect(page.getByTestId("collections-detail-title")).toHaveText("launch");
+    await expect(page).toHaveURL(/[?&]selected=launch\b/);
+  });
+
+  test("a ?selected= deep link opens the calendar day view focused on the record", async ({ page }) => {
+    // A pasted link forces the calendar view and opens the day popup on the
+    // record's day with its detail already showing.
+    await page.goto("/collections/agenda?selected=block");
+    await expect(page.getByTestId("collection-calendar")).toBeVisible();
+    await expect(page.getByTestId("collection-day-view")).toBeVisible();
+    await expect(page.getByTestId("collection-day-view-detail")).toBeVisible();
+    await expect(page.getByTestId("collections-detail-title")).toHaveText("block");
+  });
+
+  test("navigating back to the collection without ?selected= tears down the day popup", async ({ page }) => {
+    await page.goto("/collections/agenda?selected=block");
+    await expect(page.getByTestId("collection-day-view")).toBeVisible();
+    // Reopening the collection without a selection must not leave a stale popup.
+    await page.goto("/collections/agenda");
+    await expect(page.getByTestId("collection-calendar")).toBeVisible();
+    await expect(page.getByTestId("collection-day-view")).toHaveCount(0);
+  });
+
+  test("closing the day popup detail via its X clears the selection and popup", async ({ page }) => {
+    await page.goto("/collections/agenda?selected=block");
+    await expect(page.getByTestId("collection-day-view-detail")).toBeVisible();
+    // The detail pane's close button tears down the whole popup and the URL.
+    await page.getByTestId("collections-detail-close").click();
+    await expect(page.getByTestId("collection-day-view")).toHaveCount(0);
+    await expect(page).not.toHaveURL(/selected=/);
   });
 
   test("lists undated records in the No date tray", async ({ page }) => {
@@ -183,6 +216,17 @@ test.describe("collection calendar view", () => {
     await expect(page.getByTestId("collection-calendar-undated-someday")).toBeVisible();
     // The undated record has no day-cell chip.
     await expect(page.getByTestId("collection-calendar-chip-someday")).toHaveCount(0);
+  });
+
+  test("selecting an undated record shows the bottom panel, not the day popup", async ({ page }) => {
+    await page.goto("/collections/events");
+    await page.getByTestId("collection-view-toggle-calendar").click();
+    // An undated record has no day to place on a timeline → its detail opens in
+    // the panel below the grid and no day popup appears.
+    await page.getByTestId("collection-calendar-undated-someday").click();
+    await expect(page.getByTestId("collection-day-view")).toHaveCount(0);
+    await expect(page.getByTestId("collections-calendar-panel")).toBeVisible();
+    await expect(page.getByTestId("collections-detail-title")).toHaveText("someday");
   });
 
   test("clicking a day opens the day view; its + button creates with the date prefilled", async ({ page }) => {
@@ -197,23 +241,41 @@ test.describe("collection calendar view", () => {
     // The day view opens; its + button starts a create prefilled to that day.
     await expect(page.getByTestId("collection-day-view")).toBeVisible();
     await page.getByTestId("collection-day-view-create").click();
+    // The create form renders INSIDE the day view's right pane — the popup stays
+    // open and the form must NOT fall through to the panel below the grid.
+    await expect(page.getByTestId("collection-day-view")).toBeVisible();
+    await expect(page.getByTestId("collection-day-view-detail")).toBeVisible();
     await expect(page.getByTestId("collections-create")).toBeVisible();
+    await expect(page.getByTestId("collections-calendar-panel")).toHaveCount(0);
     await expect(page.getByTestId("collections-input-on")).toHaveValue(empty);
   });
 
-  test("clicking a populated day opens the day view; its chips still select", async ({ page }) => {
+  test("calendar view hides the top Add button (create happens via the day view +)", async ({ page }) => {
+    await page.goto("/collections/events");
+    // Present in the table view…
+    await expect(page.getByTestId("collections-add-item")).toBeVisible();
+    await page.getByTestId("collection-view-toggle-calendar").click();
+    await expect(page.getByTestId("collection-calendar")).toBeVisible();
+    // …and gone in the calendar, where the day view's + is the only create entry.
+    await expect(page.getByTestId("collections-add-item")).toHaveCount(0);
+  });
+
+  test("clicking a day cell opens the day view; its chips select into the detail pane", async ({ page }) => {
     await page.goto("/collections/events");
     await page.getByTestId("collection-view-toggle-calendar").click();
-    // A chip click selects the record directly (does not bubble to the cell).
-    await page.getByTestId("collection-calendar-chip-launch").click();
-    await expect(page.getByTestId("collections-detail-title")).toHaveText("launch");
     // Activating the day cell (a keyboard-operable button) opens the day view;
     // the clock-less record sits in the all-day strip (events has no time field).
     const cell = page.getByTestId(`collection-calendar-day-${MID}`);
     await cell.focus();
     await cell.press("Enter");
     await expect(page.getByTestId("collection-day-view")).toBeVisible();
-    await expect(page.getByTestId("collection-day-view-allday-launch")).toBeVisible();
+    const chip = page.getByTestId("collection-day-view-allday-launch");
+    await expect(chip).toBeVisible();
+    // Selecting it shows the detail in the right pane WITHOUT closing the popup.
+    await chip.click();
+    await expect(page.getByTestId("collection-day-view")).toBeVisible();
+    await expect(page.getByTestId("collection-day-view-detail")).toBeVisible();
+    await expect(page.getByTestId("collections-detail-title")).toHaveText("launch");
   });
 
   test("day view renders blocks, single lines, and the all-day strip from a time field", async ({ page }) => {
@@ -225,13 +287,19 @@ test.describe("collection calendar view", () => {
     await cell.press("Enter");
     await expect(page.getByTestId("collection-day-view")).toBeVisible();
     // "14:00-17:00" → a proportional block; "09:30" → a single line (both chips).
-    await expect(page.getByTestId("collection-day-view-chip-block")).toBeVisible();
+    const blockChip = page.getByTestId("collection-day-view-chip-block");
+    await expect(blockChip).toBeVisible();
     await expect(page.getByTestId("collection-day-view-chip-line")).toBeVisible();
+    // The chip shows a non-date/time field under the title, not the time range.
+    await expect(blockChip).toContainText("Workshop");
+    await expect(blockChip).toContainText("Room 5");
+    await expect(blockChip).not.toContainText("14:00");
     // "終日" has no parseable clock → the bottom all-day strip.
     await expect(page.getByTestId("collection-day-view-allday-allday")).toBeVisible();
-    // Selecting an entry opens the detail panel and closes the popup.
+    // Selecting an entry opens its detail in the right pane; the popup stays open.
     await page.getByTestId("collection-day-view-chip-block").click();
-    await expect(page.getByTestId("collection-day-view")).toHaveCount(0);
+    await expect(page.getByTestId("collection-day-view")).toBeVisible();
+    await expect(page.getByTestId("collection-day-view-detail")).toBeVisible();
     await expect(page.getByTestId("collections-detail-title")).toHaveText("block");
   });
 
@@ -249,16 +317,17 @@ test.describe("collection calendar view", () => {
     await expect(page.getByTestId("collections-input-at")).toHaveValue(`${MID}T00:00`);
   });
 
-  test("keyboard-activating a chip selects it without opening the day view", async ({ page }) => {
+  test("keyboard-activating a chip selects it into the day view's detail pane", async ({ page }) => {
     await page.goto("/collections/events");
     await page.getByTestId("collection-view-toggle-calendar").click();
-    // Enter on a focused chip selects the record; the keydown must NOT bubble to
-    // the cell and open the day view (the `.self` guard on the cell handler).
+    // Enter on a focused chip selects the record and opens the day view with its
+    // detail in the right pane (the `.self` guard keeps the keydown from also
+    // firing the cell's own open handler).
     const chip = page.getByTestId("collection-calendar-chip-launch");
     await chip.focus();
     await chip.press("Enter");
+    await expect(page.getByTestId("collection-day-view-detail")).toBeVisible();
     await expect(page.getByTestId("collections-detail-title")).toHaveText("launch");
-    await expect(page.getByTestId("collection-day-view")).toHaveCount(0);
   });
 
   test("shows the toggle and a working calendar for an empty date-bearing collection", async ({ page }) => {

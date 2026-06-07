@@ -50,9 +50,9 @@
         :tabindex="0"
         :aria-label="t('collectionsView.dayViewOpen', { date: cell.key })"
         :data-testid="`collection-calendar-day-${cell.key}`"
-        @click="openDay = cell.ymd"
-        @keydown.enter.self.prevent="openDay = cell.ymd"
-        @keydown.space.self.prevent="openDay = cell.ymd"
+        @click="emit('openDay', cell.ymd)"
+        @keydown.enter.self.prevent="emit('openDay', cell.ymd)"
+        @keydown.space.self.prevent="emit('openDay', cell.ymd)"
       >
         <div class="flex items-center justify-end">
           <span
@@ -90,31 +90,14 @@
         {{ entry.label }}
       </button>
     </div>
-
-    <!-- Day (time-allocation) popup, opened from a day-number badge. -->
-    <CollectionDayView
-      v-if="openDay"
-      :schema="schema"
-      :items="items"
-      :day="openDay"
-      :anchor-field="anchorField"
-      :end-field="endField"
-      :time-field="timeField"
-      :selected="selected"
-      :can-create="canCreate"
-      @select="emit('select', $event)"
-      @create-on="emit('createOn', $event)"
-      @close="openDay = null"
-    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { bucketRecords, buildMonthGrid, ymdKey, spanCoversDay, type Ymd } from "../utils/collections/calendarGrid";
+import { bucketRecords, buildMonthGrid, ymdKey, daySlice, MINUTES_PER_DAY, type Ymd, type RecordSpan, type DaySlice } from "../utils/collections/calendarGrid";
 import { labelFieldFor, itemIdOf, itemLabelOf } from "../utils/collections/itemLabel";
-import CollectionDayView from "./CollectionDayView.vue";
 import type { CollectionItem, CollectionSchema } from "./collectionTypes";
 
 const props = defineProps<{
@@ -128,18 +111,13 @@ const props = defineProps<{
   timeField?: string;
   /** Primary-key of the currently-open record (highlighted chip). */
   selected?: string;
-  /** Whether empty-cell clicks create a record (Add gated for singletons). */
-  canCreate: boolean;
 }>();
 
 const emit = defineEmits<{
   select: [id: string | null];
-  createOn: [iso: string];
+  /** A day cell was activated → the host opens the time-allocation popup. */
+  openDay: [day: Ymd];
 }>();
-
-// The day whose time-allocation popup is open, or null. Opened from a day's
-// number badge; re-emits select/createOn upward like the month grid does.
-const openDay = ref<Ymd | null>(null);
 
 const { t, locale } = useI18n();
 
@@ -162,11 +140,25 @@ interface CalendarEntry {
   label: string;
 }
 
-/** Records whose span covers a given day, in the bucket's start order. */
+interface DayPair {
+  span: RecordSpan<CollectionItem>;
+  slice: DaySlice;
+}
+
+/** Sort key for ordering a day's chips by start time: earliest first, with
+ *  clock-less all-day records sinking to the bottom (matching the day view). */
+function sliceStartKey(slice: DaySlice): number {
+  return slice.kind === "allDay" ? MINUTES_PER_DAY + 1 : slice.startMin;
+}
+
+/** Records whose span covers a given day, ordered by start time so the month
+ *  grid stacks chips the same way the day (time-allocation) view does. */
 function recordsOnDay(day: Ymd): CalendarEntry[] {
   return bucketed.value.spans
-    .filter((span) => spanCoversDay(span, day))
-    .map((span) => ({ id: itemIdOf(span.item, props.schema), label: itemLabelOf(span.item, props.schema, labelField.value) }));
+    .map((span) => ({ span, slice: daySlice(span, day) }))
+    .filter((pair): pair is DayPair => pair.slice !== null)
+    .sort((left, right) => sliceStartKey(left.slice) - sliceStartKey(right.slice))
+    .map(({ span }) => ({ id: itemIdOf(span.item, props.schema), label: itemLabelOf(span.item, props.schema, labelField.value) }));
 }
 
 /** Grid cells paired with the records that land on them, computed once per
