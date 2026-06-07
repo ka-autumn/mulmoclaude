@@ -32,7 +32,23 @@ const toolDefinition: ToolDefinition = {
   prompt:
     `Use the ${TOOL_NAME} tool when the user asks for a document that combines text with embedded images — guides, reports, tutorials, articles, or any structured content with visuals. ` +
     `Prefer this over standalone image generation when the user wants informational content with supporting visuals.\n\n` +
-    "Format embedded images as: ![Detailed image prompt](__too_be_replaced_image_path__)",
+    "Format embedded images as: ![Detailed image prompt](__too_be_replaced_image_path__)\n\n" +
+    "── Slide-deck (Marp) mode ──\n" +
+    "When the user asks for a slide deck / presentation / スライド, opt into Marp by writing this YAML frontmatter at the very top of the markdown:\n" +
+    "---\n" +
+    "marp: true\n" +
+    "theme: default\n" +
+    "size: 16:9\n" +
+    "---\n" +
+    "Then separate slides with `---` on its own line. The right-pane preview and the Export-PDF button both honour Marp output.\n\n" +
+    "Marp image directives (alt-text position) — use these instead of plain ![]() when slide layout matters, because a plain inline image is clipped to ~60% of slide height to leave room for surrounding text:\n" +
+    "- ![bg](path)            — full-slide background (does not push other content)\n" +
+    "- ![bg fit](path)        — background scaled to fit, no crop\n" +
+    "- ![fit](path)           — fit-to-content inline\n" +
+    "- ![w:600 h:400](path)   — explicit pixel size\n" +
+    "The placeholder URL `__too_be_replaced_image_path__` still applies — the directive goes in the alt-text slot, the placeholder in the URL slot.\n\n" +
+    "Aspect: `size: 16:9` (default, 1280×720), `size: 4:3` (960×720), `size: 16:10` (1280×800), or `size: WxH` for custom (e.g. `size: 1920x1080`). Both preview and PDF auto-follow.\n" +
+    "Themes: `theme: default` | `gaia` | `uncover`.",
   parameters: {
     type: "object",
     properties: {
