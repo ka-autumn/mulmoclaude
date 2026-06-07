@@ -8,7 +8,7 @@ The shortcuts render as a **third zone inside `<PluginLauncher>`**, to the
 right of the management group, separated by the same `‖` divider the bar
 already uses between data-plugins and management.
 
-```
+```text
 ⏰Actions │ 📖Wiki │ ▦Collections │ 📡Feeds ‖ 🧠Skills │ 🎭Roles │ 📁Files  ‖  📊Invoices │ 🌤Weather
 └──────── data plugins ────────┘     └──── management ────┘     └─ pinned shortcuts ─┘  (NEW)
 ```

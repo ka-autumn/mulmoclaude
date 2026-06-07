@@ -930,6 +930,11 @@ function submitChat(): void {
 }
 
 async function loadCollection(slug: string): Promise<void> {
+  // Snapshot the shortcut kind BEFORE the await — if the user navigates
+  // between /feeds/:slug and /collections/:slug while the fetch is in
+  // flight, reading route.name in the 404 branch could unpin the wrong
+  // (kind, slug) pair.
+  const requestedKind = !embedded.value && route.name === PAGE_ROUTES.feeds ? "feed" : "collection";
   loading.value = true;
   loadError.value = null;
   collection.value = null;
@@ -943,10 +948,11 @@ async function loadCollection(slug: string): Promise<void> {
     loadError.value = result.status === 404 ? "not-found" : result.error;
     // Dead-click safety net: a pinned shortcut for a collection/feed
     // deleted out-of-band (e.g. via chat) lands here. Self-prune it so
-    // the launcher doesn't keep a button that 404s. Standalone only —
-    // embedded cards carry no shortcut.
-    if (result.status === 404 && !embedded.value) {
-      void unpin(route.name === PAGE_ROUTES.feeds ? "feed" : "collection", slug);
+    // the launcher doesn't keep a button that 404s. Standalone only
+    // (embedded cards carry no shortcut), and only if we're still on the
+    // slug that triggered this fetch.
+    if (result.status === 404 && !embedded.value && activeSlug.value === slug) {
+      void unpin(requestedKind, slug);
     }
     return;
   }

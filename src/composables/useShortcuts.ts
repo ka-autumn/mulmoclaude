@@ -37,8 +37,27 @@ async function load(force = false): Promise<void> {
   return loadPromise;
 }
 
+// Every mutation runs through this chain so the replace-all PUTs never
+// overlap. `PUT /api/shortcuts` rewrites the whole array, so two in-flight
+// saves could land out of order and resurrect a removed pin or drop a new
+// one — both in the UI and on disk. Serializing also fixes the cold-load
+// race: each task awaits `load()` first, so the initial server list is in
+// the ref before any task reads `previous` (otherwise a click during the
+// boot GET would persist `[]` + the new pin, wiping existing pins).
+let mutationChain: Promise<unknown> = Promise.resolve();
+
+function enqueue<T>(task: () => Promise<T>): Promise<T> {
+  const run = mutationChain.then(task, task);
+  // Keep the chain alive regardless of any single task's outcome.
+  mutationChain = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
 /** Persist the given list, rolling the local ref back to `previous` on
- *  failure. Returns true on success. */
+ *  failure. Returns true on success. Call only from inside `enqueue`. */
 async function persist(next: Shortcut[], previous: Shortcut[]): Promise<boolean> {
   shortcuts.value = next;
   const result = await apiPut<ShortcutsResponse>(API_ROUTES.shortcuts, { shortcuts: next });
@@ -61,20 +80,26 @@ function isPinned(kind: ShortcutKind, slug: string): boolean {
 }
 
 /** Pin a shortcut (no-op if already pinned). Appends in insertion order. */
-async function pin(shortcut: Shortcut): Promise<boolean> {
-  if (isPinned(shortcut.kind, shortcut.slug)) return true;
-  const previous = shortcuts.value;
-  return persist([...previous, shortcut], previous);
+function pin(shortcut: Shortcut): Promise<boolean> {
+  return enqueue(async () => {
+    await load();
+    if (isPinned(shortcut.kind, shortcut.slug)) return true;
+    const previous = shortcuts.value;
+    return persist([...previous, shortcut], previous);
+  });
 }
 
 /** Remove a pinned shortcut (no-op if not pinned). */
-async function unpin(kind: ShortcutKind, slug: string): Promise<boolean> {
-  if (!isPinned(kind, slug)) return true;
-  const previous = shortcuts.value;
-  return persist(
-    previous.filter((entry) => !sameShortcut(entry, { kind, slug })),
-    previous,
-  );
+function unpin(kind: ShortcutKind, slug: string): Promise<boolean> {
+  return enqueue(async () => {
+    await load();
+    if (!isPinned(kind, slug)) return true;
+    const previous = shortcuts.value;
+    return persist(
+      previous.filter((entry) => !sameShortcut(entry, { kind, slug })),
+      previous,
+    );
+  });
 }
 
 /** Bulk reconcile one kind against the authoritative `{slug,title,icon}`
@@ -82,23 +107,26 @@ async function unpin(kind: ShortcutKind, slug: string): Promise<boolean> {
  *  title/icon. If anything drifted, PUT the corrected list so the file
  *  self-heals (an in-memory filter alone leaves dead entries forever).
  *  Other kinds are left untouched. */
-async function reconcile(kind: ShortcutKind, live: { slug: string; title: string; icon: string }[]): Promise<void> {
-  const liveBySlug = new Map(live.map((entry) => [entry.slug, entry]));
-  let drifted = false;
-  const next = shortcuts.value.flatMap((entry) => {
-    if (entry.kind !== kind) return [entry];
-    const fresh = liveBySlug.get(entry.slug);
-    if (!fresh) {
-      drifted = true; // dead slug — prune
-      return [];
-    }
-    if (fresh.title !== entry.title || fresh.icon !== entry.icon) {
-      drifted = true; // stale label — refresh
-      return [{ ...entry, title: fresh.title, icon: fresh.icon }];
-    }
-    return [entry];
+function reconcile(kind: ShortcutKind, live: { slug: string; title: string; icon: string }[]): Promise<void> {
+  return enqueue(async () => {
+    await load();
+    const liveBySlug = new Map(live.map((entry) => [entry.slug, entry]));
+    let drifted = false;
+    const next = shortcuts.value.flatMap((entry) => {
+      if (entry.kind !== kind) return [entry];
+      const fresh = liveBySlug.get(entry.slug);
+      if (!fresh) {
+        drifted = true; // dead slug — prune
+        return [];
+      }
+      if (fresh.title !== entry.title || fresh.icon !== entry.icon) {
+        drifted = true; // stale label — refresh
+        return [{ ...entry, title: fresh.title, icon: fresh.icon }];
+      }
+      return [entry];
+    });
+    if (drifted) await persist(next, shortcuts.value);
   });
-  if (drifted) await persist(next, shortcuts.value);
 }
 
 export function useShortcuts(): {
