@@ -252,6 +252,7 @@ export function useCollectionRendering(collection: Ref<CollectionDetail | null>,
     if (type === "number") return "number";
     if (type === "money") return "number";
     if (type === "date") return "date";
+    if (type === "datetime") return "datetime-local";
     return "text";
   }
 

@@ -19,6 +19,7 @@ export type CollectionFieldType =
   | "email"
   | "number"
   | "date"
+  | "datetime"
   | "boolean"
   | "markdown"
   | "ref"
@@ -283,6 +284,11 @@ export interface CollectionSchema {
    *  date inclusive. Requires `calendarField`. Must name a real `date`
    *  field. Absent ⇒ single-day placement. */
   calendarEndField?: string;
+  /** Name of a string field holding a free-form time or time-range
+   *  (e.g. "14:00-17:00", "17:00-", "16:30") that places records on the
+   *  calendar's day (time-allocation) view. Consulted only when the calendar
+   *  date fields are date-only. Requires `calendarField`. */
+  calendarTimeField?: string;
   /** Name of an `enum` field that groups records into columns on the
    *  optional Kanban board: each record lands in the column matching its
    *  value, with empty/unknown values collected in an "Uncategorized"

@@ -36,26 +36,23 @@
       <div v-for="(label, idx) in weekdayLabels" :key="idx" class="px-1 py-1 text-center">{{ label }}</div>
     </div>
 
-    <!-- Day grid. A day with no records is itself the create affordance —
-         rendered with `role="button"` + keyboard handlers (no chips inside,
-         so no nested-interactive conflict). Populated days are plain
-         containers; their chips are the interactive elements. -->
+    <!-- Day grid. Every cell is a keyboard-operable button that opens the day
+         (time-allocation) view; its record chips are nested interactive
+         elements that `@click.stop` to select instead. Creating a record now
+         happens from inside the day view's + button. -->
     <div class="grid grid-cols-7 gap-1">
       <div
-        v-for="{ cell, entries, creatable } in cells"
+        v-for="{ cell, entries } in cells"
         :key="cell.key"
-        class="min-h-[5.5rem] rounded-lg border p-1 flex flex-col gap-1 overflow-hidden transition-colors"
-        :class="[
-          cell.inMonth ? 'bg-white border-slate-200' : 'bg-slate-50/50 border-slate-100',
-          creatable ? 'cursor-pointer hover:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/30' : '',
-        ]"
-        :role="creatable ? 'button' : undefined"
-        :tabindex="creatable ? 0 : undefined"
-        :aria-label="creatable ? t('collectionsView.calendarCreateOn', { date: cell.key }) : undefined"
+        class="min-h-[5.5rem] rounded-lg border p-1 flex flex-col gap-1 overflow-hidden transition-colors cursor-pointer hover:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+        :class="cell.inMonth ? 'bg-white border-slate-200' : 'bg-slate-50/50 border-slate-100'"
+        role="button"
+        :tabindex="0"
+        :aria-label="t('collectionsView.dayViewOpen', { date: cell.key })"
         :data-testid="`collection-calendar-day-${cell.key}`"
-        @click="creatable && emit('createOn', cell.key)"
-        @keydown.enter.prevent="creatable && emit('createOn', cell.key)"
-        @keydown.space.prevent="creatable && emit('createOn', cell.key)"
+        @click="openDay = cell.ymd"
+        @keydown.enter.prevent="openDay = cell.ymd"
+        @keydown.space.prevent="openDay = cell.ymd"
       >
         <div class="flex items-center justify-end">
           <span
@@ -93,6 +90,22 @@
         {{ entry.label }}
       </button>
     </div>
+
+    <!-- Day (time-allocation) popup, opened from a day-number badge. -->
+    <CollectionDayView
+      v-if="openDay"
+      :schema="schema"
+      :items="items"
+      :day="openDay"
+      :anchor-field="anchorField"
+      :end-field="endField"
+      :time-field="timeField"
+      :selected="selected"
+      :can-create="canCreate"
+      @select="emit('select', $event)"
+      @create-on="emit('createOn', $event)"
+      @close="openDay = null"
+    />
   </div>
 </template>
 
@@ -100,15 +113,19 @@
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { bucketRecords, buildMonthGrid, ymdKey, spanCoversDay, type Ymd } from "../utils/collections/calendarGrid";
+import { labelFieldFor, itemIdOf, itemLabelOf } from "../utils/collections/itemLabel";
+import CollectionDayView from "./CollectionDayView.vue";
 import type { CollectionItem, CollectionSchema } from "./collectionTypes";
 
 const props = defineProps<{
   schema: CollectionSchema;
   items: CollectionItem[];
-  /** The `date` field whose value places each record on the grid. */
+  /** The `date`/`datetime` field whose value places each record on the grid. */
   anchorField: string;
-  /** Optional second `date` field — records span anchor→end inclusive. */
+  /** Optional second `date`/`datetime` field — records span anchor→end inclusive. */
   endField?: string;
+  /** Optional free-form time-string field driving the day (time-allocation) view. */
+  timeField?: string;
   /** Primary-key of the currently-open record (highlighted chip). */
   selected?: string;
   /** Whether empty-cell clicks create a record (Add gated for singletons). */
@@ -119,6 +136,10 @@ const emit = defineEmits<{
   select: [id: string | null];
   createOn: [iso: string];
 }>();
+
+// The day whose time-allocation popup is open, or null. Opened from a day's
+// number badge; re-emits select/createOn upward like the month grid does.
+const openDay = ref<Ymd | null>(null);
 
 const { t, locale } = useI18n();
 
@@ -132,35 +153,9 @@ const todayKey = ymdKey({ year: now.getFullYear(), month: now.getMonth() + 1, da
 
 const grid = computed(() => buildMonthGrid(viewYear.value, viewMonth.value));
 
-const bucketed = computed(() => bucketRecords(props.items, props.anchorField, props.endField));
+const bucketed = computed(() => bucketRecords(props.items, props.anchorField, props.endField, props.timeField));
 
-function itemId(item: CollectionItem): string {
-  return String(item[props.schema.primaryKey] ?? "");
-}
-
-// Text-like field types that make a sensible human-readable chip label.
-const LABEL_FIELD_TYPES = new Set(["string", "text", "markdown", "email"]);
-
-// Which field labels each chip: the schema's explicit `displayField`, else
-// the first non-primary text-like field (so a feed/collection without a
-// displayField shows e.g. the title rather than the opaque primaryKey),
-// else null → fall back to the primaryKey value.
-const labelField = computed<string | null>(() => {
-  if (props.schema.displayField) return props.schema.displayField;
-  for (const [key, spec] of Object.entries(props.schema.fields)) {
-    if (key !== props.schema.primaryKey && LABEL_FIELD_TYPES.has(spec.type)) return key;
-  }
-  return null;
-});
-
-/** Chip label: the resolved `labelField` value, else the primary key. */
-function itemLabel(item: CollectionItem): string {
-  if (labelField.value) {
-    const value = item[labelField.value];
-    if (typeof value === "string" && value.length > 0) return value;
-  }
-  return itemId(item);
-}
+const labelField = computed<string | null>(() => labelFieldFor(props.schema));
 
 interface CalendarEntry {
   id: string;
@@ -169,21 +164,18 @@ interface CalendarEntry {
 
 /** Records whose span covers a given day, in the bucket's start order. */
 function recordsOnDay(day: Ymd): CalendarEntry[] {
-  return bucketed.value.spans.filter((span) => spanCoversDay(span, day)).map((span) => ({ id: itemId(span.item), label: itemLabel(span.item) }));
+  return bucketed.value.spans
+    .filter((span) => spanCoversDay(span, day))
+    .map((span) => ({ id: itemIdOf(span.item, props.schema), label: itemLabelOf(span.item, props.schema, labelField.value) }));
 }
 
-/** Grid cells paired with their records, computed once per render. A cell
- *  is `creatable` only when it has NO records — clicking an empty day is
- *  the create affordance; clicking a populated day must NOT create (it
- *  would silently duplicate-create on a date that already has events). */
-const cells = computed(() =>
-  grid.value.map((cell) => {
-    const entries = recordsOnDay(cell.ymd);
-    return { cell, entries, creatable: props.canCreate && entries.length === 0 };
-  }),
-);
+/** Grid cells paired with the records that land on them, computed once per
+ *  render. Clicking any cell opens the day view (create happens there). */
+const cells = computed(() => grid.value.map((cell) => ({ cell, entries: recordsOnDay(cell.ymd) })));
 
-const undatedEntries = computed<CalendarEntry[]>(() => bucketed.value.noDate.map((item) => ({ id: itemId(item), label: itemLabel(item) })));
+const undatedEntries = computed<CalendarEntry[]>(() =>
+  bucketed.value.noDate.map((item) => ({ id: itemIdOf(item, props.schema), label: itemLabelOf(item, props.schema, labelField.value) })),
+);
 
 const monthLabel = computed<string>(() => {
   try {

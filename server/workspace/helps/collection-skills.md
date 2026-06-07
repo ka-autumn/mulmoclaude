@@ -110,18 +110,25 @@ skipped, never crashes the host):
 | `triggerField` | Optional. Name of a `date` field that **delays** the completion bell until that date arrives (instead of firing on create). Requires `completionField` / `completionDoneValues` (the bell still clears via the done value). Must name a real `date` field. See "Time-gated bells" below. |
 | `triggerLeadDays` | Optional. Non-negative integer: fire the bell this many days **before** `triggerField` (e.g. `10` = "remind me 10 days early"). Requires `triggerField`. Default `0` (fire on the trigger date). |
 | `spawn` | Optional. Host-driven **recurrence**: when a record reaches a configured value (e.g. `status: paid`), the host auto-creates the next record with a forward-advanced `triggerField` date. Requires `triggerField`. See "Recurring obligations" below. |
-| `calendarField` | Optional. Name of a `date` field that anchors the **calendar view** (a month grid; each record lands on its date cell). When unset, the table↔calendar toggle still appears if the schema has any `date` field — the first one is used, switchable in-view. Set this to pin a specific anchor. Must name a real `date` field. See "Calendar view" below. |
-| `calendarEndField` | Optional. A second `date` field marking the END of a multi-day span on the calendar (the record renders across `calendarField` → this date). Requires `calendarField`. Must name a real `date` field. |
+| `calendarField` | Optional. Name of a `date` (or `datetime`) field that anchors the **calendar view** (a month grid; each record lands on its date cell). When unset, the table↔calendar toggle still appears if the schema has any `date`/`datetime` field — the first one is used, switchable in-view. Set this to pin a specific anchor. Must name a real `date`/`datetime` field. See "Calendar view" below. |
+| `calendarEndField` | Optional. A second `date`/`datetime` field marking the END of a multi-day span on the calendar (the record renders across `calendarField` → this date). Requires `calendarField`. Must name a real `date`/`datetime` field. |
+| `calendarTimeField` | Optional. Name of a string field holding a free-form time or time-range (`"14:00-17:00"`, `"17:00-"`, `"16:30"`) used to place records on the calendar's **day (time-allocation) view**. Consulted only when the date fields are date-only — a `datetime` anchor/end pair carries its own clock and takes precedence. Requires `calendarField`. See "Calendar view" below. |
 | `kanbanField` | Optional. Name of an `enum` field that groups records into columns on the **Kanban board** (one column per declared value). When unset, the Kanban toggle still appears if the schema has any `enum` field — the first one is used, switchable in-view. Set this to pin a specific group field. Must name a real `enum` field. See "Kanban view" below. |
 
 ### Field types
 
 `string` · `text` (multi-line) · `email` · `number` · `date` (`YYYY-MM-DD`) ·
-`boolean` · `markdown` · `money` · `enum` · `ref` · `embed` · `table` ·
-`derived` · `image` · `toggle`
+`datetime` (`YYYY-MM-DDTHH:MM`) · `boolean` · `markdown` · `money` · `enum` ·
+`ref` · `embed` · `table` · `derived` · `image` · `toggle`
 
 Every field spec needs a `type` and a `label`. Extra keys by type:
 
+- **`datetime`** — no extra keys. Stored as a `YYYY-MM-DDTHH:MM` string and
+  edited with a native date+time picker. Use it (as `calendarField` /
+  `calendarEndField`) when an event has a real start/end clock — the calendar's
+  day view then draws each record as a proportional time block. For the common
+  "date column + separate time column" shape, keep `date` and point
+  `calendarTimeField` at the time string instead.
 - **`enum`** — `values: ["draft", "sent", "paid"]` (non-empty strings). Renders
   a `<select>`; stored as a plain string.
 - **`money`** — `currency: "USD"` (ISO 4217, defaults to USD). Stored as a plain
@@ -446,11 +453,13 @@ intentionally out of scope for collections.
 
 ### Calendar view
 
-Any collection that has at least one `date` field gains a **table ↔ calendar**
-toggle in its header — **zero config**. The calendar is a month grid where each
-record lands on the day cell matching its date; clicking a record opens the same
-detail/edit panel the table uses, and clicking an empty cell starts a new record
-with that day prefilled.
+Any collection that has at least one `date` (or `datetime`) field gains a
+**table ↔ calendar** toggle in its header — **zero config**. The calendar is a
+month grid where each record lands on the day cell matching its date. Clicking a
+record **chip** opens the same detail/edit panel the table uses; clicking
+anywhere else in a day cell opens the **day (time-allocation) view** — a popup
+vertical timeline of that day (see below), whose **+** button starts a new record
+prefilled to that day.
 
 ```json
 {
@@ -478,8 +487,6 @@ Notes:
   switch in-view when there are several); `calendarEndField` makes a record span
   multiple days (`calendarField` → `calendarEndField`, inclusive).
 - `displayField` sets the chip label (falls back to the primary key).
-- **Day granularity only** — collections store `date` (no time-of-day), so the
-  calendar is a month grid, not a day/week time-grid.
 - Records whose anchor date is missing or unparseable are listed in a small
   "No date" tray under the grid — never silently dropped.
 - The calendar is purely a **rendering** of the records: it adds no storage and
@@ -488,6 +495,46 @@ Notes:
 - This is the collection-native calendar — the way to give the user a
   calendar of dated records. (The old standalone Calendar view +
   `manageCalendar` tool were removed; `calendarField` is its replacement.)
+
+#### Day view (time allocation)
+
+Clicking a day's number badge opens a popup vertical timeline (a 24-hour grid)
+showing how that day's records are allocated across the clock. Records need a
+**time of day** to draw as time blocks; supply it one of two ways:
+
+- A `datetime` `calendarField` (and optionally `calendarEndField`) — the clock
+  comes from the field value itself (`2026-06-11T14:00`).
+- A `date` `calendarField` **plus** `calendarTimeField` naming a string field
+  with a free-form time or range. Recognised shapes:
+
+| Time value | Day-view rendering |
+|---|---|
+| `"14:00-17:00"` (a range) | a proportional **time block** from 14:00 to 17:00 |
+| `"17:00-"` or `"16:30"` (start only) | a **single line** at that time (no known end) |
+| `"終日"`, blank, or unparseable | a chip in the **all-day strip** at the bottom |
+
+Separators `-`, `–`, `—`, `~`, `〜`, `～` are all accepted. Overlapping blocks
+split into side-by-side lanes; a multi-day `datetime` span is clamped to each
+day with ▲/▼ arrows marking where it continues. Example (`date` + `time`
+column):
+
+```json
+{
+  "title": "Engagements",
+  "icon": "event",
+  "dataPath": "data/engagements/items",
+  "primaryKey": "id",
+  "fields": {
+    "id":    { "type": "string", "label": "ID", "primary": true, "required": true },
+    "title": { "type": "string", "label": "Title", "required": true },
+    "date":  { "type": "date",   "label": "Date", "required": true },
+    "time":  { "type": "string", "label": "Time" }
+  },
+  "displayField": "title",
+  "calendarField": "date",
+  "calendarTimeField": "time"
+}
+```
 
 ### Kanban view
 
@@ -580,8 +627,9 @@ single source of truth and the "done" checkbox is a `toggle` field projecting it
    `values`, `table` has `of`, `derived` has `formula`, action ids unique,
    `dataPath` under the workspace, `triggerField` names a real `date` field and
    has the completion pair, `spawn` has `triggerField` and a valid `every`,
-   `calendarField` / `calendarEndField` name real `date` fields (and
-   `calendarEndField` requires `calendarField`), `kanbanField` names a real
+   `calendarField` / `calendarEndField` name real `date`/`datetime` fields (and
+   `calendarEndField` requires `calendarField`), `calendarTimeField` names a real
+   field and requires `calendarField`, `kanbanField` names a real
    `enum` field, any `toggle` field names a real `enum` `field` with its
    `onValue` / `offValue` among that enum's `values`, and `notifyWhen` (if set)
    requires `completionField` and names a real field.

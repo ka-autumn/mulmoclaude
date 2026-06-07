@@ -7,7 +7,21 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { parseIsoDate, ymdKey, compareYmd, buildMonthGrid, recordSpan, spanCoversDay, bucketRecords } from "../../../src/utils/collections/calendarGrid.js";
+import {
+  parseIsoDate,
+  parseIsoDateTime,
+  dateOf,
+  parseTimeRange,
+  ymdKey,
+  compareYmd,
+  buildMonthGrid,
+  recordSpan,
+  spanCoversDay,
+  bucketRecords,
+  daySlice,
+  assignLanes,
+  MINUTES_PER_DAY,
+} from "../../../src/utils/collections/calendarGrid.js";
 
 describe("parseIsoDate", () => {
   it("parses a valid YYYY-MM-DD", () => {
@@ -37,6 +51,56 @@ describe("parseIsoDate", () => {
     assert.equal(parseIsoDate("2026/06/02"), null);
     assert.equal(parseIsoDate("2026-6-2"), null);
     assert.equal(parseIsoDate(""), null);
+  });
+});
+
+describe("parseIsoDateTime", () => {
+  it("parses date + clock into ymd and minutes-of-day", () => {
+    assert.deepEqual(parseIsoDateTime("2026-06-02T09:30"), { ymd: { year: 2026, month: 6, day: 2 }, minutes: 9 * 60 + 30 });
+  });
+
+  it("tolerates an appended :SS", () => {
+    assert.deepEqual(parseIsoDateTime("2026-06-02T09:30:00"), { ymd: { year: 2026, month: 6, day: 2 }, minutes: 570 });
+  });
+
+  it("rejects a bad clock or bad date", () => {
+    assert.equal(parseIsoDateTime("2026-06-02T24:00"), null);
+    assert.equal(parseIsoDateTime("2026-06-02T09:60"), null);
+    assert.equal(parseIsoDateTime("2026-02-30T09:00"), null);
+    assert.equal(parseIsoDateTime("2026-06-02"), null);
+  });
+});
+
+describe("dateOf", () => {
+  it("reads the civil date from both date-only and datetime values", () => {
+    assert.deepEqual(dateOf("2026-06-02"), { year: 2026, month: 6, day: 2 });
+    assert.deepEqual(dateOf("2026-06-02T18:45"), { year: 2026, month: 6, day: 2 });
+    assert.equal(dateOf("nope"), null);
+  });
+});
+
+describe("parseTimeRange", () => {
+  it("parses a start-end range into a block", () => {
+    assert.deepEqual(parseTimeRange("14:00-17:00"), { startMin: 840, endMin: 1020 });
+  });
+
+  it("treats an open end as a point in time (start only)", () => {
+    assert.deepEqual(parseTimeRange("17:00-"), { startMin: 1020, endMin: null });
+  });
+
+  it("treats a bare clock as a point in time", () => {
+    assert.deepEqual(parseTimeRange("16:30"), { startMin: 990, endMin: null });
+  });
+
+  it("tolerates wave-dash and en-dash separators", () => {
+    assert.deepEqual(parseTimeRange("9:00〜10:30"), { startMin: 540, endMin: 630 });
+    assert.deepEqual(parseTimeRange("9:00–10:30"), { startMin: 540, endMin: 630 });
+  });
+
+  it("returns null for clock-less or empty values", () => {
+    assert.equal(parseTimeRange("終日"), null);
+    assert.equal(parseTimeRange(""), null);
+    assert.equal(parseTimeRange(undefined), null);
   });
 });
 
@@ -131,6 +195,115 @@ describe("spanCoversDay", () => {
   it("excludes days outside the span", () => {
     assert.equal(spanCoversDay(span, { year: 2026, month: 6, day: 9 }), false);
     assert.equal(spanCoversDay(span, { year: 2026, month: 6, day: 13 }), false);
+  });
+});
+
+describe("recordSpan — times", () => {
+  it("reads clock from a datetime anchor/end pair", () => {
+    const span = recordSpan({ on: "2026-06-10T09:00", end: "2026-06-10T10:30" }, "on", "end");
+    assert.equal(span?.startMin, 540);
+    assert.equal(span?.endMin, 630);
+  });
+
+  it("falls back to a separate time-string field for a date-only anchor", () => {
+    const span = recordSpan({ date: "2026-06-11", time: "14:00-17:00" }, "date", undefined, "time");
+    assert.deepEqual(span?.start, { year: 2026, month: 6, day: 11 });
+    assert.equal(span?.startMin, 840);
+    assert.equal(span?.endMin, 1020);
+  });
+
+  it("leaves a clock-less record all-day (null,null)", () => {
+    const span = recordSpan({ date: "2026-06-15", time: "終日" }, "date", undefined, "time");
+    assert.equal(span?.startMin, null);
+    assert.equal(span?.endMin, null);
+  });
+
+  it("renders an open-ended time as start-only", () => {
+    const span = recordSpan({ date: "2026-06-12", time: "17:00-" }, "date", undefined, "time");
+    assert.equal(span?.startMin, 1020);
+    assert.equal(span?.endMin, null);
+  });
+});
+
+describe("daySlice", () => {
+  const day = { year: 2026, month: 6, day: 11 };
+
+  // recordSpan returns `RecordSpan | null`; the fixtures here always parse, so
+  // narrow with a throwing helper rather than a non-null assertion.
+  const mustSpan = (item: Record<string, unknown>, anchor: string, end?: string, time?: string) => {
+    const span = recordSpan(item, anchor, end, time);
+    if (!span) throw new Error("fixture span must parse");
+    return span;
+  };
+
+  it("classifies a clock-less record as all-day", () => {
+    assert.equal(daySlice(mustSpan({ date: "2026-06-11" }, "date", undefined, "time"), day)?.kind, "allDay");
+  });
+
+  it("classifies a point in time as a line", () => {
+    const slice = daySlice(mustSpan({ date: "2026-06-11", time: "16:30" }, "date", undefined, "time"), day);
+    assert.equal(slice?.kind, "line");
+    assert.equal(slice?.startMin, 990);
+  });
+
+  it("classifies a range as a block", () => {
+    const span = mustSpan({ date: "2026-06-11", time: "14:00-17:00" }, "date", undefined, "time");
+    assert.deepEqual(daySlice(span, day), { kind: "block", startMin: 840, endMin: 1020, bleedsBefore: false, bleedsAfter: false });
+  });
+
+  it("clamps a multi-day datetime span to each day with bleed flags", () => {
+    const span = mustSpan({ on: "2026-06-10T22:00", end: "2026-06-12T06:00" }, "on", "end");
+    const d10 = daySlice(span, { year: 2026, month: 6, day: 10 });
+    assert.deepEqual(d10, { kind: "block", startMin: 1320, endMin: MINUTES_PER_DAY, bleedsBefore: false, bleedsAfter: true });
+    const d11 = daySlice(span, { year: 2026, month: 6, day: 11 });
+    assert.deepEqual(d11, { kind: "block", startMin: 0, endMin: MINUTES_PER_DAY, bleedsBefore: true, bleedsAfter: true });
+    const d12 = daySlice(span, { year: 2026, month: 6, day: 12 });
+    assert.deepEqual(d12, { kind: "block", startMin: 0, endMin: 360, bleedsBefore: true, bleedsAfter: false });
+  });
+
+  it("returns null for a day the span does not cover", () => {
+    const span = mustSpan({ date: "2026-06-11", time: "14:00-17:00" }, "date", undefined, "time");
+    assert.equal(daySlice(span, { year: 2026, month: 6, day: 12 }), null);
+  });
+});
+
+describe("assignLanes", () => {
+  it("gives non-overlapping blocks a single lane each", () => {
+    const lanes = assignLanes([
+      { startMin: 540, endMin: 600 },
+      { startMin: 600, endMin: 660 },
+    ]);
+    assert.deepEqual(lanes, [
+      { lane: 0, lanes: 1 },
+      { lane: 0, lanes: 1 },
+    ]);
+  });
+
+  it("splits two overlapping blocks into two lanes", () => {
+    const lanes = assignLanes([
+      { startMin: 540, endMin: 660 },
+      { startMin: 600, endMin: 720 },
+    ]);
+    assert.deepEqual(lanes, [
+      { lane: 0, lanes: 2 },
+      { lane: 1, lanes: 2 },
+    ]);
+  });
+
+  it("reuses a freed lane after a block ends", () => {
+    // A 9-11 and B 9-10 overlap (2 lanes); C 10-11 reuses B's freed lane but
+    // still overlaps A, so the cluster stays 2 lanes wide. B sorts first (it
+    // ends earliest) so it takes lane 0; A spills to lane 1; C reuses lane 0.
+    const lanes = assignLanes([
+      { startMin: 540, endMin: 660 },
+      { startMin: 540, endMin: 600 },
+      { startMin: 600, endMin: 660 },
+    ]);
+    assert.deepEqual(lanes, [
+      { lane: 1, lanes: 2 },
+      { lane: 0, lanes: 2 },
+      { lane: 0, lanes: 2 },
+    ]);
   });
 });
 

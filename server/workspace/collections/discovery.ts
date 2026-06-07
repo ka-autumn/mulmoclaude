@@ -42,6 +42,10 @@ const refMessage = {
 // read-only detail view. It must declare a valid `to` slug (same
 // path-traversal guard as `ref`) AND a non-empty `id` naming the
 // fixed record's primary key (e.g. `me` for the singleton profile).
+// The calendar anchor/end fields accept either a date-only or a datetime
+// field (the latter carries the clock for the day view).
+const isDateLike = (type: string | undefined): boolean => type === "date" || type === "datetime";
+
 const embedRefine = (spec: { type: string; to?: string; id?: string }): boolean => {
   if (spec.type !== "embed") return true;
   if (typeof spec.to !== "string" || safeSlugName(spec.to) === null) return false;
@@ -115,7 +119,24 @@ const SubFieldSpecSchema = z
 
 const FieldSpecSchema = z
   .object({
-    type: z.enum(["string", "text", "email", "number", "date", "boolean", "markdown", "ref", "money", "enum", "table", "derived", "embed", "image", "toggle"]),
+    type: z.enum([
+      "string",
+      "text",
+      "email",
+      "number",
+      "date",
+      "datetime",
+      "boolean",
+      "markdown",
+      "ref",
+      "money",
+      "enum",
+      "table",
+      "derived",
+      "embed",
+      "image",
+      "toggle",
+    ]),
     label: z.string().min(1),
     primary: z.boolean().optional(),
     required: z.boolean().optional(),
@@ -327,6 +348,11 @@ export const CollectionSchemaZ = z
     // Multi-day span end: a second `date` field the calendar record spans
     // to. Requires `calendarField`; validated to name a real `date` field.
     calendarEndField: z.string().trim().min(1).optional(),
+    // Day (time-allocation) view time source: names a string field holding a
+    // free-form time or time-range (e.g. "14:00-17:00", "17:00-", "16:30").
+    // Consulted only when the date fields are date-only. Requires
+    // `calendarField`; validated to name a real field by a refine below.
+    calendarTimeField: z.string().trim().min(1).optional(),
     // Kanban board group: names an `enum` field whose value buckets each
     // record into a column. Validated to name a real `enum` field by a
     // refine below. Optional — the toggle auto-derives from any `enum`
@@ -442,11 +468,12 @@ export const CollectionSchemaZ = z
       "`spawn` must leave the successor in a non-matching state (e.g. `set` the status to a pending value); seeding the predicate field to a matching value via `set`/`carry` would respawn forever",
     path: ["spawn"],
   })
-  // `calendarField` must name a real `date` field — the calendar view
-  // parses its value as `YYYY-MM-DD` to place records on the month grid;
-  // any other type can't be put on a calendar.
-  .refine((schema) => schema.calendarField === undefined || schema.fields[schema.calendarField]?.type === "date", {
-    message: "schema `calendarField` must name a top-level `date` field declared in `fields`",
+  // `calendarField` must name a real `date`/`datetime` field — the calendar
+  // view parses its value to place records on the month grid (a `datetime`
+  // anchor also carries the clock for the day view); any other type can't be
+  // put on a calendar.
+  .refine((schema) => schema.calendarField === undefined || isDateLike(schema.fields[schema.calendarField]?.type), {
+    message: "schema `calendarField` must name a top-level `date` or `datetime` field declared in `fields`",
     path: ["calendarField"],
   })
   // `calendarEndField` marks the end of a multi-day span, so it only means
@@ -455,10 +482,22 @@ export const CollectionSchemaZ = z
     message: "schema `calendarEndField` requires `calendarField` (it marks the end of the span that starts at `calendarField`)",
     path: ["calendarEndField"],
   })
-  // `calendarEndField` must also name a real `date` field — same parse.
-  .refine((schema) => schema.calendarEndField === undefined || schema.fields[schema.calendarEndField]?.type === "date", {
-    message: "schema `calendarEndField` must name a top-level `date` field declared in `fields`",
+  // `calendarEndField` must also name a real `date`/`datetime` field — same parse.
+  .refine((schema) => schema.calendarEndField === undefined || isDateLike(schema.fields[schema.calendarEndField]?.type), {
+    message: "schema `calendarEndField` must name a top-level `date` or `datetime` field declared in `fields`",
     path: ["calendarEndField"],
+  })
+  // `calendarTimeField` places records on the day view, so it only means
+  // something alongside a start anchor.
+  .refine((schema) => schema.calendarTimeField === undefined || schema.calendarField !== undefined, {
+    message: "schema `calendarTimeField` requires `calendarField` (it supplies the time-of-day for the calendar's day view)",
+    path: ["calendarTimeField"],
+  })
+  // `calendarTimeField` must name a real top-level field (a free-form time
+  // string the day view parses).
+  .refine((schema) => schema.calendarTimeField === undefined || schema.fields[schema.calendarTimeField] !== undefined, {
+    message: "schema `calendarTimeField` must name a top-level field declared in `fields`",
+    path: ["calendarTimeField"],
   })
   // `kanbanField` must name a real `enum` field — the board groups records
   // into one column per declared enum value; any other type has no closed

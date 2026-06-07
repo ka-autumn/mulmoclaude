@@ -12,6 +12,7 @@ export type FieldType =
   | "email"
   | "number"
   | "date"
+  | "datetime"
   | "boolean"
   | "markdown"
   | "ref"
@@ -91,6 +92,12 @@ export interface CollectionSchema {
   /** Name of a second `date` field marking the END of a multi-day span
    *  on the calendar. Requires `calendarField`. */
   calendarEndField?: string;
+  /** Name of a string field holding a free-form time or time-range
+   *  (e.g. "14:00-17:00", "17:00-", "16:30") used to place records on the
+   *  day (time-allocation) view. Only consulted when the calendar date
+   *  fields are date-only (a `datetime` anchor/end pair carries its own
+   *  clock and takes precedence). Requires `calendarField`. */
+  calendarTimeField?: string;
   /** Name of an `enum` field grouping records into columns on the optional
    *  Kanban board. When unset, the toggle still appears if any `enum` field
    *  exists (the first one, in declaration order, is the default and is

@@ -215,7 +215,7 @@
 
           <!-- Scalar inputs -->
           <input
-            v-else-if="['string', 'email', 'number', 'date', 'ref', 'image'].includes(field.type)"
+            v-else-if="['string', 'email', 'number', 'date', 'datetime', 'ref', 'image'].includes(field.type)"
             :id="`collections-field-${key}`"
             v-model="editing.text[key]"
             :type="render.inputTypeFor(field.type)"

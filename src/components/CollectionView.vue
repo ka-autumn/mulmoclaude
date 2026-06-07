@@ -206,6 +206,7 @@
           :items="filteredItems"
           :anchor-field="calendarAnchorField"
           :end-field="calendarEndField"
+          :time-field="calendarTimeField"
           :selected="viewing ? String(viewing[collection.schema.primaryKey] ?? '') : undefined"
           :can-create="canCreate"
           @select="onCalendarSelect"
@@ -1039,11 +1040,12 @@ function initialViewMode(): CollectionViewMode {
 }
 const view = ref<CollectionViewMode>(initialViewMode());
 
-/** `date` fields in declaration order — the calendar can anchor on any. */
+/** `date` / `datetime` fields in declaration order — the calendar can anchor
+ *  on any (a `datetime` anchor also carries the clock for the day view). */
 const dateFields = computed<string[]>(() =>
   collection.value
     ? Object.entries(collection.value.schema.fields)
-        .filter(([, field]) => field.type === "date")
+        .filter(([, field]) => field.type === "date" || field.type === "datetime")
         .map(([key]) => key)
     : [],
 );
@@ -1105,6 +1107,14 @@ const calendarEndField = computed<string | undefined>(() => {
   const schema = collection.value?.schema;
   if (!schema?.calendarEndField) return undefined;
   return calendarAnchorField.value === schema.calendarField ? schema.calendarEndField : undefined;
+});
+// The time-string field (e.g. ENGAGEMENTS' "time") that places records on the
+// day view. Like the end field, it pairs with the schema's `calendarField` —
+// dropped when the in-view anchor is switched to a different date field.
+const calendarTimeField = computed<string | undefined>(() => {
+  const schema = collection.value?.schema;
+  if (!schema?.calendarTimeField) return undefined;
+  return calendarAnchorField.value === schema.calendarField ? schema.calendarTimeField : undefined;
 });
 
 function setView(next: CollectionViewMode): void {
