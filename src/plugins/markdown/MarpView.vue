@@ -16,14 +16,20 @@
       {{ t("pluginMarkdown.marpRenderFailed", { error: renderError }) }}
     </div>
     <div class="marp-frame-wrapper">
-      <iframe
-        v-if="srcDoc"
-        :srcdoc="srcDoc"
-        :style="{ height: frameHeight + 'px' }"
-        sandbox=""
-        class="marp-frame"
-        :title="t('pluginMarkdown.marpSlidesMode', { count: slideCount })"
-      ></iframe>
+      <div v-if="srcDoc" :style="{ height: frameHeight + 'px', overflow: 'hidden' }">
+        <iframe
+          :srcdoc="srcDoc"
+          :style="{
+            width: NATIVE_IFRAME_WIDTH + 'px',
+            height: nativeContentHeight + 'px',
+            transform: `scale(${slideScale})`,
+            transformOrigin: 'top left',
+          }"
+          sandbox=""
+          class="marp-frame"
+          :title="t('pluginMarkdown.marpSlidesMode', { count: slideCount })"
+        ></iframe>
+      </div>
     </div>
   </div>
 </template>
@@ -43,9 +49,12 @@ const props = defineProps<{
   baseDir?: string;
 }>();
 
-const SLIDE_ASPECT = 9 / 16;
+const NATIVE_SLIDE_WIDTH = 1280;
+const NATIVE_SLIDE_HEIGHT = 720;
 const SLIDE_GAP_PX = 16;
-const FRAME_PADDING_PX = 32;
+const BODY_PADDING_PX = 16;
+const WRAPPER_PADDING_PX = 12;
+const NATIVE_IFRAME_WIDTH = NATIVE_SLIDE_WIDTH + BODY_PADDING_PX * 2;
 const FALLBACK_WIDTH_PX = 800;
 
 const containerEl = ref<HTMLElement | null>(null);
@@ -56,11 +65,14 @@ const renderError = ref<string | null>(null);
 
 const { pdfDownloading, pdfError, downloadPdf } = usePdfDownload();
 
-const frameHeight = computed(() => {
-  if (slideCount.value === 0) return FRAME_PADDING_PX;
-  const slideHeight = containerWidth.value * SLIDE_ASPECT;
-  return Math.ceil(slideCount.value * slideHeight + Math.max(0, slideCount.value - 1) * SLIDE_GAP_PX + FRAME_PADDING_PX);
+const slideScale = computed(() => (containerWidth.value - WRAPPER_PADDING_PX * 2) / NATIVE_IFRAME_WIDTH);
+
+const nativeContentHeight = computed(() => {
+  if (slideCount.value === 0) return BODY_PADDING_PX * 2;
+  return slideCount.value * NATIVE_SLIDE_HEIGHT + Math.max(0, slideCount.value - 1) * SLIDE_GAP_PX + BODY_PADDING_PX * 2;
 });
+
+const frameHeight = computed(() => Math.ceil(nativeContentHeight.value * slideScale.value));
 
 // Hard-locked CSP: defence-in-depth on top of `sandbox=""`. Even
 // if the iframe boundary ever leaks (e.g. someone removes the empty
@@ -88,27 +100,22 @@ function buildCsp(): string {
 }
 
 function buildSrcDoc(html: string, css: string): string {
-  // Marp's default theme sets `svg[data-marpit-svg] { width:100vw;
-  // height:100vh }` so each slide tries to fill the entire viewport —
-  // right for the presenter app, wrong for a stacked-deck iframe view.
-  // Override AFTER Marp's CSS so our rule wins, and rely on the SVG's
-  // viewBox (1280×720) to keep the 16:9 aspect via `height: auto`.
+  // Rendered with inlineSVG:false so Marp emits plain <section>
+  // elements instead of SVG foreignObject wrappers. The theme CSS
+  // sets each section to 1280×720. The parent scales the iframe
+  // down with transform:scale() — no SVG scaling means no Safari bug.
   return `<!doctype html>
 <html><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="${buildCsp()}">
 <meta name="referrer" content="no-referrer">
 <style>
-html,body { margin:0; padding:16px; background:transparent; }
+html,body { margin:0; padding:${BODY_PADDING_PX}px; background:transparent; }
 ${css}
-div.marpit > svg[data-marpit-svg] {
-  width: calc(100vw - ${FRAME_PADDING_PX}px) !important;
-  height: calc((100vw - ${FRAME_PADDING_PX}px) * 9 / 16) !important;
-  overflow: hidden !important;
+div.marpit > section {
   display: block !important;
   margin: 0 auto ${SLIDE_GAP_PX}px !important;
   box-shadow: 0 2px 8px rgba(0,0,0,0.12);
   border-radius: 6px;
-  background: white;
 }
 </style></head><body>${html}</body></html>`;
 }
@@ -127,7 +134,7 @@ async function renderMarp(markdown: string): Promise<void> {
   }
   try {
     const { Marp } = await import("@marp-team/marp-core");
-    const marp = new Marp({ inlineSVG: true, html: false });
+    const marp = new Marp({ inlineSVG: false, html: false });
     // Normalise `![alt](path)` refs BEFORE marp parses them — same
     // pre-pass the regular markdown renderer uses (wiki/View.vue,
     // FilesView.vue, markdown/View.vue). Without it, refs like
@@ -195,11 +202,10 @@ async function onExportPdf(): Promise<void> {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 8px;
+  padding: 12px;
 }
 
 .marp-frame {
-  width: 100%;
   border: none;
   background: transparent;
   display: block;
