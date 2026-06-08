@@ -1612,9 +1612,14 @@ function onOpenDay(day: Ymd): void {
   openDay.value = day;
 }
 
-/** Close the day popup: drop the open day and the selection together. */
+/** Close the day popup: drop the open day, the selection, AND any in-progress
+ *  draft together. Clearing `editing` matters because the shared record modal
+ *  shows whenever `editing` is set and no day is open — so without this, an
+ *  edit/create started inside the day popup would re-appear in the centred
+ *  modal the instant the popup closed (Codex P2 on #1656). */
 function onDayClose(): void {
   openDay.value = null;
+  if (editing.value) closeEditor();
   closeView();
 }
 

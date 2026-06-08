@@ -250,6 +250,22 @@ test.describe("collection calendar view", () => {
     await expect(page.getByTestId("collections-input-on")).toHaveValue(empty);
   });
 
+  test("closing the day popup mid-create does not re-open the draft in the shared modal", async ({ page }) => {
+    await page.goto("/collections/events");
+    await page.getByTestId("collection-view-toggle-calendar").click();
+    const empty = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-20`;
+    await page.getByTestId(`collection-calendar-day-${empty}`).click();
+    await page.getByTestId("collection-day-view-create").click();
+    await expect(page.getByTestId("collections-create")).toBeVisible();
+
+    // Closing the whole day popup must discard the in-progress create — it must
+    // NOT fall through and re-appear in the centred record modal (Codex P2 #1656).
+    await page.getByTestId("collection-day-view-close").click();
+    await expect(page.getByTestId("collection-day-view")).toHaveCount(0);
+    await expect(page.getByTestId("collections-record-modal")).toHaveCount(0);
+    await expect(page.getByTestId("collections-create")).toHaveCount(0);
+  });
+
   test("calendar view hides the top Add button (create happens via the day view +)", async ({ page }) => {
     await page.goto("/collections/events");
     // Present in the table view…
