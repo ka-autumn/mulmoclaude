@@ -1179,6 +1179,8 @@ const zhMessages = {
     chat: "对话",
     refreshFeed: "刷新",
     refreshFailed: "刷新失败：{error}",
+    feedChatSeed:
+      "订阅源“{slug}”由 schema `feeds/{slug}/schema.json` 定义，其记录保存在 `{dataPath}/`（每条记录一个 `<id>.json` 文件）。请使用该 schema 和数据来响应以下请求：{message}",
     feedsTitle: "数据源订阅",
     feedsEmpty: "尚未注册任何订阅源。",
     chatTitle: "开始对话",

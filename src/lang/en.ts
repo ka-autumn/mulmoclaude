@@ -1190,6 +1190,8 @@ const enMessages = {
     chat: "Chat",
     refreshFeed: "Refresh",
     refreshFailed: "Refresh failed: {error}",
+    feedChatSeed:
+      'The "{slug}" feed is defined by the schema at `feeds/{slug}/schema.json` and its records live in `{dataPath}/` (one `<id>.json` per record). Using that schema and data, respond to this request: {message}',
     feedsTitle: "Data-source feeds",
     feedsEmpty: "No feeds registered yet.",
     chatTitle: "Start a chat",

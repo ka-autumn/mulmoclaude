@@ -1206,6 +1206,8 @@ const deMessages = {
     chat: "Chat",
     refreshFeed: "Aktualisieren",
     refreshFailed: "Aktualisierung fehlgeschlagen: {error}",
+    feedChatSeed:
+      "Der Feed {slug} ist durch das Schema `feeds/{slug}/schema.json` definiert und seine Datensätze liegen in `{dataPath}/` (eine `<id>.json`-Datei pro Datensatz). Nutze dieses Schema und diese Daten, um auf die folgende Anfrage zu antworten: {message}",
     feedsTitle: "Datenquellen-Feeds",
     feedsEmpty: "Noch keine Feeds registriert.",
     chatTitle: "Chat starten",
