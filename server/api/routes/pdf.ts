@@ -10,6 +10,7 @@ import { WORKSPACE_DIRS } from "../../workspace/paths.js";
 import { resolveWithinRoot, readBinarySafeSync } from "../../utils/files/safe.js";
 import { resolveWorkspacePath } from "../../utils/files/workspace-io.js";
 import { parseFrontmatter } from "../../utils/markdown/frontmatter.js";
+import { applyCustomMarpSize } from "../../../src/utils/markdown/marpCustomSize.js";
 import { log } from "../../system/logger/index.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { transformResolvableUrlsInHtml } from "../../../src/utils/image/htmlSrcAttrs.js";
@@ -277,7 +278,8 @@ async function renderMarpPdf(markdown: string, baseDir?: string): Promise<Buffer
   // resolve them. OS-font emoji renders inline without a fetch and
   // matches the MarpView preview's behaviour after the same change.
   const marp = new Marp({ html: false, emoji: { unicode: false, shortcode: false } });
-  const { html, css } = marp.render(markdown);
+  const sized = applyCustomMarpSize(marp, markdown);
+  const { html, css } = marp.render(sized);
   const { width: slideWidth, height: slideHeight } = extractSlideDimensions(html);
   const inlinedHtml = inlineImages(html, { sourceDir: baseDir });
   const fullHtml = `<!doctype html>

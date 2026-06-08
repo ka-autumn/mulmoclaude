@@ -34,6 +34,7 @@ import { useI18n } from "vue-i18n";
 import { usePdfDownload } from "../../composables/usePdfDownload";
 import { errorMessage } from "../../utils/errors";
 import { rewriteMarkdownImageRefs } from "../../utils/image/rewriteMarkdownImageRefs";
+import { applyCustomMarpSize } from "../../utils/markdown/marpCustomSize";
 
 const { t } = useI18n();
 
@@ -174,7 +175,8 @@ async function renderMarp(markdown: string): Promise<void> {
     // Workspace-rooted refs route through `/artifacts/images` (static
     // mount) or `/api/files/raw` (authenticated route).
     const rewritten = rewriteMarkdownImageRefs(markdown, props.baseDir ?? "");
-    const { html, css } = marp.render(rewritten);
+    const sized = applyCustomMarpSize(marp, rewritten);
+    const { html, css } = marp.render(sized);
     slideCount.value = countSlides(html);
     slideAspect.value = extractSlideAspect(html);
     srcDoc.value = buildSrcDoc(html, css);

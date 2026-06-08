@@ -47,8 +47,12 @@ const toolDefinition: ToolDefinition = {
     "- ![fit](path)           — fit-to-content inline\n" +
     "- ![w:600 h:400](path)   — explicit pixel size\n" +
     "The placeholder URL `__too_be_replaced_image_path__` still applies — the directive goes in the alt-text slot, the placeholder in the URL slot.\n\n" +
-    "Aspect: `size: 16:9` (default, 1280×720), `size: 4:3` (960×720), `size: 16:10` (1280×800), or `size: WxH` for custom (e.g. `size: 1920x1080`). Both preview and PDF auto-follow.\n" +
-    "Themes: `theme: default` | `gaia` | `uncover`.",
+    "Aspect: `size: 16:9` (default 1280×720) or `size: 4:3` (960×720) — handled natively by Marp. For other shapes MulmoClaude bridges the directive so vertical / square / custom decks work too:\n" +
+    "- `size: 9:16` → 1080×1920 portrait\n" +
+    "- `size: 16:10` → 1280×800\n" +
+    "- `size: 1:1` → 1080×1080 square\n" +
+    "- `size: WxH` → any custom pixel canvas (e.g. `size: 1920x1080`)\n" +
+    "Themes: `theme: default` | `gaia` | `uncover`. Custom sizes compose on top of whichever theme is chosen.",
   parameters: {
     type: "object",
     properties: {
