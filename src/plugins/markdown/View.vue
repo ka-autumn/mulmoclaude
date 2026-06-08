@@ -22,6 +22,19 @@
           <MarpView :markdown="markdownContent" :pdf-filename="marpPdfFilename" :base-dir="marpBaseDir" />
         </div>
       </div>
+      <div class="bottom-bar-wrapper">
+        <details ref="sourceDetails" class="markdown-source" @toggle="onDetailsToggle">
+          <summary>{{ t("pluginMarkdown.editSource") }}</summary>
+          <textarea v-model="editableMarkdown" class="markdown-editor" spellcheck="false"></textarea>
+          <div class="editor-actions">
+            <button class="apply-btn" :disabled="!hasChanges || saving" @click="applyMarkdown">
+              {{ saving ? t("pluginMarkdown.saving") : t("pluginMarkdown.applyChanges") }}
+            </button>
+            <button class="cancel-btn" @click="cancelEdit">{{ t("pluginMarkdown.cancel") }}</button>
+          </div>
+          <p v-if="saveError" class="save-error" role="alert">{{ t("pluginMarkdown.saveError", { error: saveError }) }}</p>
+        </details>
+      </div>
     </template>
     <template v-else>
       <div class="flex items-center justify-end gap-2 px-3 py-2 border-b border-gray-100 shrink-0">
