@@ -52,6 +52,8 @@ const props = defineProps<{
 
 const DEFAULT_SLIDE_WIDTH = 1280;
 const DEFAULT_SLIDE_HEIGHT = 720;
+const MIN_SLIDE_DIM = 200;
+const MAX_SLIDE_DIM = 3840;
 const SLIDE_GAP_PX = 16;
 const BODY_PADDING_PX = 16;
 const WRAPPER_PADDING_PX = 12;
@@ -133,9 +135,19 @@ function countSlides(html: string): number {
 
 const SECTION_SIZE_RE = /div\.marpit\s*>\s*section\s*\{[^}]*?width:\s*(\d+)px[^}]*?height:\s*(\d+)px/;
 
+function clampDim(value: number, fallback: number): number {
+  if (!Number.isFinite(value) || value < MIN_SLIDE_DIM) return fallback;
+  return Math.min(value, MAX_SLIDE_DIM);
+}
+
 function extractSlideDimensions(css: string): { width: number; height: number } {
   const match = css.match(SECTION_SIZE_RE);
-  if (match) return { width: Number(match[1]), height: Number(match[2]) };
+  if (match) {
+    return {
+      width: clampDim(Number(match[1]), DEFAULT_SLIDE_WIDTH),
+      height: clampDim(Number(match[2]), DEFAULT_SLIDE_HEIGHT),
+    };
+  }
   return { width: DEFAULT_SLIDE_WIDTH, height: DEFAULT_SLIDE_HEIGHT };
 }
 
@@ -154,7 +166,10 @@ async function prepareMarp(markdown: string): Promise<{ html: string; css: strin
   return marp.render(sized);
 }
 
+let renderToken = 0;
+
 async function renderMarp(markdown: string): Promise<void> {
+  const token = ++renderToken;
   renderError.value = null;
   if (!markdown) {
     resetRenderState();
@@ -162,12 +177,16 @@ async function renderMarp(markdown: string): Promise<void> {
   }
   try {
     const { html, css } = await prepareMarp(markdown);
+    // eslint-disable-next-line security/detect-possible-timing-attacks -- monotonic render counter, not a secret
+    if (token !== renderToken) return;
     slideCount.value = countSlides(html);
     const dims = extractSlideDimensions(css);
     slideWidth.value = dims.width;
     slideHeight.value = dims.height;
     srcDoc.value = buildSrcDoc(html, css);
   } catch (err) {
+    // eslint-disable-next-line security/detect-possible-timing-attacks -- monotonic render counter, not a secret
+    if (token !== renderToken) return;
     renderError.value = errorMessage(err);
     resetRenderState();
   }
