@@ -48,6 +48,7 @@ const jaMessages = {
     dropHint: "ファイルをドロップして添付",
     tooManyFiles: "一度に添付できるのは {max} 件までです。",
     removeAttachment: "{name} を削除",
+    attachmentFallbackName: "添付ファイル",
   },
   sessionHistoryPanel: {
     filters: {

@@ -46,6 +46,7 @@ const esMessages = {
     dropHint: "Suelta el archivo para adjuntar",
     tooManyFiles: "Puedes adjuntar hasta {max} archivos a la vez.",
     removeAttachment: "Quitar {name}",
+    attachmentFallbackName: "archivo adjunto",
   },
   sessionHistoryPanel: {
     filters: {

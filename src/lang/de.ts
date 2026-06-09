@@ -41,6 +41,7 @@ const deMessages = {
     dropHint: "Datei zum Anhängen ablegen",
     tooManyFiles: "Sie können maximal {max} Dateien gleichzeitig anhängen.",
     removeAttachment: "{name} entfernen",
+    attachmentFallbackName: "Anhang",
   },
   sessionHistoryPanel: {
     filters: {

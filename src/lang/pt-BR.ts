@@ -41,6 +41,7 @@ const ptBRMessages = {
     dropHint: "Solte o arquivo para anexar",
     tooManyFiles: "Você pode anexar no máximo {max} arquivos por vez.",
     removeAttachment: "Remover {name}",
+    attachmentFallbackName: "anexo",
   },
   sessionHistoryPanel: {
     filters: {

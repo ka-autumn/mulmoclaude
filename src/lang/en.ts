@@ -63,6 +63,7 @@ const enMessages = {
     dropHint: "Drop file to attach",
     tooManyFiles: "You can attach up to {max} files at once.",
     removeAttachment: "Remove {name}",
+    attachmentFallbackName: "attachment",
   },
   sessionHistoryPanel: {
     filters: {

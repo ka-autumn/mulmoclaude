@@ -41,6 +41,7 @@ const frMessages = {
     dropHint: "Déposez le fichier pour joindre",
     tooManyFiles: "Vous pouvez joindre jusqu'à {max} fichiers à la fois.",
     removeAttachment: "Retirer {name}",
+    attachmentFallbackName: "pièce jointe",
   },
   sessionHistoryPanel: {
     filters: {

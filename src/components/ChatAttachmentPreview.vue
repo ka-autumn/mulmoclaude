@@ -30,7 +30,7 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ remove: [] }>();
 
-const removeLabel = computed(() => t("chatInput.removeAttachment", { name: props.filename || "attachment" }));
+const removeLabel = computed(() => t("chatInput.removeAttachment", { name: props.filename || t("chatInput.attachmentFallbackName") }));
 
 const isImage = computed(() => props.mime.startsWith("image/"));
 
