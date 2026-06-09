@@ -49,9 +49,10 @@
               <button
                 class="h-8 px-2.5 flex items-center gap-1 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm"
                 :title="t('pluginMarkdown.marpSplitExit')"
+                :aria-label="t('pluginMarkdown.marpSplitExit')"
                 @click="marpSplitMode = false"
               >
-                <span class="material-icons text-base">close_fullscreen</span>
+                <span class="material-icons text-base" aria-hidden="true">close_fullscreen</span>
               </button>
             </template>
           </MarpView>
@@ -66,9 +67,10 @@
                 <button
                   class="h-8 px-2.5 flex items-center gap-1 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm"
                   :title="t('pluginMarkdown.marpSplitEnter')"
+                  :aria-label="t('pluginMarkdown.marpSplitEnter')"
                   @click="enterMarpSplitMode"
                 >
-                  <span class="material-icons text-base">open_in_full</span>
+                  <span class="material-icons text-base" aria-hidden="true">open_in_full</span>
                 </button>
               </template>
             </MarpView>
@@ -299,11 +301,14 @@ const marpMode = computed(() => isMarpDocument(mdDoc.value.meta));
 const marpPreviewMarkdown = computed(() => (marpSplitMode.value ? editableMarkdown.value : markdownContent.value));
 
 function enterMarpSplitMode(): void {
-  // Sync the editor buffer with disk truth before entering, in case
-  // a remote write landed between mounts. `editableMarkdown` already
-  // tracks `markdownContent` via `fetchMarkdownContent`, but a stale
-  // unsaved diff from a prior split session would otherwise leak in.
-  editableMarkdown.value = markdownContent.value;
+  // Preserve any existing unsaved draft. The close (`close_fullscreen`)
+  // button is labelled as "hide editor", not "discard" — silently
+  // overwriting `editableMarkdown` with `markdownContent` on re-entry
+  // would drop the user's in-flight edits without warning (Codex
+  // review on PR #1658). `fetchMarkdownContent` already syncs the
+  // buffer on fresh loads, and the remote-write watcher closes split
+  // mode + reloads when disk diverges. Explicit discard stays on the
+  // Cancel button.
   saveError.value = null;
   marpSplitMode.value = true;
 }
