@@ -580,6 +580,12 @@ function onMarkdownClick(event: MouseEvent): void {
 watch(
   () => props.selectedResult.data?.markdown,
   () => {
+    // Reset split mode so navigating from one Marp doc to another
+    // doesn't carry the editor pane across (split mode is a
+    // per-document opt-in; "状態の永続化: なし"). The bottom-bar
+    // <details> is already closed by `fetchMarkdownContent` via
+    // editableMarkdown resync (Codex review on PR #1658).
+    marpSplitMode.value = false;
     fetchMarkdownContent();
   },
 );
