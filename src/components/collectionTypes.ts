@@ -21,6 +21,7 @@ export type FieldType =
   | "table"
   | "derived"
   | "image"
+  | "file"
   | "embed"
   | "toggle";
 

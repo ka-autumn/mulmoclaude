@@ -256,7 +256,7 @@
 
             <!-- Scalar inputs -->
             <input
-              v-else-if="['string', 'email', 'number', 'date', 'datetime', 'ref', 'image'].includes(field.type)"
+              v-else-if="['string', 'email', 'number', 'date', 'datetime', 'ref', 'image', 'file'].includes(field.type)"
               :id="`collections-field-${key}`"
               v-model="editing.text[key]"
               :type="render.inputTypeFor(field.type)"
@@ -389,13 +389,33 @@
 
             <!-- URL string → external link (new tab). -->
             <a
-              v-else-if="render.isExternalUrl(detailRecord[key])"
+              v-else-if="field.type !== 'file' && render.isExternalUrl(detailRecord[key])"
               :href="String(detailRecord[key])"
               target="_blank"
               rel="noopener noreferrer"
               class="text-blue-600 hover:text-blue-800 font-semibold hover:underline break-all"
               :data-testid="`collections-detail-url-${key}`"
               >{{ String(detailRecord[key]) }}</a
+            >
+
+            <!-- File: served HTML/SVG artifact → open the rendered app in a new tab. -->
+            <a
+              v-else-if="field.type === 'file' && render.artifactUrl(detailRecord[key])"
+              :href="render.artifactUrl(detailRecord[key]) ?? undefined"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="text-blue-600 hover:text-blue-800 font-semibold hover:underline break-all"
+              :data-testid="`collections-detail-file-${key}`"
+              >{{ String(detailRecord[key]) }}</a
+            >
+
+            <!-- File: any other workspace path → open in File Explorer. -->
+            <router-link
+              v-else-if="field.type === 'file' && render.fileRoutePath(detailRecord[key])"
+              :to="render.fileRoutePath(detailRecord[key]) ?? ''"
+              class="text-blue-600 hover:text-blue-800 font-semibold hover:underline break-all"
+              :data-testid="`collections-detail-file-${key}`"
+              >{{ String(detailRecord[key]) }}</router-link
             >
 
             <!-- Fallback text styling -->

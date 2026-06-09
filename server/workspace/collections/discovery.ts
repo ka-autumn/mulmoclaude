@@ -139,6 +139,7 @@ const FieldSpecSchema = z
       "derived",
       "embed",
       "image",
+      "file",
       "toggle",
     ]),
     label: z.string().min(1),

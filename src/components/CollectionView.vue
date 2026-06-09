@@ -478,7 +478,7 @@
                     <!-- URL string → external link (new tab). `@click.stop` so
                      clicking the link doesn't also open the row's detail. -->
                     <a
-                      v-else-if="isExternalUrl(item[key])"
+                      v-else-if="field.type !== 'file' && isExternalUrl(item[key])"
                       :href="String(item[key])"
                       target="_blank"
                       rel="noopener noreferrer"
@@ -486,6 +486,30 @@
                       :data-testid="`collections-url-link-${key}-${item[collection.schema.primaryKey]}`"
                       @click.stop
                       >{{ String(item[key]) }}</a
+                    >
+
+                    <!-- File: served HTML/SVG artifact → open the rendered
+                         app in a new tab. `@click.stop` keeps the row's
+                         detail panel from also opening. -->
+                    <a
+                      v-else-if="field.type === 'file' && artifactUrl(item[key])"
+                      :href="artifactUrl(item[key]) ?? undefined"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="block truncate text-blue-600 hover:text-blue-800 hover:underline font-semibold"
+                      :data-testid="`collections-file-link-${key}-${item[collection.schema.primaryKey]}`"
+                      @click.stop
+                      >{{ String(item[key]) }}</a
+                    >
+
+                    <!-- File: any other workspace path → open in File Explorer. -->
+                    <router-link
+                      v-else-if="field.type === 'file' && fileRoutePath(item[key])"
+                      :to="fileRoutePath(item[key]) ?? ''"
+                      class="block truncate text-blue-600 hover:text-blue-800 hover:underline font-semibold"
+                      :data-testid="`collections-file-link-${key}-${item[collection.schema.primaryKey]}`"
+                      @click.stop
+                      >{{ String(item[key]) }}</router-link
                     >
 
                     <span v-else class="block truncate text-slate-600">{{ formatCell(item[key], field.type) }}</span>
@@ -744,7 +768,18 @@ const chatInputEl = ref<HTMLTextAreaElement | null>(null);
 // helpers the list table renders with; pass the whole object to the
 // panel as its `render` prop.
 const render = useCollectionRendering(collection, locale);
-const { refRecordCache, refDisplay, formatMoney, resolveCurrency, derivedDisplay, evaluateDerivedAgainstItem, formatCell, isExternalUrl } = render;
+const {
+  refRecordCache,
+  refDisplay,
+  formatMoney,
+  resolveCurrency,
+  derivedDisplay,
+  evaluateDerivedAgainstItem,
+  formatCell,
+  isExternalUrl,
+  artifactUrl,
+  fileRoutePath,
+} = render;
 
 const searchQuery = ref("");
 

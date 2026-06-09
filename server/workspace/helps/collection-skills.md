@@ -119,7 +119,7 @@ skipped, never crashes the host):
 
 `string` · `text` (multi-line) · `email` · `number` · `date` (`YYYY-MM-DD`) ·
 `datetime` (`YYYY-MM-DDTHH:MM`) · `boolean` · `markdown` · `money` · `enum` ·
-`ref` · `embed` · `table` · `derived` · `image` · `toggle`
+`ref` · `embed` · `table` · `derived` · `image` · `file` · `toggle`
 
 Every field spec needs a `type` and a `label`. Extra keys by type:
 
@@ -158,6 +158,15 @@ Every field spec needs a `type` and a `label`. Extra keys by type:
   collection). No extra keys. Great for photos like a business card: read the
   details off the attached image and write its path into the image field.
   Write the bare workspace-relative path — never an `/api/files/raw?...` URL.
+- **`file`** — stores a **workspace-relative file path** as a plain string (e.g.
+  `artifacts/html/the-solar-system-1777158558023.html`). Rendered as a
+  **clickable link** in both the list table and the detail view (unlike `image`,
+  which is detail-only — a link is cheap per-row). Clicking an HTML or SVG
+  artifact opens its **rendered** form in a new browser tab (the live app /
+  drawing); any other path opens in the **File Explorer**. No extra keys. Ideal
+  for a "my apps" collection where each record points at a generated HTML app —
+  the user launches it straight from the row. Write the bare workspace-relative
+  path — never an `/artifacts/...` or `/api/files/raw?...` URL.
 - **`toggle`** — `field: "<enum-field>"`, `onValue`, `offValue`. A checkbox that
   is a pure **projection** of an `enum` field — it **stores nothing** of its own
   (like `derived`/`embed`). Checked when the projected enum equals `onValue`;

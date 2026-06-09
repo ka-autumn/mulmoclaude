@@ -33,6 +33,12 @@ export type CollectionFieldType =
   // a per-row fetch is too expensive at scale). Stored and edited as a
   // plain string.
   | "image"
+  // Holds a workspace-relative file path as a plain string (e.g. an
+  // `artifacts/html/<name>.html` app). Rendered as a clickable link in
+  // both the list table and the detail view: HTML / SVG artifacts open
+  // their rendered form in a new tab; any other path opens in the File
+  // Explorer. Stored and edited as a plain string, like `image`.
+  | "file"
   // A checkbox that is a pure PROJECTION of an `enum` field — it stores
   // nothing of its own. Checked when the enum equals `onValue`; toggling
   // writes `onValue` / `offValue` back to that enum field. Lets a "done"
