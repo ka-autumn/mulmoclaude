@@ -91,6 +91,18 @@ describe("sanitizeMarpThemeCss", () => {
     assert.equal(sanitizeMarpThemeCss(`section { background-image: url("//ev.example/track.png"); }`).ok, false);
   });
 
+  it("rejects external refs padded with 9+ whitespace chars (bounded-regex bypass guard)", () => {
+    // The first cut bounded `\s{0,8}` so 9 spaces would slip past.
+    // Now the sanitizer strips all whitespace before matching.
+    const tenSpaces = " ".repeat(10);
+    const fiftyTabs = "\t".repeat(50);
+    const manyNewlines = "\n".repeat(100);
+    assert.equal(sanitizeMarpThemeCss(`url${tenSpaces}("http://attacker.example/x.css")`).ok, false);
+    assert.equal(sanitizeMarpThemeCss(`url(${fiftyTabs}//attacker.example/x.css)`).ok, false);
+    assert.equal(sanitizeMarpThemeCss(`@import${manyNewlines}"http://attacker.example/x.css";`).ok, false);
+    assert.equal(sanitizeMarpThemeCss(`@import url${tenSpaces}(${manyNewlines}//attacker.example/x.css)`).ok, false);
+  });
+
   it("does not confuse `//` inside a CSS comment for a protocol", () => {
     // `// ...` is not CSS comment syntax (block comments use `/* */`),
     // but the test guards against an over-eager match. A real

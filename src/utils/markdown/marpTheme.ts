@@ -85,17 +85,24 @@ export interface SanitizeResult {
 // it, but the PDF route runs in puppeteer without that CSP, so
 // `@import url(//attacker/...)` would happily fetch (CodeRabbit +
 // Codex review on #1653).
-// Bounded whitespace (`\s{0,8}`) instead of `\s*` so the regex
-// engine can't enter pathological backtracking on adversarial input
-// (sonarjs/slow-regex). Two separate patterns instead of one
-// alternation so each is a straight-line match.
-const EXTERNAL_URL_FN_RE = /url\s{0,8}\(\s{0,8}["']?\s{0,8}(?:https?:|\/\/)/i;
-const EXTERNAL_IMPORT_STR_RE = /@import\s{1,8}["']\s{0,8}(?:https?:|\/\/)/i;
+// Strip every run of whitespace before matching so adversarial
+// padding (`url  (   "  http...`) can't pad the gap to evade
+// detection. Marp doesn't care about whitespace inside `url()` /
+// `@import` either, so a theme that hides intent under 1 000 spaces
+// renders the same as one without — we'd lose nothing by ignoring
+// the spaces. The patterns below run against the stripped string,
+// so they contain no `\s` quantifiers and can't backtrack on any
+// input (linear time, ReDoS-safe). Codex flagged the previous
+// bounded-`\s{0,8}` form as bypassable with 9+ spaces on PR #1653.
+const STRIPPED_URL_EXTERNAL_RE = /url\(["']?(?:https?:|\/\/)/i;
+const STRIPPED_IMPORT_EXTERNAL_RE = /@import["'](?:https?:|\/\/)/i;
+const WHITESPACE_RE = /\s+/g;
 
 /** Reject CSS that would pull external resources at render time.
  *  Allows `data:` URIs (inline fonts) and same-origin / relative refs. */
 export function sanitizeMarpThemeCss(css: string): SanitizeResult {
-  if (EXTERNAL_URL_FN_RE.test(css) || EXTERNAL_IMPORT_STR_RE.test(css)) {
+  const compact = css.replace(WHITESPACE_RE, "");
+  if (STRIPPED_URL_EXTERNAL_RE.test(compact) || STRIPPED_IMPORT_EXTERNAL_RE.test(compact)) {
     return { ok: false, reason: "external url() / @import is not allowed" };
   }
   return { ok: true };
