@@ -55,6 +55,12 @@ describe("parseConnectors", () => {
     assert.equal(result.filter((entry) => !entry.connected).length, 1);
   });
 
+  it("recognises heavy check mark (U+2714) as connected", () => {
+    const stdout = "claude.ai Slack: https://mcp.slack.com/mcp - ✔ Connected";
+    const result = parseConnectors(stdout);
+    assert.deepEqual(result, [{ name: "Slack", connected: true }]);
+  });
+
   it("handles trailing newlines", () => {
     const stdout = "claude.ai Gmail: https://gmail.example.com - ✓ Connected\n\n";
     const result = parseConnectors(stdout);

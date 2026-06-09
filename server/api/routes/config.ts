@@ -311,7 +311,7 @@ export interface ConnectorEntry {
 
 const MCP_LIST_TIMEOUT_MS = 60 * ONE_SECOND_MS;
 const CLAUDE_AI_PREFIX = "claude.ai ";
-const CONNECTED_MARKER = "✓ Connected";
+const CONNECTED_PATTERN = /[✓✔] Connected/;
 
 export function parseConnectors(stdout: string): ConnectorEntry[] {
   return stdout
@@ -319,7 +319,7 @@ export function parseConnectors(stdout: string): ConnectorEntry[] {
     .filter((line) => line.startsWith(CLAUDE_AI_PREFIX))
     .map((line) => ({
       name: line.slice(CLAUDE_AI_PREFIX.length, line.indexOf(":")),
-      connected: line.includes(CONNECTED_MARKER),
+      connected: CONNECTED_PATTERN.test(line),
     }));
 }
 
