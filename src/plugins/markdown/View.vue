@@ -14,56 +14,37 @@
         {{ t("pluginMarkdown.refreshFailed", { error: loadError }) }}
       </div>
       <!-- Split mode: live editor on the left, MarpView on the right
-           driven by the unsaved buffer. Toggle lives in the MarpView
-           toolbar via slot. Apply/Cancel sit above the textarea so
-           the action surface is co-located with the input.
-           IMPORTANT: layout-critical sizing uses inline styles instead
-           of Tailwind utility classes because this plugin renders
-           under `.stack-natural` (`presentDocument` is in
-           STACK_NATURAL_TOOLS — see `src/components/StackView.vue`).
-           That wrapper neutralises `.h-full`, `.overflow-hidden`,
-           and `.flex-col > .flex-1` via `:deep(...) { ... !important }`
-           so the deck flows at natural height in stack view. The
-           split editor needs a **bounded** height, so we set one
-           explicitly with `style="height: min(80vh, 720px)"` and use
-           inline `flex` shorthands that aren't matched by the class-
-           targeted override rules. -->
-      <div v-if="marpSplitMode" style="height: min(80vh, 720px); display: flex; overflow: hidden">
-        <div style="display: flex; flex-direction: column; flex: 1 1 50%; min-width: 0; min-height: 0; border-right: 1px solid #e0e0e0">
-          <div class="flex items-center gap-2 px-3 py-2 border-b border-gray-100 shrink-0">
-            <span class="text-xs text-gray-500 mr-auto">{{ t("pluginMarkdown.marpSplitEditorLabel") }}</span>
-            <button class="apply-btn" :disabled="!hasChanges || saving" @click="applyMarkdown">
-              {{ saving ? t("pluginMarkdown.saving") : t("pluginMarkdown.applyChanges") }}
-            </button>
-            <button class="cancel-btn" @click="cancelMarpSplitEdit">{{ t("pluginMarkdown.cancel") }}</button>
-          </div>
+           driven by the unsaved buffer. Layout / inline-style
+           rationale lives in `MarpSplitEditor.vue` (the shared
+           50/50 split component). Toggles, Apply / Cancel, error
+           banner are supplied here via slots. -->
+      <MarpSplitEditor
+        v-if="marpSplitMode"
+        v-model="editableMarkdown"
+        :pdf-filename="marpPdfFilename"
+        :base-dir="marpBaseDir"
+        :editor-label="t('pluginMarkdown.marpSplitEditorLabel')"
+      >
+        <template #actions>
+          <button class="apply-btn" :disabled="!hasChanges || saving" @click="applyMarkdown">
+            {{ saving ? t("pluginMarkdown.saving") : t("pluginMarkdown.applyChanges") }}
+          </button>
+          <button class="cancel-btn" @click="cancelMarpSplitEdit">{{ t("pluginMarkdown.cancel") }}</button>
+        </template>
+        <template #error>
           <p v-if="saveError" class="save-error mx-2 mt-1" role="alert">{{ t("pluginMarkdown.saveError", { error: saveError }) }}</p>
-          <textarea
-            v-model="editableMarkdown"
-            class="marp-split-editor"
-            style="flex: 1 1 0; min-height: 0"
-            spellcheck="false"
-            :aria-label="t('pluginMarkdown.marpSplitEditorLabel')"
-          ></textarea>
-        </div>
-        <!-- Right pane: scroll container for the deck. No vertical
-             centering — the editor view starts slides at the top so
-             the source / preview baselines line up. -->
-        <div style="flex: 1 1 50%; min-width: 0; min-height: 0; overflow-y: auto">
-          <MarpView :markdown="marpPreviewMarkdown" :pdf-filename="marpPdfFilename" :base-dir="marpBaseDir">
-            <template #toolbar>
-              <button
-                class="h-8 px-2.5 flex items-center gap-1 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm"
-                :title="t('pluginMarkdown.marpSplitExit')"
-                :aria-label="t('pluginMarkdown.marpSplitExit')"
-                @click="marpSplitMode = false"
-              >
-                <span class="material-icons text-base" aria-hidden="true">close_fullscreen</span>
-              </button>
-            </template>
-          </MarpView>
-        </div>
-      </div>
+        </template>
+        <template #preview-toolbar>
+          <button
+            class="h-8 px-2.5 flex items-center gap-1 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm"
+            :title="t('pluginMarkdown.marpSplitExit')"
+            :aria-label="t('pluginMarkdown.marpSplitExit')"
+            @click="marpSplitMode = false"
+          >
+            <span class="material-icons text-base" aria-hidden="true">close_fullscreen</span>
+          </button>
+        </template>
+      </MarpSplitEditor>
       <!-- Preview-only mode (default): single MarpView + bottom <details>. -->
       <template v-else>
         <div class="flex-1 min-h-0 overflow-y-auto flex flex-col">
@@ -183,6 +164,7 @@ import { useAppApi } from "../../composables/useAppApi";
 import { useFileChange } from "../../composables/useFileChange";
 import { isMarpDocument } from "../../utils/markdown/marpDetect";
 import MarpView from "./MarpView.vue";
+import MarpSplitEditor from "./MarpSplitEditor.vue";
 
 const { t } = useI18n();
 
@@ -321,12 +303,6 @@ watch(fileVersion, (current, previous) => {
 const mdDoc = useMarkdownDoc(markdownContent);
 
 const marpMode = computed(() => isMarpDocument(mdDoc.value.meta));
-
-// Markdown handed to the MarpView preview. While split mode is on,
-// the unsaved `editableMarkdown` buffer drives the preview so the
-// user sees their edits live; otherwise we show the persisted
-// `markdownContent` (= disk truth).
-const marpPreviewMarkdown = computed(() => (marpSplitMode.value ? editableMarkdown.value : markdownContent.value));
 
 function enterMarpSplitMode(): void {
   // Preserve any existing unsaved draft. The close (`close_fullscreen`)
@@ -772,27 +748,6 @@ watch(
   outline: none;
   border-color: #4caf50;
   box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.1);
-}
-
-/* Split-mode textarea: fills the left pane vertically instead of
-   the 40vh cap the bottom-bar editor uses. No rounded border /
-   margin — it sits inside a framed pane. */
-.marp-split-editor {
-  width: 100%;
-  padding: 1rem;
-  background: #ffffff;
-  border: none;
-  border-radius: 0;
-  color: #333;
-  font-family: "Courier New", monospace;
-  font-size: 0.9rem;
-  resize: none;
-  line-height: 1.5;
-  min-height: 0;
-}
-
-.marp-split-editor:focus {
-  outline: none;
 }
 
 .apply-btn {

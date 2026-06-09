@@ -17,44 +17,35 @@
              because marp-core consumes its own directives (theme,
              paginate, size, …) from the YAML header. -->
         <template v-if="isMarkdown && !mdRawMode && marpMode">
-          <!-- Edit mode: split view — left textarea / right MarpView,
-               with the draft buffer feeding both. Inline styles mirror
-               the markdown plugin's split mode (#1647) so the textarea
-               can actually fill the column even when the plugin renders
-               inside a layout wrapper that quietly neutralises Tailwind
-               sizing utilities. -->
-          <div v-if="marpEditing" style="height: min(80vh, 720px); display: flex; overflow: hidden">
-            <div style="display: flex; flex-direction: column; flex: 1 1 50%; min-width: 0; min-height: 0; border-right: 1px solid #e0e0e0">
-              <div class="flex items-center gap-2 px-3 py-2 border-b border-gray-100 shrink-0">
-                <span class="text-xs text-gray-500 mr-auto">{{ t("fileContentRenderer.marpEditorLabel") }}</span>
-                <button
-                  class="h-8 px-2.5 flex items-center gap-1 text-sm rounded border border-gray-300 text-gray-600 hover:bg-gray-50"
-                  data-testid="files-marp-cancel-btn"
-                  @click="cancelMarpEdit"
-                >
-                  {{ t("common.cancel") }}
-                </button>
-                <button
-                  class="h-8 px-2.5 flex items-center gap-1 text-sm rounded bg-green-600 hover:bg-green-700 text-white"
-                  data-testid="files-marp-save-btn"
-                  @click="saveMarpEdit"
-                >
-                  <span class="material-icons text-sm" aria-hidden="true">save</span>
-                  {{ t("common.save") }}
-                </button>
-              </div>
-              <textarea
-                v-model="marpDraft"
-                class="w-full p-4 font-mono text-sm bg-white border-0 resize-none focus:outline-none"
-                style="flex: 1 1 0; min-height: 0"
-                spellcheck="false"
-                :aria-label="t('fileContentRenderer.marpEditorLabel')"
-              ></textarea>
-            </div>
-            <div style="flex: 1 1 50%; min-width: 0; min-height: 0; overflow-y: auto">
-              <MarpView :markdown="marpDraft" :pdf-filename="marpPdfFilename" :base-dir="marpBaseDir" />
-            </div>
-          </div>
+          <!-- Edit mode: shared MarpSplitEditor — textarea on the
+               left feeds a live MarpView preview on the right via
+               v-model. Layout / inline-style rationale lives in
+               the component. -->
+          <MarpSplitEditor
+            v-if="marpEditing"
+            v-model="marpDraft"
+            :pdf-filename="marpPdfFilename"
+            :base-dir="marpBaseDir"
+            :editor-label="t('fileContentRenderer.marpEditorLabel')"
+          >
+            <template #actions>
+              <button
+                class="h-8 px-2.5 flex items-center gap-1 text-sm rounded border border-gray-300 text-gray-600 hover:bg-gray-50"
+                data-testid="files-marp-cancel-btn"
+                @click="cancelMarpEdit"
+              >
+                {{ t("common.cancel") }}
+              </button>
+              <button
+                class="h-8 px-2.5 flex items-center gap-1 text-sm rounded bg-green-600 hover:bg-green-700 text-white"
+                data-testid="files-marp-save-btn"
+                @click="saveMarpEdit"
+              >
+                <span class="material-icons text-sm" aria-hidden="true">save</span>
+                {{ t("common.save") }}
+              </button>
+            </template>
+          </MarpSplitEditor>
           <!-- Preview-only mode (default). `m-auto` centres a short
                MarpView vertically in the file-pane canvas (same pattern
                as View.vue's marp branch). -->
@@ -260,6 +251,7 @@ import { descriptorForPath, jsonEditableByPolicy } from "../config/systemFileDes
 import { isMarpDocument } from "../utils/markdown/marpDetect";
 import { buildPdfFilename } from "../utils/files/filename";
 import MarpView from "../plugins/markdown/MarpView.vue";
+import MarpSplitEditor from "../plugins/markdown/MarpSplitEditor.vue";
 // Lazy: CodeMirror (~390 KB raw) is only fetched when a user actually
 // opens the inline JSON editor, keeping it out of the initial bundle.
 const JsonEditor = defineAsyncComponent(() => import("./JsonEditor.vue"));
