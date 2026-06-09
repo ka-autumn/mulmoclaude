@@ -45,6 +45,7 @@ const zhMessages = {
     stopFailed: "停止处理失败：{error}",
     dropHint: "拖放文件以附加",
     tooManyFiles: "一次最多可附加 {max} 个文件。",
+    removeAttachment: "移除 {name}",
   },
   sessionHistoryPanel: {
     filters: {

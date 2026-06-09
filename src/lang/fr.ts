@@ -40,6 +40,7 @@ const frMessages = {
     stopFailed: "Échec de l'arrêt du traitement : {error}",
     dropHint: "Déposez le fichier pour joindre",
     tooManyFiles: "Vous pouvez joindre jusqu'à {max} fichiers à la fois.",
+    removeAttachment: "Retirer {name}",
   },
   sessionHistoryPanel: {
     filters: {

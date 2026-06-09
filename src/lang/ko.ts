@@ -47,6 +47,7 @@ const koMessages = {
     stopFailed: "처리를 중지하지 못했습니다: {error}",
     dropHint: "파일을 놓아서 첨부",
     tooManyFiles: "한 번에 최대 {max}개까지 첨부할 수 있습니다.",
+    removeAttachment: "{name} 제거",
   },
   sessionHistoryPanel: {
     filters: {

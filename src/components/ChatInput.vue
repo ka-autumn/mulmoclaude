@@ -211,8 +211,14 @@ function addFiles(files: File[]): void {
   Promise.all(pending)
     .then((results) => {
       const valid = results.filter((result): result is PastedFile => result !== null);
-      if (valid.length > 0) {
-        emit("update:pastedFiles", [...props.pastedFiles, ...valid]);
+      if (valid.length === 0) return;
+      const slotsNow = MAX_ATTACHMENTS - props.pastedFiles.length;
+      const clamped = slotsNow < valid.length ? valid.slice(0, Math.max(0, slotsNow)) : valid;
+      if (clamped.length > 0) {
+        emit("update:pastedFiles", [...props.pastedFiles, ...clamped]);
+      }
+      if (clamped.length < valid.length) {
+        fileError.value = t("chatInput.tooManyFiles", { max: MAX_ATTACHMENTS });
       }
     })
     .catch(() => {

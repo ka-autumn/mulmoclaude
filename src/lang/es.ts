@@ -45,6 +45,7 @@ const esMessages = {
     stopFailed: "No se pudo detener la ejecución: {error}",
     dropHint: "Suelta el archivo para adjuntar",
     tooManyFiles: "Puedes adjuntar hasta {max} archivos a la vez.",
+    removeAttachment: "Quitar {name}",
   },
   sessionHistoryPanel: {
     filters: {

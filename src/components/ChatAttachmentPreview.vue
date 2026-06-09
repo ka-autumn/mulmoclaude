@@ -8,6 +8,8 @@
     <button
       data-testid="chat-attachment-remove"
       class="absolute top-0 right-0 bg-black/60 text-white rounded-bl px-1 text-xs leading-tight hover:bg-black/80"
+      :aria-label="removeLabel"
+      :title="removeLabel"
       @click="emit('remove')"
     >
       ✕
@@ -17,6 +19,9 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 
 const props = defineProps<{
   dataUrl: string;
@@ -24,6 +29,8 @@ const props = defineProps<{
   mime: string;
 }>();
 const emit = defineEmits<{ remove: [] }>();
+
+const removeLabel = computed(() => t("chatInput.removeAttachment", { name: props.filename || "attachment" }));
 
 const isImage = computed(() => props.mime.startsWith("image/"));
 

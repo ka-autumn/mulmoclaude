@@ -40,6 +40,7 @@ const deMessages = {
     stopFailed: "Stoppen der Ausführung fehlgeschlagen: {error}",
     dropHint: "Datei zum Anhängen ablegen",
     tooManyFiles: "Sie können maximal {max} Dateien gleichzeitig anhängen.",
+    removeAttachment: "{name} entfernen",
   },
   sessionHistoryPanel: {
     filters: {

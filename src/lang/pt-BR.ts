@@ -40,6 +40,7 @@ const ptBRMessages = {
     stopFailed: "Falha ao parar a execução: {error}",
     dropHint: "Solte o arquivo para anexar",
     tooManyFiles: "Você pode anexar no máximo {max} arquivos por vez.",
+    removeAttachment: "Remover {name}",
   },
   sessionHistoryPanel: {
     filters: {
