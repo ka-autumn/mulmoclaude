@@ -331,6 +331,8 @@ const zhMessages = {
     invalidJson: "无效的 JSON",
     undo: "撤销",
     redo: "重做",
+    editMarp: "编辑幻灯片源代码",
+    marpEditorLabel: "Marp 幻灯片源代码",
   },
   filesView: {
     chatPlaceholder: "询问关于此文件的问题…",

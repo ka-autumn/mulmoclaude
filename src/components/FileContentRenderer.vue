@@ -16,13 +16,75 @@
              component. Frontmatter envelope is fed to Marp verbatim
              because marp-core consumes its own directives (theme,
              paginate, size, …) from the YAML header. -->
-        <div v-if="isMarkdown && !mdRawMode && marpMode" class="h-full flex flex-col overflow-y-auto">
-          <!-- `m-auto` centres a short MarpView vertically in the file-
-               pane canvas (same pattern as View.vue's marp branch). -->
-          <div class="m-auto w-full">
-            <MarpView :markdown="content.content" :pdf-filename="marpPdfFilename" :base-dir="marpBaseDir" />
+        <template v-if="isMarkdown && !mdRawMode && marpMode">
+          <!-- Edit mode: split view — left textarea / right MarpView,
+               with the draft buffer feeding both. Inline styles mirror
+               the markdown plugin's split mode (#1647) so the textarea
+               can actually fill the column even when the plugin renders
+               inside a layout wrapper that quietly neutralises Tailwind
+               sizing utilities. -->
+          <div v-if="marpEditing" style="height: min(80vh, 720px); display: flex; overflow: hidden">
+            <div style="display: flex; flex-direction: column; flex: 1 1 50%; min-width: 0; min-height: 0; border-right: 1px solid #e0e0e0">
+              <div class="flex items-center gap-2 px-3 py-2 border-b border-gray-100 shrink-0">
+                <span class="text-xs text-gray-500 mr-auto">{{ t("fileContentRenderer.marpEditorLabel") }}</span>
+                <button
+                  class="h-8 px-2.5 flex items-center gap-1 text-sm rounded border border-gray-300 text-gray-600 hover:bg-gray-50"
+                  data-testid="files-marp-cancel-btn"
+                  @click="cancelMarpEdit"
+                >
+                  {{ t("common.cancel") }}
+                </button>
+                <button
+                  class="h-8 px-2.5 flex items-center gap-1 text-sm rounded bg-green-600 hover:bg-green-700 text-white"
+                  data-testid="files-marp-save-btn"
+                  @click="saveMarpEdit"
+                >
+                  <span class="material-icons text-sm" aria-hidden="true">save</span>
+                  {{ t("common.save") }}
+                </button>
+              </div>
+              <textarea
+                v-model="marpDraft"
+                class="w-full p-4 font-mono text-sm bg-white border-0 resize-none focus:outline-none"
+                style="flex: 1 1 0; min-height: 0"
+                spellcheck="false"
+                :aria-label="t('fileContentRenderer.marpEditorLabel')"
+              ></textarea>
+            </div>
+            <div style="flex: 1 1 50%; min-width: 0; min-height: 0; overflow-y: auto">
+              <MarpView :markdown="marpDraft" :pdf-filename="marpPdfFilename" :base-dir="marpBaseDir" />
+            </div>
           </div>
-        </div>
+          <!-- Preview-only mode (default). `m-auto` centres a short
+               MarpView vertically in the file-pane canvas (same pattern
+               as View.vue's marp branch). -->
+          <div v-else class="h-full flex flex-col overflow-y-auto">
+            <div class="m-auto w-full">
+              <MarpView :markdown="content.content" :pdf-filename="marpPdfFilename" :base-dir="marpBaseDir">
+                <template #toolbar>
+                  <button
+                    class="h-8 px-2.5 flex items-center gap-1 rounded border border-gray-300 text-gray-600 hover:bg-gray-50 text-sm"
+                    :title="t('fileContentRenderer.editMarp')"
+                    :aria-label="t('fileContentRenderer.editMarp')"
+                    data-testid="files-marp-edit-btn"
+                    @click="startMarpEdit"
+                  >
+                    <span class="material-icons text-sm" aria-hidden="true">edit</span>
+                    {{ t("fileContentRenderer.editMarp") }}
+                  </button>
+                </template>
+              </MarpView>
+            </div>
+          </div>
+          <div
+            v-if="rawSaveError"
+            class="shrink-0 m-4 mt-0 rounded border border-red-300 bg-red-50 p-2 text-xs text-red-700"
+            role="alert"
+            data-testid="files-marp-save-error"
+          >
+            ⚠ {{ rawSaveError }}
+          </div>
+        </template>
         <!-- Markdown rendered: frontmatter panel + body -->
         <div v-else-if="isMarkdown && !mdRawMode" class="h-full flex flex-col overflow-auto">
           <div v-if="mdFrontmatter && mdFrontmatter.fields.length > 0" class="shrink-0 m-4 mb-0 rounded border border-gray-200 bg-gray-50 p-3 text-xs">
@@ -283,6 +345,29 @@ function saveJsonEdit(): void {
   emit("updateSource", jsonDraft.value);
 }
 
+// Inline Marp source editor (#1651). Mirrors the JSON edit flow:
+// `marpEditing` flips the marp branch into split mode, `marpDraft`
+// holds the unsaved buffer that drives the live preview, Save emits
+// `updateSource`. Leaving edit mode on content change handles both
+// the success path (parent swaps content + clears rawSaveError) and
+// navigation to another file.
+const marpEditing = ref(false);
+const marpDraft = ref("");
+
+function startMarpEdit(): void {
+  if (props.content?.kind !== "text") return;
+  marpDraft.value = props.content.content;
+  marpEditing.value = true;
+}
+
+function cancelMarpEdit(): void {
+  marpEditing.value = false;
+}
+
+function saveMarpEdit(): void {
+  emit("updateSource", marpDraft.value);
+}
+
 // Leave edit mode whenever the underlying content changes — that's
 // either a successful save (parent swaps in the new content + clears
 // rawSaveError) or navigation to another file. A failed save leaves
@@ -292,6 +377,7 @@ watch(
   () => props.content,
   () => {
     jsonEditing.value = false;
+    marpEditing.value = false;
   },
 );
 

@@ -341,6 +341,8 @@ const esMessages = {
     invalidJson: "JSON no válido",
     undo: "Deshacer",
     redo: "Rehacer",
+    editMarp: "Editar fuente de la diapositiva",
+    marpEditorLabel: "Fuente de diapositivas Marp",
   },
   filesView: {
     chatPlaceholder: "Pregunta sobre este archivo…",

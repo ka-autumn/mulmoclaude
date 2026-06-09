@@ -335,6 +335,8 @@ const frMessages = {
     invalidJson: "JSON invalide",
     undo: "Annuler",
     redo: "Rétablir",
+    editMarp: "Modifier la source de la diapositive",
+    marpEditorLabel: "Source des diapositives Marp",
   },
   filesView: {
     chatPlaceholder: "Posez une question sur ce fichier…",

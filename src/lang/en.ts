@@ -354,6 +354,8 @@ const enMessages = {
     invalidJson: "Invalid JSON",
     undo: "Undo",
     redo: "Redo",
+    editMarp: "Edit slide source",
+    marpEditorLabel: "Marp slide source",
   },
   filesView: {
     chatPlaceholder: "Ask about this file…",

@@ -339,6 +339,8 @@ const koMessages = {
     invalidJson: "잘못된 JSON",
     undo: "실행 취소",
     redo: "다시 실행",
+    editMarp: "슬라이드 소스 편집",
+    marpEditorLabel: "Marp 슬라이드 소스",
   },
   filesView: {
     chatPlaceholder: "이 파일에 대해 질문하세요…",

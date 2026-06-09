@@ -338,6 +338,8 @@ const deMessages = {
     invalidJson: "Ungültiges JSON",
     undo: "Rückgängig",
     redo: "Wiederholen",
+    editMarp: "Folienquelle bearbeiten",
+    marpEditorLabel: "Marp-Folienquelle",
   },
   filesView: {
     chatPlaceholder: "Frage zu dieser Datei stellen…",

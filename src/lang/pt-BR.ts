@@ -334,6 +334,8 @@ const ptBRMessages = {
     invalidJson: "JSON inválido",
     undo: "Desfazer",
     redo: "Refazer",
+    editMarp: "Editar código do slide",
+    marpEditorLabel: "Código do slide Marp",
   },
   filesView: {
     chatPlaceholder: "Pergunte sobre este arquivo…",
