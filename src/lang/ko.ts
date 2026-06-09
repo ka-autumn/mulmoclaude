@@ -1148,6 +1148,11 @@ const koMessages = {
     // `<code>` 태그는 스타일을 유지하면서 본문은 번역 가능합니다.
     explanation:
       "{allowedTools} 를 통해 Claude 에 전달할 추가 도구 이름. 한 줄에 하나씩. {claudeMcp} 로 인증을 완료한 후 Claude Code 내장 MCP 서버 (Gmail / Google 캘린더 등) 를 사용할 때 유용합니다.",
+    connectorsSectionTitle: "연결된 커넥터",
+    connectorsEmpty: "커넥터를 찾을 수 없습니다.",
+    connectorConnected: "연결됨",
+    connectorDisconnected: "연결 안 됨",
+    connectorsGuide: "Slack, Gmail 등의 커넥터로 Claude가 계정에 접근할 수 있습니다. 커넥터 추가 및 제거는 Claude Desktop에서 할 수 있습니다.",
   },
   collectionsView: {
     addCollectionLabel: "컬렉션",

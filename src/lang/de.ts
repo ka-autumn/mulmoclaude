@@ -1164,6 +1164,12 @@ const deMessages = {
     // behalten, während der Text übersetzbar ist.
     explanation:
       "Zusätzliche Tool-Namen, die Claude über {allowedTools} übergeben werden sollen. Einer pro Zeile. Nützlich für in Claude Code integrierte MCP-Server wie Gmail / Google Kalender, nachdem Sie sich über {claudeMcp} authentifiziert haben.",
+    connectorsSectionTitle: "Verbundene Konnektoren",
+    connectorsEmpty: "Keine Konnektoren gefunden.",
+    connectorConnected: "Verbunden",
+    connectorDisconnected: "Nicht verbunden",
+    connectorsGuide:
+      "Konnektoren wie Slack und Gmail erlauben Claude den Zugriff auf Ihre Konten. Konnektoren werden in Claude Desktop hinzugefügt oder entfernt.",
   },
   collectionsView: {
     addCollectionLabel: "Sammlung",

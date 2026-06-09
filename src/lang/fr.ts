@@ -1153,6 +1153,12 @@ const frMessages = {
     // style tandis que le texte reste traduisible.
     explanation:
       "Noms d'outils supplémentaires à transmettre à Claude via {allowedTools}. Un par ligne. Utile pour les serveurs MCP intégrés à Claude Code comme Gmail / Google Agenda après authentification via {claudeMcp}.",
+    connectorsSectionTitle: "Connecteurs actifs",
+    connectorsEmpty: "Aucun connecteur trouvé.",
+    connectorConnected: "Connecté",
+    connectorDisconnected: "Non connecté",
+    connectorsGuide:
+      "Les connecteurs comme Slack et Gmail permettent à Claude d'accéder à vos comptes. Ajoutez ou supprimez des connecteurs depuis Claude Desktop.",
   },
   collectionsView: {
     addCollectionLabel: "Collection",

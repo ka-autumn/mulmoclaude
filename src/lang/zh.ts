@@ -1137,6 +1137,11 @@ const zhMessages = {
     // 以便保留 `<code>` 标签的样式,同时文本可本地化。
     explanation:
       "要通过 {allowedTools} 传递给 Claude 的额外工具名。每行一个。适用于在 {claudeMcp} 完成授权后,调用 Claude Code 内置的 MCP 服务器(如 Gmail / Google 日历)。",
+    connectorsSectionTitle: "已连接的连接器",
+    connectorsEmpty: "未找到连接器。",
+    connectorConnected: "已连接",
+    connectorDisconnected: "未连接",
+    connectorsGuide: "Slack、Gmail 等连接器让 Claude 可以访问您的账户。请在 Claude Desktop 中添加或移除连接器。",
   },
   collectionsView: {
     addCollectionLabel: "集合",

@@ -1150,6 +1150,11 @@ const ptBRMessages = {
     // enquanto o texto é traduzível.
     explanation:
       "Nomes adicionais de ferramentas a serem passados ao Claude via {allowedTools}. Um por linha. Útil para servidores MCP integrados ao Claude Code como Gmail / Google Calendar após autenticar via {claudeMcp}.",
+    connectorsSectionTitle: "Conectores conectados",
+    connectorsEmpty: "Nenhum conector encontrado.",
+    connectorConnected: "Conectado",
+    connectorDisconnected: "Não conectado",
+    connectorsGuide: "Conectores como Slack e Gmail permitem que o Claude acesse suas contas. Adicione ou remova conectores pelo Claude Desktop.",
   },
   collectionsView: {
     addCollectionLabel: "Coleção",

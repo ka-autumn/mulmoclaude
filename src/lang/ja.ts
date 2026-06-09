@@ -1144,6 +1144,11 @@ const jaMessages = {
   settingsToolsTab: {
     explanation:
       "{allowedTools} を介して Claude に渡す追加ツール名。1行につき1つ。Gmail / Google Calendar などの Claude Code 組み込み MCP サーバを、{claudeMcp} で認証した後に利用する場合に便利です。",
+    connectorsSectionTitle: "接続済みコネクタ",
+    connectorsEmpty: "コネクタが見つかりません。",
+    connectorConnected: "接続済み",
+    connectorDisconnected: "未接続",
+    connectorsGuide: "Slack や Gmail 等のコネクタで Claude がアカウントにアクセスできるようになります。追加・削除は Claude Desktop から行えます。",
   },
   collectionsView: {
     addCollectionLabel: "コレクション",

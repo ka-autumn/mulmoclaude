@@ -95,6 +95,7 @@ const HOST_API_ROUTES = {
     // `mc-manage-automations` preset skills (split out in #1295).
     // Safe to call ad-hoc — pure side effect, no body.
     refresh: "/api/config/refresh",
+    connectors: "/api/config/connectors",
   },
 
   files: {

@@ -109,6 +109,26 @@
                   {{ t("settingsModal.unsavedMarker") }}
                 </span>
               </div>
+
+              <div class="space-y-1.5 pt-2 border-t border-gray-200" data-testid="settings-connectors">
+                <span class="text-xs font-semibold text-gray-700">{{ t("settingsToolsTab.connectorsSectionTitle") }}</span>
+                <div v-if="connectorsLoading" class="text-xs text-gray-400">{{ t("common.loading") }}</div>
+                <ul v-else-if="connectors.length > 0" class="text-xs text-gray-700 space-y-0.5">
+                  <li
+                    v-for="c in connectors"
+                    :key="c.name"
+                    class="flex items-center gap-1.5"
+                    :aria-label="`${c.name} — ${c.connected ? t('settingsToolsTab.connectorConnected') : t('settingsToolsTab.connectorDisconnected')}`"
+                  >
+                    <span class="material-icons text-[14px]" :class="c.connected ? 'text-green-600' : 'text-gray-400'" aria-hidden="true">
+                      {{ c.connected ? "check_circle" : "radio_button_unchecked" }}
+                    </span>
+                    {{ c.name }}
+                  </li>
+                </ul>
+                <div v-else class="text-xs text-gray-400">{{ t("settingsToolsTab.connectorsEmpty") }}</div>
+                <p class="text-xs text-gray-500">{{ t("settingsToolsTab.connectorsGuide") }}</p>
+              </div>
             </div>
 
             <div v-else-if="activeTab === 'mcp'" class="space-y-3">
@@ -271,6 +291,8 @@ const toolsText = ref("");
 // actually edited the list.
 const toolsSavedText = ref("");
 const mcpServers = ref<McpServerEntry[]>([]);
+const connectors = ref<{ name: string; connected: boolean }[]>([]);
+const connectorsLoading = ref(false);
 const loadError = ref("");
 // App version (root package.json), surfaced from /api/health. Fetched
 // once on first open and kept — it can't change mid-process.
@@ -341,6 +363,20 @@ async function loadConfig(): Promise<void> {
   }
   // eslint-disable-next-line security/detect-possible-timing-attacks -- same race-token guard as above
   if (token === loadToken) loading.value = false;
+}
+
+let connectorLoadToken = 0;
+
+async function loadConnectors(): Promise<void> {
+  const token = ++connectorLoadToken;
+  connectorsLoading.value = true;
+  const response = await apiGet<{ connectors: { name: string; connected: boolean }[] }>(API_ROUTES.config.connectors);
+  // eslint-disable-next-line security/detect-possible-timing-attacks -- in-memory race-token guard, not an auth compare
+  if (token !== connectorLoadToken) return;
+  if (response.ok) {
+    connectors.value = response.data.connectors;
+  }
+  connectorsLoading.value = false;
 }
 
 // Tools tab — Save button hits the settings-only endpoint. MCP
@@ -450,6 +486,7 @@ watch(
       activeTab.value = props.geminiAvailable ? "tools" : "gemini";
       loadConfig();
       loadVersion();
+      loadConnectors();
       mapReloadToken.value += 1;
       photosReloadToken.value += 1;
       modelReloadToken.value += 1;

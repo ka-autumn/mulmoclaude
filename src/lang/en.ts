@@ -1148,6 +1148,11 @@ const enMessages = {
     // is translatable.
     explanation:
       "Extra tool names to pass to Claude via {allowedTools}. One per line. Useful for built-in Claude Code MCP servers like Gmail / Google Calendar after you have authenticated via {claudeMcp}.",
+    connectorsSectionTitle: "Connected connectors",
+    connectorsEmpty: "No connectors found.",
+    connectorConnected: "Connected",
+    connectorDisconnected: "Not connected",
+    connectorsGuide: "Connectors like Slack and Gmail let Claude access your accounts. Add or remove connectors from Claude Desktop.",
   },
   collectionsView: {
     addCollectionLabel: "Collection",
