@@ -162,11 +162,11 @@ const DATED_EVENTS_DETAIL = {
   items: [{ id: "launch", name: "Launch party", on: "" }],
 };
 
-test("embedded card ignores the standalone localStorage view-mode store", async ({ page }) => {
+test("embedded card honours the shared localStorage view-mode store", async ({ page }) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (err) => pageErrors.push(`${err.message}\n${err.stack ?? ""}`));
 
-  // Seed the standalone store with "calendar" for this slug BEFORE the app boots.
+  // Seed the shared store with "calendar" for this slug BEFORE the app boots.
   await page.addInitScript(() => {
     localStorage.setItem("collection_view_modes", JSON.stringify({ "dated-events": "calendar" }));
   });
@@ -203,12 +203,12 @@ test("embedded card ignores the standalone localStorage view-mode store", async 
 
   await page.goto(SESSION_PATH);
   await expect(page.getByTestId("present-collection")).toBeVisible({ timeout: 10_000 });
-  // The date field means the calendar toggle IS offered — so the card COULD
-  // have honoured the stored "calendar". It must not: the table is shown and
-  // the calendar grid never mounts.
+  // The date field means the calendar toggle IS offered, and a fresh card
+  // (no own `viewState`) now seeds from the shared store: it opens on the
+  // stored "calendar" — the grid mounts and the table is not shown.
   await expect(page.getByTestId("collection-view-toggle-calendar")).toBeVisible();
-  await expect(page.getByTestId("collections-row-launch")).toBeVisible();
-  await expect(page.getByTestId("collection-calendar")).toHaveCount(0);
+  await expect(page.getByTestId("collection-calendar")).toBeVisible();
+  await expect(page.getByTestId("collections-row-launch")).toHaveCount(0);
 
   expect(pageErrors, pageErrors.join("\n")).toHaveLength(0);
 });

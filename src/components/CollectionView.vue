@@ -1335,18 +1335,19 @@ const isFeedRoute = computed<boolean>(() => !embedded.value && route.name === PA
 //
 // Standalone route mode persists the last-used mode per collection in
 // localStorage so reopening `/collections/:slug` restores the prior view
-// instead of always starting on the table. Embedded mode ignores the store
-// and restores from the card's `initialView` prop instead.
+// instead of always starting on the table. Embedded chat cards restore from
+// the card's own `initialView` first; lacking that (a freshly-rendered
+// presentCollection card), they fall back to the same per-collection store
+// the standalone page uses, so a card also opens in the last-used view.
 type CollectionViewMode = "table" | "calendar" | "kanban" | "dashboard";
 
 /** The view to open with: the embedded card's restored `initialView` if
- *  present, else the standalone slug's stored mode, else "table". Embedded
- *  mode never reads the localStorage store — its state lives in the card's
- *  `viewState`, so a standalone preference must not leak into (and then be
- *  re-persisted by) an embedded card. */
+ *  present (its own persisted state wins), else the slug's stored
+ *  preference, else "table". Embedded cards READ the store but never WRITE
+ *  it (the persist watch only emits `viewStateChange` for them), so a stale
+ *  card re-rendering can't clobber the shared preference. */
 function initialViewMode(): CollectionViewMode {
   if (props.initialView) return props.initialView;
-  if (embedded.value) return "table";
   const slug = activeSlug.value;
   return (slug && readCollectionViewMode(slug)) || "table";
 }
@@ -1936,11 +1937,11 @@ watch(
   (slug, prevSlug) => {
     // Reset view state when switching BETWEEN collections — but not on the
     // initial run (prevSlug undefined), so an embedded card's restored
-    // `initialView` / `initialAnchorField` survive the first load. Standalone
-    // mode restores the new collection's stored mode (else "table"); the axis
+    // `initialView` / `initialAnchorField` survive the first load. Both modes
+    // restore the new collection's stored mode (else "table"); the axis
     // fields always reset to their schema defaults.
     if (prevSlug !== undefined && slug !== prevSlug) {
-      view.value = (slug && !embedded.value && readCollectionViewMode(slug)) || "table";
+      view.value = (slug && readCollectionViewMode(slug)) || "table";
       anchorOverride.value = null;
       kanbanOverride.value = null;
     }
