@@ -292,6 +292,31 @@ journals, drafting an email) gets delegated to natural language.
   for a draft. Omit `when` ⇒ always shown.
 - You do **not** trigger actions yourself; point the user at the button.
 
+### Collection-level actions (header buttons)
+
+`collectionActions` is a second array, same entry shape as `actions`, but the
+buttons render in the **collection header** instead of a record's detail view.
+Use one when the work spans the whole collection rather than a single record —
+e.g. a course-level "Learn / continue" button on a lessons collection that picks
+the next lesson, or "Monthly close" on an invoice ledger.
+
+The difference is what the seed prompt carries: a per-record action injects that
+one record's JSON; a collection-level action injects a **compact progress
+summary of every record** — each record projected down to the schema's
+`primaryKey`, `displayField`, `completionField`, and `kanbanField` values (long
+text / markdown / html / file fields are left out, so the prompt stays small).
+
+```json
+"collectionActions": [
+  { "id": "continue", "label": "Continue", "icon": "play_arrow",
+    "kind": "chat", "role": "tutor", "template": "templates/continue.md" }
+]
+```
+
+- Same `id` uniqueness rule (within `collectionActions`); same path-safe
+  `template`; same `role`-seeds-a-new-chat behavior.
+- `when` is **ignored** here — there is no record to gate on. Always shown.
+
 ### Completion tracking (bell notifications)
 
 Declare `completionField` + `completionDoneValues` at the top level of the
@@ -604,6 +629,19 @@ single source of truth and the "done" checkbox is a `toggle` field projecting it
 
 - Write each record to `<dataPath>/<id>.json` via the **Write** tool; the `id`
   field's value is the filename (no extension).
+- **The file MUST be valid JSON.** A malformed record is **silently skipped** at
+  read time (logged server-side, but invisible in the UI) — so one bad file out
+  of fifteen looks like "fourteen records vanished." The #1 cause is an
+  **unescaped double-quote inside a string value**: writing `"title": "がんは"細胞のバグ""`
+  closes the string early and corrupts the file. In free-text / prose fields
+  (`text`, `markdown`, a long `objective`), either escape every inner ASCII quote
+  as `\"`, or — better — use the language's own quotation marks (`「」`/`『』` for
+  Japanese, `‘ ’`/`“ ”` or `'…'` for English) so no escaping is needed.
+  `presentCollection` re-validates the records and reports any unreadable /
+  malformed / schema-violating files back to you (a `⚠️` in its result) — so
+  always follow a batch of writes with a `presentCollection` call and **act on
+  any ⚠️ it returns** (Read → fix → Write), rather than assuming every record
+  landed.
 - **List the directory first** and pick a fresh id rather than silently
   overwriting. Update = Read, merge, Write back (preserve fields you weren't
   asked to change). Delete = remove the file.

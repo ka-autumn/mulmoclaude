@@ -323,6 +323,10 @@ export const CollectionSchemaZ = z
     singleton: z.string().trim().min(1).optional(),
     fields: z.record(z.string(), FieldSpecSchema),
     actions: z.array(ActionSpecSchema).optional(),
+    // Collection-level actions (header buttons). Same shape as `actions`;
+    // the `when` predicate is ignored (no record context). The seed
+    // prompt injects a progress summary of all records instead.
+    collectionActions: z.array(ActionSpecSchema).optional(),
     // Completion-tracking pair: when both are set, item-create fires a
     // notification that clears once `completionField` transitions into
     // `completionDoneValues`. The two are bound together — declaring
@@ -387,6 +391,14 @@ export const CollectionSchemaZ = z
     message: "schema `actions` must have unique `id`s",
     path: ["actions"],
   })
+  // Collection-level action ids must likewise be unique.
+  .refine(
+    (schema) => schema.collectionActions === undefined || new Set(schema.collectionActions.map((action) => action.id)).size === schema.collectionActions.length,
+    {
+      message: "schema `collectionActions` must have unique `id`s",
+      path: ["collectionActions"],
+    },
+  )
   // A `currencyField` pointer must name a real top-level field that
   // holds a code string — a typo (`curreny`) would otherwise pass the
   // per-field check, then silently fall back to the literal / USD at

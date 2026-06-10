@@ -57,6 +57,21 @@
         <span>{{ t("collectionsView.chat") }}</span>
       </button>
 
+      <!-- Collection-level actions (schema `collectionActions`). No record
+           context: each seeds a chat with a progress summary of all items. -->
+      <button
+        v-for="action in collectionActions"
+        :key="action.id"
+        type="button"
+        class="h-8 px-2.5 flex items-center gap-1 rounded border border-indigo-200 bg-white hover:bg-indigo-50 text-indigo-600 font-bold text-xs transition-colors disabled:opacity-50"
+        :disabled="collectionActionPending"
+        :data-testid="`collections-action-${action.id}`"
+        @click="runCollectionAction(action)"
+      >
+        <span v-if="action.icon" class="material-icons text-sm">{{ action.icon }}</span>
+        <span>{{ action.label }}</span>
+      </button>
+
       <!-- Hidden in calendar view: there, creation happens via the day view's
            + button, which opens the new-item form in the popup's right pane. -->
       <button
@@ -758,6 +773,7 @@ const enumOriginallyEmpty = ref<Set<string>>(new Set());
 const inlineSavingRows = ref<Set<string>>(new Set());
 const actionPending = ref(false);
 const actionError = ref<string | null>(null);
+const collectionActionPending = ref(false);
 const chatOpen = ref(false);
 const chatMessage = ref("");
 const chatInputEl = ref<HTMLTextAreaElement | null>(null);
@@ -903,6 +919,34 @@ function actionUrl(slug: string, itemId: string, actionId: string): string {
     .replace(":slug", encodeURIComponent(slug))
     .replace(":itemId", encodeURIComponent(itemId))
     .replace(":actionId", encodeURIComponent(actionId));
+}
+
+function collectionActionUrl(slug: string, actionId: string): string {
+  return API_ROUTES.collections.collectionAction.replace(":slug", encodeURIComponent(slug)).replace(":actionId", encodeURIComponent(actionId));
+}
+
+/** Collection-level header actions. No `when` predicate (no record). */
+const collectionActions = computed<CollectionAction[]>(() => collection.value?.schema.collectionActions ?? []);
+
+/** Run a collection-level action: ask the server to assemble the seed
+ *  prompt (a progress summary of all records + the template), then start
+ *  a new chat in the action's role with it. Generic — no domain knowledge. */
+async function runCollectionAction(action: CollectionAction): Promise<void> {
+  const current = collection.value;
+  if (!current || collectionActionPending.value) return;
+  collectionActionPending.value = true;
+  inlineError.value = null;
+  const result = await apiPost<{ prompt: string; role: string }>(collectionActionUrl(current.slug, action.id), {});
+  collectionActionPending.value = false;
+  if (!result.ok) {
+    inlineError.value = result.error;
+    return;
+  }
+  if (props.sendTextMessage) {
+    props.sendTextMessage(result.data.prompt);
+    return;
+  }
+  appApi.startNewChat(result.data.prompt, result.data.role);
 }
 
 /** Actions whose optional `when` predicate matches the open record.

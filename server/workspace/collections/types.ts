@@ -245,6 +245,12 @@ export interface CollectionSchema {
   /** Optional per-record actions rendered as buttons in the detail
    *  view (e.g. "Generate PDF"). Order = button order. */
   actions?: CollectionAction[];
+  /** Optional collection-level actions rendered as buttons in the
+   *  collection header (e.g. "Extend the course"). Unlike `actions`,
+   *  these carry no record context: the seed prompt injects a compact
+   *  progress summary of every record instead. The `when` predicate is
+   *  not evaluated (there is no record to gate on). Order = button order. */
+  collectionActions?: CollectionAction[];
   /** Name of the field whose value marks an item as "done". When set,
    *  a notification fires on item create (unless the item is born done)
    *  and clears when the field's value transitions into

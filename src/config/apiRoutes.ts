@@ -248,6 +248,9 @@ const HOST_API_ROUTES = {
     item: "/api/collections/:slug/items/:itemId",
     /** POST → assemble a schema-declared action's seed prompt → { prompt, role } */
     itemAction: "/api/collections/:slug/items/:itemId/actions/:actionId",
+    /** POST → assemble a collection-level action's seed prompt (no record;
+     *  injects a progress summary of all items) → { prompt, role } */
+    collectionAction: "/api/collections/:slug/actions/:actionId",
     /** POST → re-run a feed collection's retrieval now → { refreshed, written }.
      *  400 when the collection has no `ingest` block (not a feed). */
     refresh: "/api/collections/:slug/refresh",

@@ -2,6 +2,15 @@
 
 Reference for the `presentHtml` plugin. The HTML you provide is saved to `artifacts/html/<YYYY>/<MM>/<slug>-<timestamp>.html` and rendered in the canvas. The user may also open the file directly from disk via `file://`, so it must remain portable: every URL inside the document has to resolve both when served by the app and when loaded straight off the filesystem.
 
+## Two ways to call it: `html` vs `path`
+
+`presentHtml` accepts **either** `html` **or** `path` (not both):
+
+- **`html`** — a complete self-contained document. The host saves it to a fresh `artifacts/html/<YYYY>/<MM>/<slug>-<timestamp>.html` and presents it. The response's `data.filePath` is the saved path — capture it if you need to store a reference.
+- **`path`** — the workspace-relative path of an HTML file you **already wrote** under `artifacts/html/…`. The host presents that existing page **without re-saving a copy**. Use this for pages you authored directly on disk with the `Write` tool (e.g. a pre-built lesson), so presenting them later doesn't duplicate the file. The path must end in `.html` and live under `artifacts/html/`.
+
+Saving (with `html`) also renders in the user's canvas, so do **not** loop it to batch-create many pages quietly — write those directly to disk and present them on demand with `path`.
+
 ## Self-Contained Document
 
 - Full document including `<!DOCTYPE html>` and `<html>` / `<body>` tags.

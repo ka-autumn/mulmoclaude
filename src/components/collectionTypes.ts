@@ -84,6 +84,9 @@ export interface CollectionSchema {
   singleton?: string;
   fields: Record<string, FieldSpec>;
   actions?: CollectionAction[];
+  /** Collection-level actions rendered as buttons in the header. Carry no
+   *  record context; the `when` predicate is not evaluated. */
+  collectionActions?: CollectionAction[];
   /** Name of the field whose value labels the record in notifications and
    *  the calendar chip (falls back to the primary key). */
   displayField?: string;
