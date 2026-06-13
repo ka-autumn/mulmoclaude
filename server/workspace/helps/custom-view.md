@@ -111,6 +111,10 @@ The view runs in a `sandbox="allow-scripts"` iframe with a strict CSP:
   `cdnjs.cloudflare.com`, `fonts.googleapis.com`, `fonts.gstatic.com`,
   `cdn.plot.ly` — so charting libraries (Chart.js, Plotly, D3) load fine from
   those CDNs. No other external hosts.
+- **`<img>` may load from any `https:` host** (plus `data:` / `blob:`), so an
+  image URL stored in a record — a feed's article thumbnail, a poster, an
+  avatar — renders directly. (Images are the one resource type not pinned to the
+  CDN allowlist; everything else above still is.)
 - **`fetch` (and XHR / WebSocket / `sendBeacon`) is allowed ONLY to
   `window.__MC_VIEW.dataUrl`'s origin.** All other origins are blocked — no
   phone-home, no third-party analytics, no fetching weather / prices / etc.
