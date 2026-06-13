@@ -21,7 +21,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, onBeforeUnmount } from "vue";
 import { useI18n } from "vue-i18n";
 import { API_ROUTES } from "../config/apiRoutes";
 import { apiPost, apiFetchRaw } from "../utils/api";
@@ -50,7 +50,29 @@ interface MintResponse {
   capabilities: string[];
 }
 
+// The injected token expires (VIEW_TOKEN_TTL_MS, 1h). The sandboxed view can't
+// re-mint itself (it has no global bearer), so a view left mounted past expiry
+// would 401 on its next read/write. Schedule a re-mint + reload shortly before
+// `exp` so the iframe always holds a fresh token.
+const REMINT_LEAD_MS = 60_000;
+const MIN_REMINT_DELAY_MS = 10_000;
+let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+
+function clearRefresh(): void {
+  if (refreshTimer !== undefined) {
+    clearTimeout(refreshTimer);
+    refreshTimer = undefined;
+  }
+}
+
+function scheduleRefresh(expMs: number): void {
+  clearRefresh();
+  const delay = Math.max(expMs - Date.now() - REMINT_LEAD_MS, MIN_REMINT_DELAY_MS);
+  refreshTimer = setTimeout(() => void load(), delay);
+}
+
 async function load(): Promise<void> {
+  clearRefresh();
   loading.value = true;
   error.value = null;
   srcdoc.value = null;
@@ -61,6 +83,8 @@ async function load(): Promise<void> {
       error.value = mint.error;
       return;
     }
+    // Re-mint + reload before this token expires (the iframe can't do it itself).
+    scheduleRefresh(mint.data.exp);
     // 2. Fetch the view's HTML (global-bearer; attached by apiFetchRaw).
     const resp = await apiFetchRaw(viewFileUrl.value, { query: { id: props.view.id } });
     if (!resp.ok) {
@@ -84,6 +108,8 @@ async function load(): Promise<void> {
 
 // Reload (re-mint + re-fetch) whenever the selected view or collection changes.
 watch([() => props.slug, () => props.view.id], () => void load(), { immediate: true });
+
+onBeforeUnmount(clearRefresh);
 </script>
 
 <style scoped>

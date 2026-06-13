@@ -99,11 +99,16 @@ silently.
 
 ## Sandbox rules (what the view may and may not do)
 
-The view runs in a `sandbox="allow-scripts"` iframe with a strict CSP:
+The view runs in a `sandbox="allow-scripts"` iframe with a strict CSP. Because
+the view is handed a scoped token, the policy allows **no third-party hosts at
+all** (any external URL could carry the token out in its query string) — so a
+custom view must be **fully self-contained**:
 
-- **Inline `<script>` and `<style>` only.** External scripts/styles must come
-  from the allowed CDNs: `cdn.jsdelivr.net`, `unpkg.com`, `cdnjs.cloudflare.com`,
-  `fonts.googleapis.com`, `fonts.gstatic.com`, `cdn.plot.ly`.
+- **Inline `<script>` and `<style>` only.** No external scripts, styles, or web
+  fonts (no CDNs). If you need a charting routine, write it inline or draw on a
+  `<canvas>`; use system fonts (`font-family: system-ui, sans-serif`).
+- **Images** must be same-origin (a workspace path) or inline `data:` / `blob:`
+  URLs. No external images.
 - **`fetch` is allowed ONLY to `window.__MC_VIEW.dataUrl`.** All other origins
   are blocked — no phone-home, no third-party analytics, no fetching weather /
   prices / etc. directly from the view. If the user needs external data, put it

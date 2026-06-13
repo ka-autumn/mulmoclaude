@@ -30,6 +30,18 @@ describe("buildCustomViewSrcdoc", () => {
     assert.match(out, /connect-src http:\/\/localhost:3001/);
   });
 
+  it("allows NO third-party hosts in the CSP (token-exfiltration guard)", () => {
+    const out = buildCustomViewSrcdoc("<head></head>", boot);
+    // No CDN allowlist — a custom view holds a scoped token, so any external
+    // resource destination would be an exfiltration channel.
+    for (const host of ["jsdelivr", "unpkg", "cdnjs", "plot.ly", "googleapis", "gstatic"]) {
+      assert.ok(!out.includes(host), `CSP must not allow third-party host "${host}"`);
+    }
+    // script/style are inline-only; the only host token is the server origin.
+    assert.match(out, /script-src 'unsafe-inline'[; ]/);
+    assert.match(out, /style-src 'unsafe-inline'[; ]/);
+  });
+
   it("wraps a fragment that has no <head>", () => {
     const out = buildCustomViewSrcdoc("<div>hi</div>", boot);
     assert.match(out, /^<!DOCTYPE html><html><head>/);
