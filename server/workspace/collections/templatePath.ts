@@ -34,3 +34,18 @@ export function isSafeTemplatePath(value: string): boolean {
 export function isSafeActionTemplatePath(value: string): boolean {
   return value.startsWith(TEMPLATES_PREFIX) && isSafeTemplatePath(value);
 }
+
+/** `views/` — the subdir a custom-view HTML file must live under. */
+const VIEWS_PREFIX = "views/";
+
+/**
+ * A custom-view `file` value: a safe path under the skill's `views/`
+ * subdir that ends in `.html`. Custom views are LLM-authored HTML the
+ * host renders in a sandboxed iframe; constraining them to `views/*.html`
+ * keeps the data folder and the schema/template files off-limits to the
+ * view-file reader. Same per-segment safety as templates; the reader's
+ * realpath containment is the hard guarantee.
+ */
+export function isSafeCustomViewPath(value: string): boolean {
+  return value.startsWith(VIEWS_PREFIX) && /\.html$/.test(value) && isSafeTemplatePath(value);
+}

@@ -91,6 +91,7 @@ import type { IPubSub } from "./events/pub-sub/index.js";
 import { connectRelay } from "./events/relay-client.js";
 import { requireSameOrigin } from "./api/csrfGuard.js";
 import { bearerAuth } from "./api/auth/bearerAuth.js";
+import { isViewDataPath } from "./api/auth/viewToken.js";
 import { deleteTokenFile, generateAndWriteToken, getCurrentToken } from "./api/auth/token.js";
 import { log } from "./system/logger/index.js";
 import { logBackgroundError } from "./utils/logBackgroundError.js";
@@ -228,7 +229,19 @@ app.use(express.json({ limit: "50mb" }));
 // server / CLI callers) because the listener is already bound to
 // localhost (#148); if that ever changes, tighten this middleware
 // too. See plans/done/fix-server-csrf-origin-check.md.
-app.use(requireSameOrigin);
+//
+// Custom-view data endpoints are exempt: their requests come from a
+// sandboxed (opaque-origin) iframe that sends `Origin: null` (which this
+// guard rejects), and the unguessable, slug-scoped capability token they
+// carry IS the anti-CSRF property an attacker page can't satisfy. They are
+// guarded by `requireViewToken` instead. See server/api/auth/viewToken.ts.
+app.use((req, res, next) => {
+  if (isViewDataPath(req.path)) {
+    next();
+    return;
+  }
+  requireSameOrigin(req, res, next);
+});
 
 // Bearer token auth: every `/api/*` request must carry
 // `Authorization: Bearer <token>` matching the per-startup token.
@@ -258,6 +271,13 @@ const RUNTIME_PLUGIN_ASSET_PATH_RE = /^\/plugins\/runtime\/[^/]+\/[^/]+\//;
 const RUNTIME_PLUGIN_OAUTH_CALLBACK_RE = /^\/plugins\/runtime\/oauth-callback\/[^/]+$/;
 app.use("/api", (req, res, next) => {
   if (req.path.startsWith("/files/")) {
+    next();
+    return;
+  }
+  // Custom-view data endpoints carry a scoped capability token, not the
+  // global bearer (the sandboxed iframe can't read it). `requireViewToken`
+  // guards them instead. See server/api/auth/viewToken.ts.
+  if (isViewDataPath(req.path)) {
     next();
     return;
   }

@@ -118,6 +118,36 @@ export interface CollectionWhen {
  *  Both actions and fields share the same predicate shape. */
 export type CollectionActionWhen = CollectionWhen;
 
+/** What a custom view's capability token is allowed to do against the
+ *  collection's data endpoint. `read` returns enriched records (getItems
+ *  semantics); `write` validates-and-stores rows (putItems semantics).
+ *  There is deliberately no `delete` — a view can never do more than the
+ *  agent's own `manageCollection` tool. */
+export type CollectionViewCapability = "read" | "write";
+
+/** A custom (LLM-authored) HTML view for a collection. The host renders
+ *  `file` in a sandboxed iframe over the collection's records; the view
+ *  reaches its data only through a slug- and capability-scoped token (see
+ *  `server/api/auth/viewToken.ts`). Pure data — the host holds no
+ *  view-specific code; meaning lives in the HTML file + this registration. */
+export interface CollectionCustomView {
+  /** Stable id; the view-mode selector key (`custom:<id>`) and the
+   *  capability-token clamp key. Must be a valid slug. */
+  id: string;
+  /** Button label in the view-mode selector (author-authored, like field
+   *  labels — not run through i18n). */
+  label: string;
+  /** Optional Material-icon name for the selector button. */
+  icon?: string;
+  /** Skill-relative path to the HTML file under `views/` (e.g.
+   *  `views/year.html`). Path-safe, must end in `.html`. */
+  file: string;
+  /** What the view may do with the data endpoint. Defaults to `["read"]`
+   *  (least privilege); declare `["read","write"]` only for views that
+   *  edit records. The mint endpoint clamps any requested caps to this. */
+  capabilities?: CollectionViewCapability[];
+}
+
 /** A schema-declared, per-record action rendered as a button in the
  *  read-only detail view. Pure UI/behaviour directive — never stored,
  *  never validated against record data. All domain specifics (label,
@@ -309,6 +339,11 @@ export interface CollectionSchema {
    *  default and is switchable in-view). Set this to pin a specific group
    *  field. Must name a real `enum` field. */
   kanbanField?: string;
+  /** Optional custom (LLM-authored) HTML views, each rendered in a
+   *  sandboxed iframe over the records. Absent ⇒ only the built-in
+   *  field-derived views (table / calendar / kanban / dashboard). See
+   *  {@link CollectionCustomView}. */
+  views?: CollectionCustomView[];
   /** Optional predicate that gates the completion bell: when set, the bell
    *  fires only for records whose `String(record[notifyWhen.field])` is one
    *  of `notifyWhen.in` (e.g. notify only `high`/`urgent` priority todos).

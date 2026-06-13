@@ -18,6 +18,8 @@ export {
 export type {
   CollectionSchema,
   CollectionAction,
+  CollectionCustomView,
+  CollectionViewCapability,
   CollectionFieldSpec,
   CollectionFieldType,
   CollectionSummary,
