@@ -1234,14 +1234,19 @@ const ptBRMessages = {
     kanbanFieldLabel: "Campo de agrupamento do Kanban",
     kanbanUncategorized: "Sem categoria",
     kanbanOpenCard: "Abrir {label}",
-    viewDashboard: "Painel",
-    dashboardAlertHeading: "{label} — {count}",
-    dashboardAllItems: "Todos os itens",
     addView: "Adicionar visualização",
+    config: {
+      open: "Configurações da coleção",
+      title: "{title} · configurações",
+      viewsHeading: "Visualizações personalizadas",
+      deleteView: "Excluir {label}",
+      confirmDelete: 'Excluir a visualização "{label}"? Isso remove o arquivo HTML e cancela o registro.',
+      empty: "Ainda não há visualizações personalizadas.",
+    },
     customViewLoading: "Carregando visualização…",
     customViewError: "Não foi possível carregar esta visualização: {error}",
     addViewPrompt:
-      'Quero adicionar uma visualização personalizada à coleção "{title}". Pergunte o que eu quero ver ou editar, depois crie o arquivo HTML da visualização em data/skills/{slug}/views/your-view.html e registre-o no schema.json da coleção em `views[]` (capabilities ["read"] para uma visualização somente leitura, ["read","write"] se editar registros). Siga a ajuda custom-view para o contrato de dados.',
+      'Quero adicionar uma visualização personalizada à coleção "{title}". Pergunte o que eu quero ver ou editar, depois crie o arquivo HTML da visualização em {base}/views/your-view.html e registre-o em {base}/schema.json em `views[]` (capabilities ["read"] para uma visualização somente leitura, ["read","write"] se editar registros). Siga a ajuda custom-view para o contrato de dados.',
     repair: "Reparar",
     dataIssuesDetected: "{count} arquivo(s) de registro têm problemas de dados e podem não aparecer nesta visualização.",
     repairPrompt:

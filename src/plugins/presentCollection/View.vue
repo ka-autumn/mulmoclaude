@@ -29,7 +29,7 @@ import type { PresentCollectionData } from "./types";
  *  standalone page and chat cards), so it stays consistent everywhere. */
 interface PresentCollectionViewState {
   selected?: string | null;
-  view?: "table" | "calendar" | "kanban" | "dashboard";
+  view?: "table" | "calendar" | "kanban";
   anchorField?: string;
   groupField?: string;
 }
@@ -68,7 +68,7 @@ function onSelect(itemId: string | null): void {
   emit("updateResult", { ...props.selectedResult, viewState: { ...viewState.value, selected: itemId } });
 }
 
-function onViewStateChange(state: { view: "table" | "calendar" | "kanban" | "dashboard"; anchorField: string; groupField: string }): void {
+function onViewStateChange(state: { view: "table" | "calendar" | "kanban"; anchorField: string; groupField: string }): void {
   if (!props.selectedResult) return;
   // Skip redundant writes (the anchor/group settling on load fires this once).
   const current = viewState.value;

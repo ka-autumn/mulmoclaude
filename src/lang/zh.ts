@@ -1221,14 +1221,19 @@ const zhMessages = {
     kanbanFieldLabel: "看板分组字段",
     kanbanUncategorized: "未分类",
     kanbanOpenCard: "打开 {label}",
-    viewDashboard: "仪表板",
-    dashboardAlertHeading: "{label} — {count} 项",
-    dashboardAllItems: "全部条目",
     addView: "添加视图",
+    config: {
+      open: "集合设置",
+      title: "{title} · 设置",
+      viewsHeading: "自定义视图",
+      deleteView: "删除 {label}",
+      confirmDelete: "删除视图“{label}”？这将删除其 HTML 文件并取消注册。",
+      empty: "暂无自定义视图。",
+    },
     customViewLoading: "正在加载视图…",
     customViewError: "无法加载此视图：{error}",
     addViewPrompt:
-      '我想为“{title}”集合添加一个自定义视图。先问我想查看或编辑什么，然后在 data/skills/{slug}/views/your-view.html 创建 HTML 视图文件，并在该集合 schema.json 的 `views[]` 中注册（只读视图用 capabilities ["read"]，需要编辑记录则用 ["read","write"]）。数据契约请遵循 custom-view 帮助文档。',
+      '我想为“{title}”集合添加一个自定义视图。先问我想查看或编辑什么，然后在 {base}/views/your-view.html 创建 HTML 视图文件，并在 {base}/schema.json 的 `views[]` 中注册（只读视图用 capabilities ["read"]，需要编辑记录则用 ["read","write"]）。数据契约请遵循 custom-view 帮助文档。',
     repair: "修复",
     dataIssuesDetected: "有 {count} 个记录文件存在数据问题，可能未显示在此视图中。",
     repairPrompt:

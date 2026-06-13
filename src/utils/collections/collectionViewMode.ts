@@ -8,7 +8,7 @@
 import type { SortState } from "./sortItems";
 
 /** The host's built-in, field-derived view modes. */
-export type BuiltInViewMode = "table" | "calendar" | "kanban" | "dashboard";
+export type BuiltInViewMode = "table" | "calendar" | "kanban";
 /** A custom (LLM-authored) view's selector key: `custom:<viewId>`. */
 export type CustomViewMode = `custom:${string}`;
 export type CollectionViewMode = BuiltInViewMode | CustomViewMode;
@@ -16,7 +16,7 @@ export type CollectionViewMode = BuiltInViewMode | CustomViewMode;
 const STORAGE_KEY = "collection_view_modes";
 const SORT_STORAGE_KEY = "collection_sorts";
 
-const BUILT_IN_MODES: readonly BuiltInViewMode[] = ["table", "calendar", "kanban", "dashboard"];
+const BUILT_IN_MODES: readonly BuiltInViewMode[] = ["table", "calendar", "kanban"];
 
 /** A persisted mode is valid if it's a known built-in OR any `custom:<id>`
  *  key (the id is validated against the live schema at render time, so an

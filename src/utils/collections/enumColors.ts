@@ -1,5 +1,5 @@
 // A standard, ordered colour palette for `enum` field values, shared by every
-// collection surface (list, calendar, kanban, dashboard). Each value in an
+// collection surface (list, calendar, kanban). Each value in an
 // enum's `values` array is assigned the palette entry at its index — cycling
 // when an enum declares more values than the palette holds — so colouring is
 // automatic and consistent without any per-value schema config.
@@ -18,9 +18,9 @@
 import type { CollectionSchema } from "../../components/collectionTypes";
 
 export interface EnumColorClasses {
-  /** Dashboard stat card: border + fill + text + hover. */
+  /** Stat-card style: border + fill + text + hover. */
   card: string;
-  /** Small status dot (kanban column header, dashboard row). */
+  /** Small status dot (kanban column header). */
   dot: string;
   /** Pill / badge / inline `<select>` fill + text (no border width). */
   badge: string;

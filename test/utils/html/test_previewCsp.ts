@@ -1,6 +1,12 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { HTML_PREVIEW_CSP_ALLOWED_CDNS, buildHtmlPreviewCsp, buildPrintCspContent, wrapHtmlWithPreviewCsp } from "../../../src/utils/html/previewCsp";
+import {
+  HTML_PREVIEW_CSP_ALLOWED_CDNS,
+  buildCustomViewCsp,
+  buildHtmlPreviewCsp,
+  buildPrintCspContent,
+  wrapHtmlWithPreviewCsp,
+} from "../../../src/utils/html/previewCsp";
 
 describe("buildHtmlPreviewCsp", () => {
   it("defaults to the exported CDN whitelist", () => {
@@ -58,6 +64,27 @@ describe("buildHtmlPreviewCsp", () => {
     const csp = buildHtmlPreviewCsp("http://localhost:5173");
     assert.ok(csp.includes("img-src http://localhost:5173 https://cdn.jsdelivr.net"));
     assert.ok(!csp.includes("img-src 'self'"));
+  });
+});
+
+describe("buildCustomViewCsp", () => {
+  it("locks connect-src to the origin but allows img-src from any https host", () => {
+    // A custom view holds a scoped token + records, so fetch/XHR/WebSocket stay
+    // origin-locked; img-src additionally allows `https:` so record-borne image
+    // URLs (e.g. a feed's article thumbnails) render. See the threat-model note.
+    const csp = buildCustomViewCsp("http://localhost:3001");
+    assert.match(csp, /connect-src http:\/\/localhost:3001/);
+    assert.ok(!/connect-src[^;]*https:/.test(csp), "connect-src must stay origin-locked, not widened to https:");
+    assert.match(csp, /img-src http:\/\/localhost:3001 [^;]*data: blob: https:/);
+    // Only `https:` is admitted as a scheme-source — never a bare `http:` token
+    // (the `http://localhost` origin is a full URL, not the `http:` scheme).
+    const imgSrc = csp.match(/img-src ([^;]*)/)?.[1] ?? "";
+    assert.ok(!imgSrc.split(" ").includes("http:"), "img-src must not allow the insecure http: scheme");
+  });
+
+  it("keeps the wildcard out of img-src (https: scheme, not *)", () => {
+    const csp = buildCustomViewCsp("http://localhost:3001");
+    assert.ok(!/img-src[^;]*\*/.test(csp));
   });
 });
 

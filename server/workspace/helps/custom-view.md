@@ -18,6 +18,11 @@ data/skills/<slug>/
     <name>.html        ← the view you author (Write/Edit)
 ```
 
+**Feed collections** keep their skill files under `feeds/<slug>/` instead of
+`data/skills/<slug>/`, so author a feed's view at `feeds/<slug>/views/<name>.html`
+and register it in `feeds/<slug>/schema.json`. Everything else below — the
+`views[]` entry shape, the runtime contract, the sandbox rules — is identical.
+
 The HTML lives under `views/` and must end in `.html`. Register each view in
 the collection's `schema.json`:
 
@@ -106,6 +111,10 @@ The view runs in a `sandbox="allow-scripts"` iframe with a strict CSP:
   `cdnjs.cloudflare.com`, `fonts.googleapis.com`, `fonts.gstatic.com`,
   `cdn.plot.ly` — so charting libraries (Chart.js, Plotly, D3) load fine from
   those CDNs. No other external hosts.
+- **`<img>` may load from any `https:` host** (plus `data:` / `blob:`), so an
+  image URL stored in a record — a feed's article thumbnail, a poster, an
+  avatar — renders directly. (Images are the one resource type not pinned to the
+  CDN allowlist; everything else above still is.)
 - **`fetch` (and XHR / WebSocket / `sendBeacon`) is allowed ONLY to
   `window.__MC_VIEW.dataUrl`'s origin.** All other origins are blocked — no
   phone-home, no third-party analytics, no fetching weather / prices / etc.
@@ -115,14 +124,22 @@ The view runs in a `sandbox="allow-scripts"` iframe with a strict CSP:
 - No access to cookies, `localStorage`, or the parent page — the iframe has an
   opaque origin. The token is the only credential, and it is scoped to this one
   collection.
+- **Opening external links is allowed** — use `<a href="…" target="_blank"
+  rel="noopener">` (or `window.open(url, "_blank")`) to open a record's URL in a
+  new browser tab, e.g. a feed card linking to its article. The link opens as a
+  normal tab. (A plain same-tab `<a href>` would try to navigate the sandboxed
+  frame itself and is blocked, so always use `target="_blank"` for outbound
+  links.)
 - Build a full HTML document with a `<head>` (the host injects its bootstrap at
   the start of `<head>`).
 
 ## Editing / iterating
 
-To change a view later, just Read and Edit its `data/skills/<slug>/views/<name>.html`
-file (its path is in the schema's `views[]`). To remove one, delete the file and
-its `views[]` entry.
+To change a view later, just Read and Edit its `views/<name>.html` file under the
+collection's skill dir (`data/skills/<slug>/` — or `feeds/<slug>/` for a feed);
+its path is in the schema's `views[]`. To remove one, delete the file and its
+`views[]` entry — or use the collection's settings gear (the per-collection
+config modal) in the UI, which does both for you.
 
 ---
 

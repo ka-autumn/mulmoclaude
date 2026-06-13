@@ -1232,14 +1232,19 @@ const koMessages = {
     kanbanFieldLabel: "칸반 그룹 필드",
     kanbanUncategorized: "미분류",
     kanbanOpenCard: "{label} 열기",
-    viewDashboard: "대시보드",
-    dashboardAlertHeading: "{label} — {count}건",
-    dashboardAllItems: "전체 항목",
     addView: "보기 추가",
+    config: {
+      open: "컬렉션 설정",
+      title: "{title} · 설정",
+      viewsHeading: "사용자 지정 보기",
+      deleteView: "{label} 삭제",
+      confirmDelete: "“{label}” 보기를 삭제할까요? HTML 파일을 삭제하고 등록을 해제합니다.",
+      empty: "아직 사용자 지정 보기가 없습니다.",
+    },
     customViewLoading: "보기를 불러오는 중…",
     customViewError: "이 보기를 불러오지 못했습니다: {error}",
     addViewPrompt:
-      '{title} 컬렉션에 사용자 지정 보기를 추가하고 싶어요. 무엇을 보거나 편집하고 싶은지 먼저 물어본 뒤, data/skills/{slug}/views/your-view.html 에 HTML 보기 파일을 만들고 컬렉션 schema.json의 `views[]`에 등록해 주세요(읽기 전용 보기는 capabilities ["read"], 레코드를 편집하면 ["read","write"]). 데이터 계약은 custom-view 도움말을 따르세요.',
+      '{title} 컬렉션에 사용자 지정 보기를 추가하고 싶어요. 무엇을 보거나 편집하고 싶은지 먼저 물어본 뒤, {base}/views/your-view.html 에 HTML 보기 파일을 만들고 {base}/schema.json의 `views[]`에 등록해 주세요(읽기 전용 보기는 capabilities ["read"], 레코드를 편집하면 ["read","write"]). 데이터 계약은 custom-view 도움말을 따르세요.',
     repair: "복구",
     dataIssuesDetected: "{count}개의 레코드 파일에 데이터 문제가 있어 이 보기에 표시되지 않을 수 있습니다.",
     repairPrompt:

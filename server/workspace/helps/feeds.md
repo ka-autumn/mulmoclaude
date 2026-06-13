@@ -108,3 +108,7 @@ lists all registered feeds, and its delete button does the same.
   supported yet.
 - A malformed `schema.json` is skipped at load time (with a diagnostic on the
   notification bell), so double-check the shape above before writing.
+- A feed can carry **custom views** just like any collection — author the HTML at
+  `feeds/<slug>/views/<name>.html` and register it in the feed's `schema.json`
+  under `views[]`. See `config/helps/custom-view.md` (note the feed path is
+  `feeds/<slug>/`, not `data/skills/<slug>/`).

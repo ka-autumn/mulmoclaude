@@ -1,6 +1,6 @@
 <template>
   <!-- Centered modal shell for a collection record's open/edit panel. Used
-       by every non-calendar view mode (table / kanban / dashboard) and the
+       by every non-calendar view mode (table / kanban) and the
        calendar's undated tray, so opening an item is a consistent popup
        everywhere. Calendar's dated records keep their own day-view modal
        (CollectionDayView), which embeds the same panel on its right. Teleported

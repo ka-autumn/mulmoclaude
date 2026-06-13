@@ -6,16 +6,21 @@
     <div v-else-if="loading" class="custom-view-message" data-testid="collection-custom-view-loading">
       {{ t("collectionsView.customViewLoading") }}
     </div>
-    <!-- Sandboxed: `allow-scripts` only (no `allow-same-origin`), so the view
-         has an opaque origin and cannot read the parent's token / localStorage.
-         Its data reaches it only via the scoped token injected into __MC_VIEW. -->
+    <!-- Sandboxed: NO `allow-same-origin`, so the view keeps an opaque origin
+         and cannot read the parent's token / localStorage — its data reaches it
+         only via the scoped token injected into __MC_VIEW. `allow-popups` +
+         `allow-popups-to-escape-sandbox` let a view open an external link
+         (`<a target="_blank">` / `window.open`) as a normal new tab — e.g. a
+         feed card linking to its article. Opening requires a user gesture and
+         `target="_blank"` defaults to `noopener`, so the popup can't reach back
+         into the view; the token stays isolated. -->
     <iframe
       v-else-if="srcdoc"
       :key="view.id"
       data-testid="collection-custom-view-iframe"
       :title="view.label"
       :srcdoc="srcdoc"
-      sandbox="allow-scripts"
+      sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
       class="w-full h-full border-0"
     />
   </div>

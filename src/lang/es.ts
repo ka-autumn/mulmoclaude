@@ -1245,14 +1245,19 @@ const esMessages = {
     kanbanFieldLabel: "Campo de agrupación Kanban",
     kanbanUncategorized: "Sin categoría",
     kanbanOpenCard: "Abrir {label}",
-    viewDashboard: "Panel",
-    dashboardAlertHeading: "{label} — {count}",
-    dashboardAllItems: "Todos los elementos",
     addView: "Añadir vista",
+    config: {
+      open: "Ajustes de la colección",
+      title: "{title} · ajustes",
+      viewsHeading: "Vistas personalizadas",
+      deleteView: "Eliminar {label}",
+      confirmDelete: '¿Eliminar la vista "{label}"? Se borrará su archivo HTML y se anulará su registro.',
+      empty: "Aún no hay vistas personalizadas.",
+    },
     customViewLoading: "Cargando vista…",
     customViewError: "No se pudo cargar esta vista: {error}",
     addViewPrompt:
-      'Quiero añadir una vista personalizada a la colección «{title}». Pregúntame qué quiero ver o editar, luego crea el archivo HTML de la vista en data/skills/{slug}/views/your-view.html y regístralo en el schema.json de la colección dentro de `views[]` (capabilities ["read"] para una vista de solo lectura, ["read","write"] si edita registros). Sigue la ayuda custom-view para el contrato de datos.',
+      'Quiero añadir una vista personalizada a la colección «{title}». Pregúntame qué quiero ver o editar, luego crea el archivo HTML de la vista en {base}/views/your-view.html y regístralo en {base}/schema.json dentro de `views[]` (capabilities ["read"] para una vista de solo lectura, ["read","write"] si edita registros). Sigue la ayuda custom-view para el contrato de datos.',
     repair: "Reparar",
     dataIssuesDetected: "{count} archivo(s) de registro tienen problemas de datos y podrían no aparecer en esta vista.",
     repairPrompt:

@@ -1228,14 +1228,19 @@ const jaMessages = {
     kanbanFieldLabel: "カンバンのグループフィールド",
     kanbanUncategorized: "未分類",
     kanbanOpenCard: "{label} を開く",
-    viewDashboard: "ダッシュボード",
-    dashboardAlertHeading: "{label} — {count}件",
-    dashboardAllItems: "一覧",
     addView: "ビューを追加",
+    config: {
+      open: "コレクション設定",
+      title: "{title} · 設定",
+      viewsHeading: "カスタムビュー",
+      deleteView: "{label} を削除",
+      confirmDelete: "ビュー「{label}」を削除しますか？ HTML ファイルを削除し、登録を解除します。",
+      empty: "カスタムビューはまだありません。",
+    },
     customViewLoading: "ビューを読み込み中…",
     customViewError: "このビューを読み込めませんでした: {error}",
     addViewPrompt:
-      '「{title}」コレクションにカスタムビューを追加したい。何を見たい／編集したいか質問してから、HTML ビューファイルを data/skills/{slug}/views/your-view.html に作成し、コレクションの schema.json の `views[]` に登録して（読み取り専用なら capabilities ["read"]、レコードを編集するなら ["read","write"]）。データ契約は custom-view ヘルプに従ってください。',
+      '「{title}」コレクションにカスタムビューを追加したい。何を見たい／編集したいか質問してから、HTML ビューファイルを {base}/views/your-view.html に作成し、{base}/schema.json の `views[]` に登録して（読み取り専用なら capabilities ["read"]、レコードを編集するなら ["read","write"]）。データ契約は custom-view ヘルプに従ってください。',
     repair: "修復",
     dataIssuesDetected: "{count} 件のレコードファイルにデータの問題があり、この表示に出てこない可能性があります。",
     repairPrompt:
