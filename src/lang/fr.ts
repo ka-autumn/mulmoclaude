@@ -1239,6 +1239,14 @@ const frMessages = {
     kanbanUncategorized: "Non classé",
     kanbanOpenCard: "Ouvrir {label}",
     addView: "Ajouter une vue",
+    config: {
+      open: "Paramètres de la collection",
+      title: "{title} · paramètres",
+      viewsHeading: "Vues personnalisées",
+      deleteView: "Supprimer {label}",
+      confirmDelete: "Supprimer la vue « {label} » ? Cela supprime son fichier HTML et la désenregistre.",
+      empty: "Aucune vue personnalisée pour le moment.",
+    },
     customViewLoading: "Chargement de la vue…",
     customViewError: "Impossible de charger cette vue : {error}",
     addViewPrompt:

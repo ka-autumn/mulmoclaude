@@ -1233,6 +1233,14 @@ const koMessages = {
     kanbanUncategorized: "미분류",
     kanbanOpenCard: "{label} 열기",
     addView: "보기 추가",
+    config: {
+      open: "컬렉션 설정",
+      title: "{title} · 설정",
+      viewsHeading: "사용자 지정 보기",
+      deleteView: "{label} 삭제",
+      confirmDelete: "“{label}” 보기를 삭제할까요? HTML 파일을 삭제하고 등록을 해제합니다.",
+      empty: "아직 사용자 지정 보기가 없습니다.",
+    },
     customViewLoading: "보기를 불러오는 중…",
     customViewError: "이 보기를 불러오지 못했습니다: {error}",
     addViewPrompt:

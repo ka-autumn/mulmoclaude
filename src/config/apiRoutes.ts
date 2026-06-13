@@ -264,6 +264,10 @@ const HOST_API_ROUTES = {
      *  Guarded by the scoped view token (NOT the global bearer); exempt from
      *  the global bearer + CSRF middleware. See server/api/auth/viewToken.ts. */
     viewData: "/api/collections/:slug/view-data",
+    /** DELETE → remove one custom view: drop it from schema.json `views[]` and
+     *  unlink its `views/<file>.html` (global-bearer auth) → { deleted, viewId }.
+     *  Source-aware; refuses user-scope + preset collections. */
+    viewDelete: "/api/collections/:slug/views/:viewId",
   },
 
   // `scheduler` group migrated to META — see `src/plugins/scheduler/automationsMeta.ts`.

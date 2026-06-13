@@ -1222,6 +1222,14 @@ const zhMessages = {
     kanbanUncategorized: "未分类",
     kanbanOpenCard: "打开 {label}",
     addView: "添加视图",
+    config: {
+      open: "集合设置",
+      title: "{title} · 设置",
+      viewsHeading: "自定义视图",
+      deleteView: "删除 {label}",
+      confirmDelete: "删除视图“{label}”？这将删除其 HTML 文件并取消注册。",
+      empty: "暂无自定义视图。",
+    },
     customViewLoading: "正在加载视图…",
     customViewError: "无法加载此视图：{error}",
     addViewPrompt:

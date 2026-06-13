@@ -1233,6 +1233,14 @@ const enMessages = {
     kanbanUncategorized: "Uncategorized",
     kanbanOpenCard: "Open {label}",
     addView: "Add view",
+    config: {
+      open: "Collection settings",
+      title: "{title} · settings",
+      viewsHeading: "Custom views",
+      deleteView: "Delete {label}",
+      confirmDelete: 'Delete the "{label}" view? This removes its HTML file and unregisters it.',
+      empty: "No custom views yet.",
+    },
     customViewLoading: "Loading view…",
     customViewError: "Couldn't load this view: {error}",
     addViewPrompt:

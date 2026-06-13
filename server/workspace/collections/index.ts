@@ -2,6 +2,7 @@ export { discoverCollections, loadCollection, toSummary, toDetail, CollectionSch
 export { validateCollectionRecords, validateRecordObject, COMPUTED_TYPES, type RecordIssue } from "./validate.js";
 export { enrichItems } from "./derive.js";
 export { deleteCollection, deleteCollectionRefusalMessage, type DeleteCollectionResult } from "./delete.js";
+export { deleteCustomView, type DeleteViewResult } from "./views.js";
 export {
   listItems,
   readItem,

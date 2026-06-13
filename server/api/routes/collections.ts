@@ -16,6 +16,7 @@ import {
   generateItemId,
   deleteCollection,
   deleteCollectionRefusalMessage,
+  deleteCustomView,
   deleteItem,
   listItems,
   loadCollection,
@@ -35,6 +36,7 @@ import type {
   CollectionDetail,
   CollectionItem,
   CollectionSummary,
+  DeleteViewResult,
   LoadedCollection,
   RecordIssue,
 } from "../../workspace/collections/index.js";
@@ -77,6 +79,11 @@ interface DeleteCollectionResponse {
   /** Workspace-relative path to the backup written before removal
    *  (e.g. `archive/2026-05-31-<uuid>`). */
   archivePath: string;
+}
+
+interface DeleteViewResponse {
+  deleted: true;
+  viewId: string;
 }
 
 interface ActionSeedResponse {
@@ -526,6 +533,48 @@ router.put(API_ROUTES.collections.viewData, viewDataCors, requireViewToken("writ
     sendToolResult(res, raw);
   } catch (err) {
     log.warn("collections", "view-data write failed", { slug: req.params.slug, error: errorMessage(err) });
+    serverError(res, errorMessage(err));
+  }
+});
+
+// Map a non-ok view-delete result to the matching HTTP error. Kept beside the
+// route so the handler stays short and the status mapping is unit-testable.
+function sendDeleteViewRefusal(res: Response, result: Exclude<DeleteViewResult, { kind: "ok" }>): void {
+  if (result.kind === "not-found") {
+    notFound(res, `custom view '${result.viewId}' not found`);
+    return;
+  }
+  if (result.kind === "unsafe-path") {
+    badRequest(res, `custom view '${result.viewId}' has an unsafe file path`);
+    return;
+  }
+  forbidden(
+    res,
+    result.kind === "user-scope"
+      ? "user-scope collections (~/.claude/skills/) are read-only from MulmoClaude"
+      : "preset (mc-*) collections re-seed on restart; their views can't be deleted here",
+  );
+}
+
+// Delete one custom view: drop it from schema.json `views[]` (every on-disk
+// copy) and unlink its HTML file. Behind the global bearer. Source-aware;
+// refuses user-scope + preset collections, consistent with collection delete.
+router.delete(API_ROUTES.collections.viewDelete, async (req: Request<{ slug: string; viewId: string }>, res: Response<DeleteViewResponse>) => {
+  try {
+    const collection = await loadCollection(req.params.slug);
+    if (!collection) {
+      notFound(res, `collection '${req.params.slug}' not found`);
+      return;
+    }
+    const result = await deleteCustomView(collection, req.params.viewId);
+    if (result.kind !== "ok") {
+      sendDeleteViewRefusal(res, result);
+      return;
+    }
+    log.info("collections", "custom view deleted", { slug: collection.slug, viewId: result.viewId });
+    res.json({ deleted: true, viewId: result.viewId });
+  } catch (err) {
+    log.warn("collections", "view delete failed", { slug: req.params.slug, viewId: req.params.viewId, error: errorMessage(err) });
     serverError(res, errorMessage(err));
   }
 });

@@ -210,6 +210,19 @@
           >
             <span class="material-icons text-sm">add</span>
           </button>
+          <!-- Gear — per-collection config (currently: manage/delete custom
+               views). Standalone only, and only when there's a view to manage. -->
+          <button
+            v-if="canConfigureViews"
+            type="button"
+            class="h-8 w-8 flex items-center justify-center rounded bg-white text-slate-500 border border-slate-200 hover:bg-slate-50"
+            :title="t('collectionsView.config.open')"
+            :aria-label="t('collectionsView.config.open')"
+            data-testid="collection-config-open"
+            @click="configOpen = true"
+          >
+            <span class="material-icons text-sm">settings</span>
+          </button>
         </div>
         <!-- Which date field anchors the grid (only when >1 date field). -->
         <select
@@ -622,6 +635,16 @@
       />
     </CollectionRecordModal>
 
+    <!-- Per-collection config (gear): manage/delete custom views. -->
+    <CollectionViewConfigModal
+      v-if="configOpen && collection"
+      :slug="collection.slug"
+      :title="collection.title"
+      :views="customViews"
+      @changed="onViewsChanged"
+      @close="configOpen = false"
+    />
+
     <!-- Chat modal — collect a message and start a new general-role chat
          seeded with the collection's skill command (`/<slug> <message>`). -->
     <div
@@ -705,6 +728,7 @@ import ConfirmModal from "./ConfirmModal.vue";
 import PinToggle from "./PinToggle.vue";
 import CollectionRecordPanel from "./CollectionRecordPanel.vue";
 import CollectionRecordModal from "./CollectionRecordModal.vue";
+import CollectionViewConfigModal from "./CollectionViewConfigModal.vue";
 import CollectionCalendarView from "./CollectionCalendarView.vue";
 import CollectionDayView from "./CollectionDayView.vue";
 import CollectionKanbanView from "./CollectionKanbanView.vue";
@@ -1461,6 +1485,22 @@ function addCustomView(): void {
     return;
   }
   appApi.startNewChat(prompt, BUILTIN_ROLE_IDS.general);
+}
+
+// ── Per-collection config (gear → manage custom views) ──────────────
+const configOpen = ref<boolean>(false);
+
+/** Whether to offer the config gear. Standalone page only, and only when
+ *  there's a deletable custom view to manage — i.e. the collection is one
+ *  whose views the server will delete (project non-preset, or a feed; never a
+ *  read-only user-scope skill). Mirrors the server's refusal rules. */
+const canConfigureViews = computed<boolean>(() => !embedded.value && hasCustomViews.value && (canDeleteCollection.value || isFeed.value));
+
+/** Reload the collection after the config modal deletes a view so the toggle
+ *  row + the modal's own list reflect the removal. */
+async function onViewsChanged(): Promise<void> {
+  const current = collection.value;
+  if (current) await loadCollection(current.slug);
 }
 
 /** True when the calendar is the active body. */

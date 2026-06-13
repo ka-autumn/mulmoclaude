@@ -1246,6 +1246,14 @@ const esMessages = {
     kanbanUncategorized: "Sin categoría",
     kanbanOpenCard: "Abrir {label}",
     addView: "Añadir vista",
+    config: {
+      open: "Ajustes de la colección",
+      title: "{title} · ajustes",
+      viewsHeading: "Vistas personalizadas",
+      deleteView: "Eliminar {label}",
+      confirmDelete: '¿Eliminar la vista "{label}"? Se borrará su archivo HTML y se anulará su registro.',
+      empty: "Aún no hay vistas personalizadas.",
+    },
     customViewLoading: "Cargando vista…",
     customViewError: "No se pudo cargar esta vista: {error}",
     addViewPrompt:

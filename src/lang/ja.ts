@@ -1229,6 +1229,14 @@ const jaMessages = {
     kanbanUncategorized: "未分類",
     kanbanOpenCard: "{label} を開く",
     addView: "ビューを追加",
+    config: {
+      open: "コレクション設定",
+      title: "{title} · 設定",
+      viewsHeading: "カスタムビュー",
+      deleteView: "{label} を削除",
+      confirmDelete: "ビュー「{label}」を削除しますか？ HTML ファイルを削除し、登録を解除します。",
+      empty: "カスタムビューはまだありません。",
+    },
     customViewLoading: "ビューを読み込み中…",
     customViewError: "このビューを読み込めませんでした: {error}",
     addViewPrompt:

@@ -1249,6 +1249,14 @@ const deMessages = {
     kanbanUncategorized: "Nicht kategorisiert",
     kanbanOpenCard: "{label} öffnen",
     addView: "Ansicht hinzufügen",
+    config: {
+      open: "Sammlungseinstellungen",
+      title: "{title} · Einstellungen",
+      viewsHeading: "Benutzerdefinierte Ansichten",
+      deleteView: "{label} löschen",
+      confirmDelete: "Ansicht {label} löschen? Die HTML-Datei wird entfernt und die Registrierung aufgehoben.",
+      empty: "Noch keine benutzerdefinierten Ansichten.",
+    },
     customViewLoading: "Ansicht wird geladen…",
     customViewError: "Diese Ansicht konnte nicht geladen werden: {error}",
     addViewPrompt:

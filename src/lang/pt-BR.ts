@@ -1235,6 +1235,14 @@ const ptBRMessages = {
     kanbanUncategorized: "Sem categoria",
     kanbanOpenCard: "Abrir {label}",
     addView: "Adicionar visualização",
+    config: {
+      open: "Configurações da coleção",
+      title: "{title} · configurações",
+      viewsHeading: "Visualizações personalizadas",
+      deleteView: "Excluir {label}",
+      confirmDelete: 'Excluir a visualização "{label}"? Isso remove o arquivo HTML e cancela o registro.',
+      empty: "Ainda não há visualizações personalizadas.",
+    },
     customViewLoading: "Carregando visualização…",
     customViewError: "Não foi possível carregar esta visualização: {error}",
     addViewPrompt:
