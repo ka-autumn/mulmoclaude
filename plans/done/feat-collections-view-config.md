@@ -3,6 +3,11 @@
 Follow-up to `plans/feat-collections-custom-views.md` (now merged). Three
 independent changes, shippable separately. Discussed 2026-06-14.
 
+**STATUS: all three parts landed** on `feat/collections-view-config`
+(2026-06-14). Part 1 — dashboard removed. Part 2 — config modal +
+`DELETE /api/collections/:slug/views/:viewId`. Part 3 — feeds get custom views
+(gate flip + source-aware author prompt + help docs).
+
 ## Background (current state)
 
 - **Built-in views** live in `CollectionView.vue`: `table` (always),

@@ -1246,7 +1246,7 @@ const ptBRMessages = {
     customViewLoading: "Carregando visualização…",
     customViewError: "Não foi possível carregar esta visualização: {error}",
     addViewPrompt:
-      'Quero adicionar uma visualização personalizada à coleção "{title}". Pergunte o que eu quero ver ou editar, depois crie o arquivo HTML da visualização em data/skills/{slug}/views/your-view.html e registre-o no schema.json da coleção em `views[]` (capabilities ["read"] para uma visualização somente leitura, ["read","write"] se editar registros). Siga a ajuda custom-view para o contrato de dados.',
+      'Quero adicionar uma visualização personalizada à coleção "{title}". Pergunte o que eu quero ver ou editar, depois crie o arquivo HTML da visualização em {base}/views/your-view.html e registre-o em {base}/schema.json em `views[]` (capabilities ["read"] para uma visualização somente leitura, ["read","write"] se editar registros). Siga a ajuda custom-view para o contrato de dados.',
     repair: "Reparar",
     dataIssuesDetected: "{count} arquivo(s) de registro têm problemas de dados e podem não aparecer nesta visualização.",
     repairPrompt:

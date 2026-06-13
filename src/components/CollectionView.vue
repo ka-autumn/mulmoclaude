@@ -1469,17 +1469,20 @@ function builtInViewOrTable(mode: CollectionViewMode): BuiltInViewMode {
 }
 
 /** Whether to offer the "+" (author a new custom view) button. Standalone
- *  page only (the seed starts a chat), and not for feeds (their HTML would
- *  live outside the data/skills authoring path). */
-const canAddCustomView = computed<boolean>(() => Boolean(collection.value) && !embedded.value && !isFeed.value);
+ *  page only (the seed starts a chat). Feeds qualify too — their views are
+ *  authored under feeds/<slug>/ and the seed prompt points there. */
+const canAddCustomView = computed<boolean>(() => Boolean(collection.value) && !embedded.value);
 
 /** Seed a chat asking Claude to author a new custom view for this collection.
  *  Reuses the same chat-seed path as collection actions — the host injects a
- *  templated prompt; Claude asks, authors the HTML, and registers it. */
+ *  templated prompt; Claude asks, authors the HTML, and registers it. The
+ *  authoring base is source-aware: a feed lives under `feeds/<slug>/`, every
+ *  other collection under the `data/skills/<slug>/` staging dir. */
 function addCustomView(): void {
   const current = collection.value;
   if (!current) return;
-  const prompt = t("collectionsView.addViewPrompt", { title: current.title, slug: current.slug });
+  const base = current.schema.ingest ? `feeds/${current.slug}` : `data/skills/${current.slug}`;
+  const prompt = t("collectionsView.addViewPrompt", { title: current.title, base });
   if (props.sendTextMessage) {
     props.sendTextMessage(prompt);
     return;

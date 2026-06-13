@@ -1260,7 +1260,7 @@ const deMessages = {
     customViewLoading: "Ansicht wird geladen…",
     customViewError: "Diese Ansicht konnte nicht geladen werden: {error}",
     addViewPrompt:
-      'Ich möchte der Sammlung {title} eine benutzerdefinierte Ansicht hinzufügen. Frag mich, was ich sehen oder bearbeiten möchte, erstelle dann die HTML-Ansichtsdatei unter data/skills/{slug}/views/your-view.html und registriere sie in der schema.json der Sammlung unter `views[]` (capabilities ["read"] für eine schreibgeschützte Ansicht, ["read","write"] wenn sie Datensätze bearbeitet). Folge der custom-view-Hilfe für den Datenvertrag.',
+      'Ich möchte der Sammlung {title} eine benutzerdefinierte Ansicht hinzufügen. Frag mich, was ich sehen oder bearbeiten möchte, erstelle dann die HTML-Ansichtsdatei unter {base}/views/your-view.html und registriere sie in {base}/schema.json unter `views[]` (capabilities ["read"] für eine schreibgeschützte Ansicht, ["read","write"] wenn sie Datensätze bearbeitet). Folge der custom-view-Hilfe für den Datenvertrag.',
     repair: "Reparieren",
     dataIssuesDetected: "{count} Datensatzdatei(en) haben Datenprobleme und fehlen möglicherweise in dieser Ansicht.",
     repairPrompt:

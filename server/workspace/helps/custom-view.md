@@ -18,6 +18,11 @@ data/skills/<slug>/
     <name>.html        ← the view you author (Write/Edit)
 ```
 
+**Feed collections** keep their skill files under `feeds/<slug>/` instead of
+`data/skills/<slug>/`, so author a feed's view at `feeds/<slug>/views/<name>.html`
+and register it in `feeds/<slug>/schema.json`. Everything else below — the
+`views[]` entry shape, the runtime contract, the sandbox rules — is identical.
+
 The HTML lives under `views/` and must end in `.html`. Register each view in
 the collection's `schema.json`:
 
@@ -120,9 +125,11 @@ The view runs in a `sandbox="allow-scripts"` iframe with a strict CSP:
 
 ## Editing / iterating
 
-To change a view later, just Read and Edit its `data/skills/<slug>/views/<name>.html`
-file (its path is in the schema's `views[]`). To remove one, delete the file and
-its `views[]` entry.
+To change a view later, just Read and Edit its `views/<name>.html` file under the
+collection's skill dir (`data/skills/<slug>/` — or `feeds/<slug>/` for a feed);
+its path is in the schema's `views[]`. To remove one, delete the file and its
+`views[]` entry — or use the collection's settings gear (the per-collection
+config modal) in the UI, which does both for you.
 
 ---
 

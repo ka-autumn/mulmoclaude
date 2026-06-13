@@ -1257,7 +1257,7 @@ const esMessages = {
     customViewLoading: "Cargando vista…",
     customViewError: "No se pudo cargar esta vista: {error}",
     addViewPrompt:
-      'Quiero añadir una vista personalizada a la colección «{title}». Pregúntame qué quiero ver o editar, luego crea el archivo HTML de la vista en data/skills/{slug}/views/your-view.html y regístralo en el schema.json de la colección dentro de `views[]` (capabilities ["read"] para una vista de solo lectura, ["read","write"] si edita registros). Sigue la ayuda custom-view para el contrato de datos.',
+      'Quiero añadir una vista personalizada a la colección «{title}». Pregúntame qué quiero ver o editar, luego crea el archivo HTML de la vista en {base}/views/your-view.html y regístralo en {base}/schema.json dentro de `views[]` (capabilities ["read"] para una vista de solo lectura, ["read","write"] si edita registros). Sigue la ayuda custom-view para el contrato de datos.',
     repair: "Reparar",
     dataIssuesDetected: "{count} archivo(s) de registro tienen problemas de datos y podrían no aparecer en esta vista.",
     repairPrompt:
