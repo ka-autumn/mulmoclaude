@@ -53,7 +53,7 @@ function logsDir(root = workspacePath): string {
 
 const stateDeps: StateDeps = {
   readFile: (filePath: string) => readFile(filePath, "utf-8"),
-  writeFileAtomic: (filePath: string, content: string) => writeFileAtomic(filePath, content),
+  writeFileAtomic: (filePath: string, content: string) => writeFileAtomic(filePath, content, { uniqueTmp: true }),
   exists: existsSync,
 };
 
