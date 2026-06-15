@@ -13,8 +13,11 @@ the GUI chat protocol still works.
 
 > This is a large, multi-milestone change executed on a long-lived `staging`
 > branch (see [Strategy](#strategy-long-lived-staging-branch)). It depends on a
-> de-risking spike running in `mulmoterminal` first — see that repo's
-> `docs/gui-protocol-spike.md`.
+> de-risking spike in `mulmoterminal` — see that repo's
+> `docs/gui-protocol-spike.md`. **Spike status:** the GUI chat protocol is
+> **validated against a real interactive `claude`** (`presentMarkdown` one-way
+> and `presentForm` round-trip both work), and **permissions are decided
+> terminal-native** (see [Decisions](#decisions-made)) — so M3 has no open risks.
 
 ## Motivation
 
@@ -39,8 +42,10 @@ headless or interactive:
 - **MCP tools** — `server/agent/mcp-server.ts` pushes structured tool results to
   internal API routes (`postJson(API_ROUTES.agent.internal.toolResult, …)`).
   `presentForm`, `presentDocument`, `manageCollection`, `notify`,
-  `spawnBackgroundChat`, `handlePermission` all run **server-side** and reach
-  claude via `--mcp-config` regardless of transcript transport.
+  `spawnBackgroundChat` all run **server-side** and reach claude via
+  `--mcp-config` regardless of transcript transport. (Permissions are the
+  exception — we drop `handlePermission` in favor of terminal-native prompts;
+  see [Decisions](#decisions-made).)
 - **Hooks** — e.g. the `page-edit` toolResult is published by a **PostToolUse**
   hook (`MULMOCLAUDE_CHAT_SESSION_ID`, see `config.ts` ~#963), not by stream
   parsing.
@@ -123,7 +128,7 @@ chat layer, not chat layer + weeks of drift. When everything works, **merge
 |---|---|---|
 | M1 | `staging` = copy of `main`; PRs target it | branch |
 | M2 | **Bare terminal chat** — no roles/docker/plugins | foundation, fully tested in isolation |
-| **M3** | **Plugins + GUI chat protocol** (two-panel, `data` store, history replay, permissions) | **prove GUI survives interactive PTY — the critical risk, validated early** |
+| **M3** | **Plugins + GUI chat protocol** (two-panel, `data` store, history replay) | port the spike's proven pattern; permissions are terminal-native (no GUI intercept) |
 | M4 | **Docker** sandbox (`pty.spawn docker -it`, reuse arg builder) | low-risk, mechanical |
 | M5 | **One-shots** rerouted through `startChat` | needs M3's terminal-backed `startChat` |
 | M6 | `spawnBackgroundChat` terminal-backed + **mobile pure-input** | |
@@ -139,8 +144,12 @@ sessions, sidebar lists `.jsonl` sessions, activity dots from hooks, reconnect.
 
 **M3 — Plugins + GUI chat protocol** (port the pattern proven by the
 `mulmoterminal` spike). Restore `--mcp-config`, the GUI plugins, the unified
-two-panel layout, the `data` store keyed by session, history replay, and the
-permission flow. **This is where the make-or-break risk lives** (R1 below).
+two-panel layout, the `data` store keyed by session, and history replay. **No
+permission-intercept work** — permissions are terminal-native (see Decisions), so
+`handlePermission`, `--permission-prompt-tool`, and the
+`AskUserQuestion → presentForm` redirect are **dropped, not ported**. The spike
+already validated this milestone's core end-to-end against a real interactive
+`claude`, so M3 carries no open risk.
 
 **M4 — Docker.** `pty.spawn("docker", [...buildDockerSpawnArgs, "-t"])` →
 `docker run -it`. node-pty supplies the host TTY; `-t` allocates the container
@@ -159,7 +168,12 @@ latency/concurrency cost (see risks).
 
 **M6 — Background + mobile.** `spawnBackgroundChat` becomes terminal-backed,
 visible, **no bold completion notification**. Mobile = **pure input**: always
-starts a new chat session, no response rendered back.
+starts a new chat session, no response rendered back. **Permission policy for
+terminal-less sessions:** a fully hidden worker (`hidden=true`) or an autonomous
+mobile-spawned session has no terminal for anyone to answer a permission prompt,
+so it must run with **pre-authorized tools** (broad `--allowedTools` / a
+permissive settings profile) and never stop to ask. Sessions a human will open
+(foreground, visible background) simply let the prompt wait in their terminal.
 
 **M7 — Final sweep.** Remove the `-p` backend, rework `fake-echo` + event-based
 e2e for the terminal world, flip any flag default, delete dead code, confirm the
@@ -172,18 +186,21 @@ grep is zero, then **BIG MERGE → main**.
 - **Unify view modes** into one two-panel layout (left terminal, right GUI).
 - **One-shots reroute through `startChat`** (not eliminated).
 - **GUI validated early** — M3 precedes M4 (docker) deliberately.
+- **Permissions are terminal-native.** Don't intercept permission prompts into
+  the GUI — Claude's native "May I?" renders in the real terminal and the user
+  answers there. Drops `handlePermission`, `--permission-prompt-tool`, and the
+  `AskUserQuestion → presentForm` redirect. Terminal-less sessions (hidden
+  workers, autonomous mobile) instead run with pre-authorized tools (see M6).
 - **Telegram/CLI bridges: out of scope this round** (see risks) — so "zero `-p`"
   is the gate for chat + the three one-shots, with bridges handled separately.
 
 ## Open risks
 
-- **R1 — `--permission-prompt-tool` in interactive mode** *(biggest unknown)*.
-  Headless mode routes permissions to `handlePermission`, which redirects
-  `AskUserQuestion → presentForm`. Interactive claude has its **own native
-  in-terminal permission UI**; if it ignores `--permission-prompt-tool`, the GUI
-  permission/question flow changes. **De-risked by the `mulmoterminal` spike's
-  deferred permission probe and confirmed at M3.** Resolve before sinking M3
-  effort.
+- **R1 — permissions in interactive mode — RESOLVED by decision.** Rather than
+  probe whether `--permission-prompt-tool` fires interactively, we chose
+  **terminal-native permissions** outright (see Decisions). What remains is a
+  *policy*, not a risk: terminal-less sessions (hidden workers, autonomous
+  mobile) need pre-authorized tools (M6).
 - **One-shot reroute cost.** A full `claude` session per call is heavier than a
   headless one-shot; `memory/migrate.ts` runs many classifies in parallel
   (`classifyInParallel`). Bound concurrency; consider keeping the cheapest ones
@@ -202,7 +219,8 @@ pure-input, durable multi-device GUI sync. No `main` changes until the BIG MERGE
 ## Dependencies
 
 - **`mulmoterminal` GUI-protocol spike** (`mulmoterminal/docs/gui-protocol-spike.md`)
-  — Phase I `presentMarkdown` (one-way), Phase II `presentForm` (round-trip).
-  Produces the reference implementation M3 ports, and answers R1.
+  — Phase I `presentMarkdown` (one-way) and Phase II `presentForm` (round-trip),
+  both **validated against a real interactive `claude`**. Produces the reference
+  implementation M3 ports; permissions decided terminal-native there too.
 - Existing **`LLMBackend` abstraction** (`server/agent/backend/`) and the
   **DI'd one-shot seams** — the levers that keep call sites untouched.
