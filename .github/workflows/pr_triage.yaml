@@ -1,0 +1,120 @@
+# Auto-triage incoming pull requests against the "open an issue and
+# agree on a plan first" contribution policy (docs/developer.md →
+# Contributing). PRs from listed maintainers / bots fall through with
+# no action. PRs from anyone else are allowed only when the diff is
+# small (additions + deletions ≤ LINE_LIMIT). Anything larger gets a
+# templated comment pointing at the policy and is closed.
+#
+# Why `pull_request_target` over `pull_request`:
+#   - Forked PRs running `pull_request` don't get write-scoped
+#     GITHUB_TOKEN, so we couldn't comment + close them.
+#   - `pull_request_target` runs from the base repo's workflow on the
+#     base branch, and we never check out the PR's code, so the usual
+#     `pull_request_target` security concerns (running attacker code
+#     with elevated permissions) don't apply here.
+#
+# Maintainer list — keep in sync with the Contributing section of
+# docs/developer.md. Adding a maintainer is a one-line edit in both
+# places.
+
+name: PR triage (non-maintainer guard)
+
+on:
+  # zizmor: ignore[dangerous-triggers]
+  # `pull_request_target` is needed so forked PRs get a write-scoped
+  # GITHUB_TOKEN (we must comment + close them). The two usual abuse
+  # paths for this trigger don't apply here:
+  #   1. We never `actions/checkout` the PR's code, so no attacker
+  #      script ever runs with elevated permissions.
+  #   2. PR-controlled fields (author login, additions count) reach
+  #      the shell only through `env:` bindings and are referenced as
+  #      `${VAR}` (quoted) inside bash. There is no `${{ github.event.
+  #      pull_request.* }}` template substitution into the shell body,
+  #      so zizmor's template-injection vector is closed.
+  pull_request_target:
+    # `edited` catches base-branch retargets: a contributor could open
+    # the PR against a non-main branch (bypassing `branches: [main]`)
+    # then edit it to point at main. That arrives as `edited`, not
+    # `opened` / `reopened`, so triage would otherwise never fire on
+    # the retargeted PR. CodeRabbit + Codex review on PR #1708.
+    types: [opened, reopened, synchronize, edited]
+    branches: [main]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: pr-triage-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    env:
+      # Newline-separated allowlist. Match is exact (full GitHub login
+      # including the `[bot]` suffix for App accounts).
+      MAINTAINERS: |
+        isamu
+        snakajima
+        ystknsh
+        yuki0627
+        dependabot[bot]
+        coderabbitai[bot]
+        sourcery-ai[bot]
+      # Combined cap on additions + deletions for non-maintainer PRs.
+      # The docs/developer.md "When you can skip the plan" section
+      # quotes the same number — bump both together if it changes.
+      LINE_LIMIT: 10
+      # Link target for the closing comment. Kept here so the URL
+      # interpolation happens at workflow-load time (not inside the
+      # bash heredoc) and stays grep-able alongside the policy.
+      DOC_LINK: https://github.com/${{ github.repository }}/blob/main/docs/developer.md#contributing--please-open-an-issue-with-a-plan-first
+    steps:
+      - name: Decide and act
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          ADDITIONS: ${{ github.event.pull_request.additions }}
+          DELETIONS: ${{ github.event.pull_request.deletions }}
+        run: |
+          set -euo pipefail
+          echo "PR=#${PR_NUMBER} author=${PR_AUTHOR} +${ADDITIONS} -${DELETIONS}"
+
+          # Exact-line match against the allowlist. `grep -Fxq` treats
+          # the pattern as a fixed string and requires whole-line
+          # equality, so the `[bot]` suffix isn't interpreted as a
+          # regex character class.
+          if echo "${MAINTAINERS}" | grep -Fxq "${PR_AUTHOR}"; then
+            echo "maintainer / allowlisted bot — pass through"
+            exit 0
+          fi
+
+          TOTAL=$((ADDITIONS + DELETIONS))
+          if [ "${TOTAL}" -le "${LINE_LIMIT}" ]; then
+            echo "small PR (${TOTAL} lines ≤ ${LINE_LIMIT}) — allowed"
+            exit 0
+          fi
+
+          # Large unsolicited PR — comment then close. Comment first
+          # so the closing event arrives with the explanation already
+          # attached (email notifications batch them together).
+          gh pr comment "${PR_NUMBER}" --repo "${REPO}" --body "$(cat <<EOF
+          ## This PR is being closed automatically — please open an issue first
+
+          Thanks for sending this! Our contribution policy is to **agree on a plan in a GitHub issue before opening a pull request**, except for very small fixes. This PR is **${TOTAL} lines of diff** (additions + deletions) and you're not on the maintainer allowlist, so it's being closed automatically.
+
+          ### What to do next
+
+          1. **Open an issue** describing the problem and your proposed plan. Keep the **first three lines a compact summary** so a maintainer can decide whether to engage at a glance. Save the longer rationale for the rest of the body.
+          2. **Wait for the plan to be agreed in the issue thread.** We may suggest scope adjustments, point out helpers you can reuse, or surface in-flight work that overlaps.
+          3. Once agreed, a maintainer drafts the pull request.
+
+          Direct pull requests are welcome for typos, copy fixes, doc tweaks, dependency bumps, and single-file bug fixes under **${LINE_LIMIT} lines of diff**. The full rationale lives in [docs/developer.md → Contributing](${DOC_LINK}).
+          EOF
+          )"
+          gh pr close "${PR_NUMBER}" --repo "${REPO}"

@@ -33,10 +33,20 @@ A direct pull request is welcome for:
 
 - Typos, copy fixes, documentation tweaks
 - Dependency version bumps
-- Single-file bug fixes with an obvious root cause and a matching test, ideally under 20 lines of diff
+- Single-file bug fixes with an obvious root cause and a matching test, **10 lines of diff or fewer (additions + deletions, inclusive)**
 - Anything a maintainer or a continuous integration bot explicitly asks for in a review comment
 
 Anything larger than that should start as an issue. If you are not sure, opening an issue first is always cheaper than writing a pull request that will not be accepted. Thanks for understanding.
+
+### Automated triage on pull requests
+
+The `.github/workflows/pr_triage.yaml` workflow runs on every PR and enforces the rule above mechanically:
+
+- PRs from maintainers and allowlisted bots fall through. The current allowlist is `isamu`, `snakajima`, `ystknsh`, `yuki0627`, `dependabot[bot]`, `coderabbitai[bot]`, `sourcery-ai[bot]`. To add a maintainer, edit the `MAINTAINERS` list in the workflow and the same list here.
+- PRs from anyone else are accepted automatically when the diff is ≤ 10 lines (additions + deletions).
+- Larger non-maintainer PRs receive a templated comment that links back to this section and asks for an issue first — **the issue body's first three lines should be a compact summary of the problem and the proposed plan** so a maintainer can decide whether to engage at a glance — and the PR is closed.
+
+The line cap and the documentation are intentionally kept in lock-step. If the cap moves, update both the workflow's `LINE_LIMIT` and the bullet above in the same commit.
 
 ---
 
