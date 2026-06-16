@@ -1,0 +1,66 @@
+{
+  "name": "@mulmoclaude/markdown-plugin",
+  "version": "0.1.0",
+  "description": "Full-fidelity markdown document plugin (presentDocument) — Marp slides, PDF export, AI image-fill — shared gui-chat-protocol plugin for MulmoClaude and MulmoTerminal.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.js"
+    },
+    "./vue": {
+      "types": "./dist/vue/index.d.ts",
+      "import": "./dist/vue.js",
+      "require": "./dist/vue.cjs",
+      "default": "./dist/vue.js"
+    },
+    "./style.css": "./dist/style.css"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "vite build && vue-tsc -p tsconfig.build.json --emitDeclarationOnly",
+    "prepack": "vite build && vue-tsc -p tsconfig.build.json --emitDeclarationOnly",
+    "typecheck": "vue-tsc --noEmit",
+    "lint": "eslint .",
+    "test": "echo 'no in-package tests; presentDocument logic is covered by host integration tests'"
+  },
+  "dependencies": {
+    "@marp-team/marp-core": "^4.3.0",
+    "js-yaml": "^4.2.0",
+    "marked": "^18.0.5"
+  },
+  "peerDependencies": {
+    "gui-chat-protocol": "^0.3.0",
+    "vue": "^3.5.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@tailwindcss/vite": "^4.2.2",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^25.5.0",
+    "@typescript-eslint/eslint-plugin": "^8.58.0",
+    "@typescript-eslint/parser": "^8.58.0",
+    "@vitejs/plugin-vue": "^6.0.5",
+    "eslint": "^10.1.0",
+    "eslint-plugin-vue": "^10.8.0",
+    "globals": "^17.4.0",
+    "gui-chat-protocol": "^0.3.3",
+    "tailwindcss": "^4.2.2",
+    "typescript": "~6.0.2",
+    "vite": "^8.0.3",
+    "vue": "^3.5.31",
+    "vue-eslint-parser": "^10.4.0",
+    "vue-tsc": "^3.2.6"
+  },
+  "license": "MIT"
+}
