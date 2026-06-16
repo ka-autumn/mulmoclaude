@@ -34,6 +34,7 @@
     "@mulmochat-plugin/quiz": "0.4.3",
     "@mulmochat-plugin/ui-image": "^0.4.0",
     "@mulmoclaude/form-plugin": "^0.1.0",
+    "@mulmoclaude/markdown-plugin": "^0.1.0",
     "@mulmoclaude/spotify-plugin": "^0.1.0",
     "@receptron/task-scheduler": "^0.1.0",
     "cors": "^2.8.6",

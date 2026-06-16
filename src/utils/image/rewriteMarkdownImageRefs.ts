@@ -97,7 +97,9 @@ function rewriteImageToken(token: Tokens.Image, basePath: string): string | null
   // characters (brackets, entities) survive unmodified.
   const alt = extractBracketedAlt(token.raw) ?? token.text ?? "";
   if (token.title) {
-    const escapedTitle = token.title.replace(/"/g, '\\"');
+    // Escape backslashes BEFORE quotes so a title containing `\` (or one
+    // ending in `\`) can't break out of the quoted title delimiter.
+    const escapedTitle = token.title.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
     return `![${alt}](${newHref} "${escapedTitle}")`;
   }
   return `![${alt}](${newHref})`;
