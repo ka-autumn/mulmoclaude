@@ -38,6 +38,6 @@
   "dependencies": {
     "imapflow": "^1.3.3",
     "mailparser": "^3.9.8",
-    "nodemailer": "^8.0.9"
+    "nodemailer": "^9.0.0"
   }
 }
