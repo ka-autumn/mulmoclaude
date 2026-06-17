@@ -1,56 +1,55 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildReplacement, IMAGE_PLACEHOLDER } from "../../../server/utils/files/markdown-image-fill.js";
+import { buildImagePlaceholderReplacement } from "@mulmoclaude/markdown-plugin";
+import { IMAGE_PLACEHOLDER } from "../../../server/utils/files/markdown-image-fill.js";
 
-describe("buildReplacement", () => {
-  describe("url present — workspace-rooted absolute ref", () => {
-    it("prefixes a leading `/` so the ref resolves from the workspace root", () => {
-      // `rewriteMarkdownImageRefs` on the client treats a leading
-      // `/` as "rooted at workspace", which is the only way a document
-      // shard under `artifacts/documents/YYYY/MM/` can still reach
-      // an image under `artifacts/images/YYYY/MM/` without depending
-      // on how deep the document is nested.
-      assert.equal(buildReplacement("sunset over kyoto", "artifacts/images/2026/04/x.png"), "![sunset over kyoto](/artifacts/images/2026/04/x.png)");
+describe("buildImagePlaceholderReplacement", () => {
+  describe("ref present — used verbatim as the image URL", () => {
+    it("emits the alt text + the host-resolved ref unchanged", () => {
+      // The host (generateImageFile) returns a workspace-rooted "/…" ref;
+      // a leading `/` lets a document shard under
+      // `artifacts/documents/YYYY/MM/` reach an image under
+      // `artifacts/images/YYYY/MM/` regardless of nesting depth.
+      assert.equal(
+        buildImagePlaceholderReplacement("sunset over kyoto", "/artifacts/images/2026/04/x.png"),
+        "![sunset over kyoto](/artifacts/images/2026/04/x.png)",
+      );
     });
 
     it("passes prompt text through as alt text unchanged (spaces / punctuation preserved)", () => {
       assert.equal(
-        buildReplacement("A dog, sitting on a rug (hyper-detailed)", "artifacts/images/2026/04/y.png"),
+        buildImagePlaceholderReplacement("A dog, sitting on a rug (hyper-detailed)", "/artifacts/images/2026/04/y.png"),
         "![A dog, sitting on a rug (hyper-detailed)](/artifacts/images/2026/04/y.png)",
       );
     });
 
     it("passes non-ASCII prompt text through unchanged", () => {
-      assert.equal(buildReplacement("夕焼けの京都", "artifacts/images/2026/04/z.png"), "![夕焼けの京都](/artifacts/images/2026/04/z.png)");
+      assert.equal(buildImagePlaceholderReplacement("夕焼けの京都", "/artifacts/images/2026/04/z.png"), "![夕焼けの京都](/artifacts/images/2026/04/z.png)");
     });
 
-    it("does NOT double-slash when the URL happens to already start with one (defensive)", () => {
-      // The caller's contract says `url` is workspace-relative without
-      // a leading slash (produced by saveImage). This test documents
-      // what happens if someone breaks that contract — currently
-      // produces `//artifacts/...`. If the helper is hardened to
-      // strip a leading slash, update this test; otherwise it stays
-      // as a regression guard on the contract.
-      assert.equal(buildReplacement("test", "/artifacts/images/foo.png"), "![test](//artifacts/images/foo.png)");
+    it("uses the ref verbatim (no slash munging) — supports data URIs for other hosts", () => {
+      // Host-agnostic: MulmoTerminal can pass a `data:` URI here and it
+      // must NOT be mangled with a leading slash.
+      assert.equal(buildImagePlaceholderReplacement("test", "data:image/png;base64,AAA"), "![test](data:image/png;base64,AAA)");
     });
   });
 
-  describe("url null — text fallback", () => {
+  describe("ref null — text fallback", () => {
     it("renders an italic image marker when generation skipped or failed", () => {
       // When `GEMINI_API_KEY` is missing OR generation threw,
       // the placeholder falls through to a visible marker so the
       // document still renders without broken image refs. The
       // 🖼️ glyph makes the fallback obvious to operators reading
       // the rendered markdown.
-      assert.equal(buildReplacement("sunset over kyoto", null), "*🖼️ Image: sunset over kyoto*");
+      assert.equal(buildImagePlaceholderReplacement("sunset over kyoto", null), "*🖼️ Image: sunset over kyoto*");
     });
 
     it("preserves non-ASCII prompt text in the fallback", () => {
-      assert.equal(buildReplacement("夕焼けの京都", null), "*🖼️ Image: 夕焼けの京都*");
+      assert.equal(buildImagePlaceholderReplacement("夕焼けの京都", null), "*🖼️ Image: 夕焼けの京都*");
     });
 
     it("preserves empty prompt text (edge case — markdown still renders)", () => {
-      assert.equal(buildReplacement("", null), "*🖼️ Image: *");
+      assert.equal(buildImagePlaceholderReplacement("", null), "*🖼️ Image: *");
     });
   });
 });

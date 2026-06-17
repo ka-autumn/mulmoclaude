@@ -2,9 +2,8 @@ import { realpathSync } from "fs";
 import path from "path";
 import { Router, Request, Response } from "express";
 import { marked } from "marked";
-import { Marp } from "@marp-team/marp-core";
+import { renderMarpDeck } from "@mulmoclaude/markdown-plugin";
 import { listMarpThemes } from "../../workspace/marp-themes.js";
-import { MARP_HTML_ALLOWLIST } from "../../../src/utils/markdown/marpTheme.js";
 import puppeteer from "puppeteer";
 import { errorMessage } from "../../utils/errors.js";
 import { badRequest, serverError } from "../../utils/httpError.js";
@@ -12,7 +11,6 @@ import { WORKSPACE_DIRS } from "../../workspace/paths.js";
 import { resolveWithinRoot, readBinarySafeSync } from "../../utils/files/safe.js";
 import { resolveWorkspacePath } from "../../utils/files/workspace-io.js";
 import { parseFrontmatter } from "../../utils/markdown/frontmatter.js";
-import { applyCustomMarpSize } from "../../../src/utils/markdown/marpCustomSize.js";
 import { log } from "../../system/logger/index.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { transformResolvableUrlsInHtml } from "../../../src/utils/image/htmlSrcAttrs.js";
@@ -287,23 +285,16 @@ export function extractSlideDimensions(html: string): { width: number; height: n
 }
 
 async function renderMarpPdf(markdown: string, baseDir?: string): Promise<Buffer> {
-  // Disable twemoji conversion so the PDF stays self-contained — the
-  // default would emit `<img src="https://twemoji.maxcdn.com/...">`
-  // and puppeteer would need network access during the print to
-  // resolve them. OS-font emoji renders inline without a fetch and
-  // matches the MarpView preview's behaviour after the same change.
-  // Same allowlist as the MarpView preview so preview / export stay
-  // identical when authors lean on raw HTML tags for layout.
-  const marp = new Marp({ html: MARP_HTML_ALLOWLIST, emoji: { unicode: false, shortcode: false } });
-  // Register every workspace-defined theme (#1649). Slides that
-  // reference one via `theme: <name>` then render with the same
-  // CSS the previewer applied; slides that don't are unaffected.
-  for (const theme of listMarpThemes()) {
-    marp.themeSet.add(theme.css);
-  }
-  const sized = applyCustomMarpSize(marp, markdown);
-  const { html, css } = marp.render(sized);
-  const { width: slideWidth, height: slideHeight } = extractSlideDimensions(html);
+  // Shared render core (@mulmoclaude/markdown-plugin) — the MarpView
+  // preview and every host's PDF export use the same Marp config + theme
+  // registration + custom-size bridging, so they can't drift. Twemoji
+  // stays disabled (emoji unicode/shortcode false) so the PDF is self-
+  // contained (no network fetch for emoji during print). `inlineSVG:
+  // true` keeps this route's SVG `viewBox` page sizing.
+  const { html, css, slideWidth, slideHeight } = await renderMarpDeck(markdown, {
+    themes: listMarpThemes(),
+    inlineSVG: true,
+  });
   const inlinedHtml = inlineImages(html, { sourceDir: baseDir });
   const fullHtml = `<!doctype html>
 <html><head><meta charset="utf-8"><style>

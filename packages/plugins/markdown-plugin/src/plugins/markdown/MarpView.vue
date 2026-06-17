@@ -45,8 +45,7 @@ import { usePdfExport } from "./usePdfExport";
 import type { MarpThemeEntry } from "./contract";
 import { errorMessage } from "../../utils/errors";
 import { rewriteMarkdownImageRefs } from "../../utils/image/rewriteMarkdownImageRefs";
-import { applyCustomMarpSize } from "../../utils/markdown/marpCustomSize";
-import { MARP_HTML_ALLOWLIST } from "../../utils/markdown/marpTheme";
+import { renderMarpDeck, type RenderMarpResult } from "../../render/marp";
 import { useT } from "../../lang";
 
 const t = useT();
@@ -60,8 +59,6 @@ const props = defineProps<{
 
 const DEFAULT_SLIDE_WIDTH = 1280;
 const DEFAULT_SLIDE_HEIGHT = 720;
-const MIN_SLIDE_DIM = 200;
-const MAX_SLIDE_DIM = 3840;
 const SLIDE_GAP_PX = 16;
 const BODY_PADDING_PX = 16;
 const WRAPPER_PADDING_PX = 12;
@@ -141,24 +138,6 @@ function countSlides(html: string): number {
   return sectionMatches ? sectionMatches.length : 0;
 }
 
-const SECTION_SIZE_RE = /div\.marpit\s*>\s*section\s*\{[^}]*?width:\s*(\d+)px[^}]*?height:\s*(\d+)px/;
-
-function clampDim(value: number, fallback: number): number {
-  if (!Number.isFinite(value) || value < MIN_SLIDE_DIM) return fallback;
-  return Math.min(value, MAX_SLIDE_DIM);
-}
-
-function extractSlideDimensions(css: string): { width: number; height: number } {
-  const match = css.match(SECTION_SIZE_RE);
-  if (match) {
-    return {
-      width: clampDim(Number(match[1]), DEFAULT_SLIDE_WIDTH),
-      height: clampDim(Number(match[2]), DEFAULT_SLIDE_HEIGHT),
-    };
-  }
-  return { width: DEFAULT_SLIDE_WIDTH, height: DEFAULT_SLIDE_HEIGHT };
-}
-
 function resetRenderState(): void {
   srcDoc.value = "";
   slideCount.value = 0;
@@ -189,24 +168,17 @@ async function loadMarpThemes(): Promise<readonly MarpThemeEntry[]> {
   }
 }
 
-async function prepareMarp(markdown: string): Promise<{ html: string; css: string }> {
-  const { Marp } = await import("@marp-team/marp-core");
-  // `html: MARP_HTML_ALLOWLIST` opens a small layout-tag subset
-  // (`<div class>`, `<span>`, `<img>`, …); default `html: false`
-  // escapes them all. Same allowlist applied server-side in
-  // `renderMarpPdf` so preview / export agree. Scripts, iframes,
-  // and form elements stay escaped.
-  const marp = new Marp({ inlineSVG: false, html: MARP_HTML_ALLOWLIST, emoji: { unicode: false, shortcode: false } });
+async function prepareMarp(markdown: string): Promise<RenderMarpResult> {
   // Register every workspace-defined theme (#1649). A deck opts in
   // via frontmatter `theme: <name>`; decks that don't keep Marp's
   // default look.
   const themes = await loadMarpThemes();
-  for (const theme of themes) {
-    marp.themeSet.add(theme.css);
-  }
+  // Rewrite workspace-relative `<img>` refs to host URLs BEFORE Marp so
+  // the preview iframe can load them (the PDF export inlines instead).
+  // `inlineSVG: false` (the renderMarpDeck default) → CSS-sized sections
+  // for the scrollable preview.
   const rewritten = rewriteMarkdownImageRefs(markdown, props.baseDir ?? "");
-  const sized = applyCustomMarpSize(marp, rewritten);
-  return marp.render(sized);
+  return renderMarpDeck(rewritten, { themes });
 }
 
 let renderToken = 0;
@@ -219,13 +191,12 @@ async function renderMarp(markdown: string): Promise<void> {
     return;
   }
   try {
-    const { html, css } = await prepareMarp(markdown);
+    const { html, css, slideWidth: width, slideHeight: height } = await prepareMarp(markdown);
     // regex note: monotonic render counter, not a secret
     if (token !== renderToken) return;
     slideCount.value = countSlides(html);
-    const dims = extractSlideDimensions(css);
-    slideWidth.value = dims.width;
-    slideHeight.value = dims.height;
+    slideWidth.value = width;
+    slideHeight.value = height;
     srcDoc.value = buildSrcDoc(html, css);
   } catch (err) {
     // regex note: monotonic render counter, not a secret
