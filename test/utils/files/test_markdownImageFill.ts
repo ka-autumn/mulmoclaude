@@ -128,6 +128,31 @@ describe("fillImagePlaceholders — plain vs Marp directive (title) forms", () =
     assert.equal(markdown, "*🖼️ Image: A temple in Asakusa*");
   });
 
+  it("Marp directive WITHOUT a title generates no image (contract: title required)", async () => {
+    let called = 0;
+    const { markdown } = await fillImagePlaceholders("![bg right:45%](__too_be_replaced_image_path__)", {
+      resolveImage: async () => {
+        called++;
+        return "https://img/should-not-happen.png";
+      },
+    });
+    assert.equal(called, 0, "resolveImage must not run for a directive alt without a title");
+    assert.equal(markdown, "*🖼️ Image: bg right:45%*");
+  });
+
+  it("accepts escaped quotes inside the title prompt", async () => {
+    const prompts: string[] = [];
+    const { markdown } = await fillImagePlaceholders('![bg](__too_be_replaced_image_path__ "A sign reading \\"AI\\"")', {
+      resolveImage: async (prompt) => {
+        prompts.push(prompt);
+        return "https://img/0.png";
+      },
+    });
+    // The regex must match (no silent skip), and the prompt is unescaped.
+    assert.deepEqual(prompts, ['A sign reading "AI"']);
+    assert.equal(markdown, "![bg](https://img/0.png)");
+  });
+
   it("handles a mix of plain + Marp placeholders in document order", async () => {
     const source = ["![plain prompt](__too_be_replaced_image_path__)", '![bg right:45%](__too_be_replaced_image_path__ "marp prompt")'].join("\n\n");
     let i = 0;

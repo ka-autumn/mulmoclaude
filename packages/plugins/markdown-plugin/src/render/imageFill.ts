@@ -8,10 +8,41 @@
 // GENERATION + STORAGE is injected (each host wires Gemini + URL/data-URI).
 
 // Groups: 1 = alt text (prompt OR Marp directive), 2 = optional quoted title
-// (the prompt when the alt is a directive). Both bounded ({1,1000}) rather
-// than `+` so the regex stays linear on uncontrolled markdown (CodeQL
-// polynomial-ReDoS).
-export const IMAGE_PLACEHOLDER = /!\[([^\]]{1,1000})\]\(\/?__too_be_replaced_image_path__(?:\s+"([^"]{1,1000})")?\)/g;
+// (the prompt when the alt is a directive). The title allows escaped chars
+// (`\"`, `\\`) so a prompt containing quotes still matches. Both groups are
+// bounded ({1,1000}) with disjoint alternatives so the regex stays linear on
+// uncontrolled markdown (CodeQL polynomial-ReDoS).
+export const IMAGE_PLACEHOLDER = /!\[([^\]]{1,1000})\]\(\/?__too_be_replaced_image_path__(?:\s+"((?:[^"\\]|\\.){1,1000})")?\)/g;
+
+// Marp image-directive keywords (the alt slot for a directive image). Used to
+// decide whether a title-less placeholder's alt is a prompt (generate) or a
+// layout directive (skip — a directive image needs its prompt in the title).
+const MARP_DIRECTIVE_KEYWORDS = new Set([
+  "bg", "fit", "cover", "auto", "left", "right", "vertical", "center", "top", "bottom",
+  "blur", "brightness", "contrast", "grayscale", "invert", "opacity", "saturate", "sepia", "drop-shadow", "hue-rotate",
+]);
+
+function isMarpDirectiveToken(token: string): boolean {
+  const lower = token.toLowerCase();
+  if (MARP_DIRECTIVE_KEYWORDS.has(lower)) return true;
+  const colon = lower.indexOf(":");
+  if (colon > 0 && (lower.slice(0, colon) === "w" || lower.slice(0, colon) === "h" || MARP_DIRECTIVE_KEYWORDS.has(lower.slice(0, colon)))) return true;
+  return /^#?[0-9a-f]+$|^\d+(\.\d+)?(%|px)?$/.test(lower); // bare size / colour value
+}
+
+/** True when every whitespace-separated token of `alt` is a Marp image
+ *  directive — i.e. the alt is layout, not a prompt. A real prompt always has
+ *  at least one natural-language token, so this won't swallow prompts. */
+function altIsOnlyDirectives(alt: string): boolean {
+  const tokens = alt.trim().split(/\s+/);
+  return tokens.length > 0 && tokens.every(isMarpDirectiveToken);
+}
+
+// Undo markdown title escaping (`\"` → `"`, `\\` → `\`, …) before using the
+// title as a generation prompt.
+function unescapeTitle(title: string): string {
+  return title.replace(/\\(.)/g, "$1");
+}
 
 /** Build the markdown that replaces one placeholder. `altText` is kept as the
  *  rendered alt (the prompt for plain images, or the Marp directive for
@@ -73,10 +104,14 @@ export async function fillImagePlaceholders(
   const total = matches.length;
   const results = await mapWithConcurrency(matches, deps.concurrency ?? 4, async (match, index) => {
     const alt = match[1];
-    // Marp directive form puts the prompt in the title (group 2); plain form
-    // uses the alt itself as the prompt.
-    const prompt = match[2] ?? alt;
-    return { full: match[0], alt, prompt, ref: await deps.resolveImage(prompt, index, total) };
+    const title = match[2] !== undefined ? unescapeTitle(match[2]) : undefined;
+    // Plain image: the alt IS the prompt. Directive image: the prompt is the
+    // title. A directive alt WITHOUT a title carries no prompt → skip
+    // generation (the contract requires the title for directive images), rather
+    // than generating a garbage image from "bg right:45%".
+    const prompt = title ?? (altIsOnlyDirectives(alt) ? undefined : alt);
+    const ref = prompt !== undefined ? await deps.resolveImage(prompt, index, total) : null;
+    return { full: match[0], alt, prompt: prompt ?? alt, ref };
   });
 
   // One ordered pass over the same matches: `String.replace` with the
