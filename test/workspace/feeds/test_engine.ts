@@ -92,7 +92,7 @@ function makeCappedFeed(root: string, maxItems: number): LoadedCollection {
       dataPath: "data/capped",
       primaryKey: "id",
       fields: { id: { type: "string", label: "ID", primary: true }, when: { type: "date", label: "When" } },
-      ingest: { ...fakeIngest("test-fake"), maxItems },
+      ingest: { ...fakeIngest("test-fake"), maxItems } as IngestSpec,
     },
     dataDir: path.join(root, "data", "capped"),
     skillDir: path.join(root, "feeds", "capped"),

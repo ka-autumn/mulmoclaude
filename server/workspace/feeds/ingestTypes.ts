@@ -4,6 +4,8 @@
 // retrieval engine reads it to periodically refill the collection's
 // records via the shared collections io layer.
 //
+import type { CollectionIngest } from "@mulmoclaude/collection-plugin";
+//
 // Declarative-only for now; the `kind` enum reserves room for future
 // "code" (LLM-generated transform) and "prompt" (LLM-performed fetch)
 // retrievers without reshaping the engine.
@@ -38,8 +40,11 @@ export const DEFAULT_FEED_MAX_ITEMS = 100;
  *  `"data.name"`). */
 export type IngestFieldMap = Record<string, string>;
 
-/** The `ingest` block carried on a Feed's `CollectionSchema`. */
-export interface IngestSpec {
+/** The `ingest` block carried on a Feed's `CollectionSchema`. The canonical
+ *  schema (in @mulmoclaude/collection-plugin) only promises the minimal
+ *  `CollectionIngest` (kind/url/schedule as plain strings); this feeds-only
+ *  subtype narrows those + adds the retrieval fields the engine needs. */
+export interface IngestSpec extends CollectionIngest {
   /** Which retriever handles this feed. */
   kind: IngestKind;
   /** Endpoint to fetch (http/https). */

@@ -13,7 +13,15 @@ import { getRetriever } from "./retrievers/index.js";
 import "./retrievers/registerAll.js";
 import { listFeeds } from "./registry.js";
 import { readFeedState, writeFeedState, type FeedState } from "./state.js";
-import { DEFAULT_FEED_MAX_ITEMS, type FeedSchedule } from "./ingestTypes.js";
+import { DEFAULT_FEED_MAX_ITEMS, type FeedSchedule, type IngestSpec } from "./ingestTypes.js";
+
+/** Feed schemas carry the rich `IngestSpec` (validated at discovery —
+ *  `source === "feed"` requires `ingest`), but the canonical
+ *  `CollectionSchema.ingest` only promises the minimal `CollectionIngest`.
+ *  Narrow here so the engine can read the retrieval fields type-safely. */
+function feedIngest(schema: CollectionSchema): IngestSpec | undefined {
+  return schema.ingest as IngestSpec | undefined;
+}
 
 export interface RefreshResult {
   slug: string;
@@ -55,7 +63,7 @@ function recordTime(item: CollectionItem, field: string): number {
  *  the schema's date field, delete the rest. No-op when the cap is 0/absent
  *  of a date field, or when under the cap. Returns the number deleted. */
 async function pruneFeed(workspaceRoot: string, feed: LoadedCollection): Promise<number> {
-  const cap = feed.schema.ingest?.maxItems ?? DEFAULT_FEED_MAX_ITEMS;
+  const cap = feedIngest(feed.schema)?.maxItems ?? DEFAULT_FEED_MAX_ITEMS;
   if (cap <= 0) return 0;
   const dateField = firstDateField(feed.schema);
   if (!dateField) {
@@ -79,7 +87,7 @@ async function pruneFeed(workspaceRoot: string, feed: LoadedCollection): Promise
  *  Failure-isolated: returns an errors array rather than throwing. */
 export async function refreshOne(workspaceRoot: string, feed: LoadedCollection): Promise<RefreshResult> {
   const { slug } = feed;
-  const { ingest } = feed.schema;
+  const ingest = feedIngest(feed.schema);
   if (!ingest) return { slug, written: 0, removed: 0, errors: ["collection has no ingest config"] };
   const retriever = getRetriever(ingest.kind);
   if (!retriever) return { slug, written: 0, removed: 0, errors: [`no retriever registered for kind '${ingest.kind}'`] };
@@ -113,7 +121,7 @@ function dueIntervalMs(schedule: FeedSchedule): number {
 /** True iff a feed is due to refresh given its schedule + last fetch.
  *  `on-demand` feeds are never auto-due. */
 function isFeedDue(feed: LoadedCollection, state: FeedState): boolean {
-  const schedule = feed.schema.ingest?.schedule;
+  const schedule = feedIngest(feed.schema)?.schedule;
   if (!schedule || schedule === "on-demand") return false;
   if (!state.lastFetchedAt) return true;
   const elapsed = Date.now() - Date.parse(state.lastFetchedAt);
