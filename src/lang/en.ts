@@ -650,12 +650,6 @@ const enMessages = {
     stylePromptWithPath: "Turn the image at `{path}` into a {style} style image.",
     stylePromptNoPath: "Turn my drawing on the canvas into a {style} style image.",
   },
-  pluginChart: {
-    untitled: "Chart",
-    chartCount: "{count} chart | {count} charts",
-    chartTitle: "Chart {num}",
-    png: "PNG",
-  },
   pluginAccounting: {
     title: "Accounting",
     noBook: 'No books yet — click "+ New book" above to create your first one.',

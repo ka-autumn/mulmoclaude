@@ -624,12 +624,6 @@ const jaMessages = {
     stylePromptWithPath: "`{path}` の画像を {style} スタイルの画像に変換してください。",
     stylePromptNoPath: "キャンバスに描いた絵を {style} スタイルの画像に変換してください。",
   },
-  pluginChart: {
-    untitled: "チャート",
-    chartCount: "{count} チャート",
-    chartTitle: "チャート {num}",
-    png: "PNG",
-  },
   pluginAccounting: {
     title: "会計",
     noBook: 'まだ帳簿がありません — 上の "+ 新しい帳簿" から作成してください。',

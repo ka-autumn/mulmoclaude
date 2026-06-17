@@ -617,12 +617,6 @@ const zhMessages = {
     stylePromptWithPath: "将 `{path}` 处的图像转换为 {style} 风格的图像。",
     stylePromptNoPath: "将我在画布上的绘图转换为 {style} 风格的图像。",
   },
-  pluginChart: {
-    untitled: "图表",
-    chartCount: "{count} 个图表",
-    chartTitle: "图表 {num}",
-    png: "PNG",
-  },
   pluginAccounting: {
     title: "会计",
     noBook: '尚无账簿 — 点击上方 "+ 新建账簿" 创建第一个。',

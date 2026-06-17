@@ -626,12 +626,6 @@ const koMessages = {
     stylePromptWithPath: "`{path}`의 이미지를 {style} 스타일 이미지로 변환해 주세요.",
     stylePromptNoPath: "캔버스에 그린 그림을 {style} 스타일 이미지로 변환해 주세요.",
   },
-  pluginChart: {
-    untitled: "차트",
-    chartCount: "{count}개 차트",
-    chartTitle: "차트 {num}",
-    png: "PNG",
-  },
   pluginAccounting: {
     title: "회계",
     noBook: '장부가 없습니다 — 위의 "+ 새 장부"를 눌러 첫 장부를 만드세요.',

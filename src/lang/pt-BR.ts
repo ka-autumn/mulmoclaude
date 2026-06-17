@@ -628,12 +628,6 @@ const ptBRMessages = {
     stylePromptWithPath: "Transforme a imagem em `{path}` em uma imagem no estilo {style}.",
     stylePromptNoPath: "Transforme meu desenho na tela em uma imagem no estilo {style}.",
   },
-  pluginChart: {
-    untitled: "Gráfico",
-    chartCount: "{count} gráfico | {count} gráficos",
-    chartTitle: "Gráfico {num}",
-    png: "PNG",
-  },
   pluginAccounting: {
     title: "Contabilidade",
     noBook: 'Ainda não há livros — clique em "+ Novo livro" acima para criar o primeiro.',

@@ -12,7 +12,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
-import type { PresentChartData } from "./index";
+import type { PresentChartData } from "../core/types";
 
 const props = defineProps<{ result: ToolResultComplete<PresentChartData> }>();
 

@@ -635,12 +635,6 @@ const esMessages = {
     stylePromptWithPath: "Convierte la imagen en `{path}` en una imagen de estilo {style}.",
     stylePromptNoPath: "Convierte mi dibujo en el lienzo en una imagen de estilo {style}.",
   },
-  pluginChart: {
-    untitled: "Gráfico",
-    chartCount: "{count} gráfico | {count} gráficos",
-    chartTitle: "Gráfico {num}",
-    png: "PNG",
-  },
   pluginAccounting: {
     title: "Contabilidad",
     noBook: 'Aún no hay libros — pulsa "+ Nuevo libro" arriba para crear el primero.',

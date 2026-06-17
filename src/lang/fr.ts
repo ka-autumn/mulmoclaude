@@ -628,12 +628,6 @@ const frMessages = {
     stylePromptWithPath: "Transforme l'image en `{path}` en une image de style {style}.",
     stylePromptNoPath: "Transforme mon dessin sur le canevas en une image de style {style}.",
   },
-  pluginChart: {
-    untitled: "Graphique",
-    chartCount: "{count} graphique | {count} graphiques",
-    chartTitle: "Graphique {num}",
-    png: "PNG",
-  },
   pluginAccounting: {
     title: "Comptabilité",
     noBook: 'Pas encore de livres — cliquez sur "+ Nouveau livre" en haut pour créer le premier.',

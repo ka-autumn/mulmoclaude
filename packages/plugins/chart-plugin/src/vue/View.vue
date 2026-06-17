@@ -2,10 +2,10 @@
   <div class="h-full flex flex-col overflow-hidden">
     <div class="px-4 py-2 border-b border-gray-100 shrink-0 flex items-center justify-between">
       <span class="text-sm font-medium text-gray-700 truncate">
-        {{ title ?? t("pluginChart.untitled") }}
+        {{ title ?? t.untitled }}
       </span>
       <span class="text-xs text-gray-500 shrink-0">
-        {{ t("pluginChart.chartCount", charts.length, { named: { count: charts.length } }) }}
+        {{ t.chartCount(charts.length) }}
       </span>
     </div>
     <div class="flex-1 overflow-y-auto p-4 space-y-4">
@@ -13,7 +13,7 @@
         <div class="px-3 py-2 border-b border-gray-100 flex items-center justify-between gap-2">
           <div class="flex items-center gap-2 min-w-0">
             <span class="text-sm font-medium text-gray-800 truncate">
-              {{ chart.title ?? t("pluginChart.chartTitle", { num: idx + 1 }) }}
+              {{ chart.title ?? t.chartTitle(idx + 1) }}
             </span>
             <span v-if="chart.type" class="text-[10px] uppercase tracking-wide rounded px-1.5 py-0.5 bg-blue-50 text-blue-700 shrink-0">
               {{ chart.type }}
@@ -25,7 +25,7 @@
             @click="exportPng(idx, chart.title)"
           >
             <span class="material-icons text-sm align-middle">download</span>
-            {{ t("pluginChart.png") }}
+            {{ t.png }}
           </button>
         </div>
         <div :ref="(el) => setChartRef(idx, el as HTMLDivElement | null)" class="w-full h-[400px]" :data-testid="`chart-canvas-${idx}`" />
@@ -36,13 +36,12 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { useI18n } from "vue-i18n";
 import * as echarts from "echarts";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
-import type { ChartEntry, PresentChartData } from "./index";
-import { isRecord } from "../../utils/types";
+import type { ChartEntry, PresentChartData } from "../core/types";
+import { useT } from "../lang";
 
-const { t } = useI18n();
+const t = useT();
 
 const props = defineProps<{
   selectedResult: ToolResultComplete<PresentChartData>;
@@ -56,6 +55,10 @@ const containers = ref<(HTMLDivElement | null)[]>([]);
 // Kept as a plain array (not `ref`): ECharts instances are managed
 // imperatively and should not trigger Vue re-renders on mutation.
 const instances: echarts.ECharts[] = [];
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
 function setChartRef(idx: number, element: HTMLDivElement | null): void {
   containers.value[idx] = element;
@@ -97,8 +100,9 @@ function renderAll(): void {
     const instance = echarts.init(element);
     try {
       instance.setOption(disableWheelZoom(chart.option));
-    } catch (err) {
-      console.warn(`[chart] setOption failed for chart ${i}`, err);
+    } catch {
+      // A malformed ECharts option for one chart shouldn't break the
+      // others; skip it and leave its canvas blank.
     }
     instances[i] = instance;
   }

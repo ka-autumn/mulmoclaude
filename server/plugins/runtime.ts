@@ -16,7 +16,7 @@ import { readFile, readdir, stat as fsStat, unlink as fsUnlink } from "node:fs/p
 import { randomUUID } from "node:crypto";
 import type { FileOps, PluginRuntime } from "gui-chat-protocol";
 
-import { WORKSPACE_PATHS } from "../workspace/paths.js";
+import { WORKSPACE_PATHS, workspacePath } from "../workspace/paths.js";
 import { writeFileAtomic } from "../utils/files/atomic.js";
 import { errorMessage } from "../utils/errors.js";
 import { log as hostLog, type Logger } from "../system/logger/index.js";
@@ -93,6 +93,16 @@ export function normalizePluginPath(scopeRoot: string, rel: string): string {
 
 function isErrnoException(value: unknown): value is { code: string } {
   return typeof value === "object" && value !== null && "code" in value && typeof (value as { code: unknown }).code === "string";
+}
+
+/** Shared (NOT per-plugin) FileOps rooted at the workspace `artifacts/`
+ *  dir. Backs `runtime.files.artifacts`, and is exported so host routes can
+ *  inject the same generic capability into directly-consumed plugins (e.g.
+ *  @mulmoclaude/chart-plugin's `executeChart`) — the plugin owns its
+ *  category subdir (`charts/`, …) and all write logic; the host only
+ *  provides this generic primitive. */
+export function makeArtifactsFileOps(): FileOps {
+  return makeFileOps(path.join(workspacePath, "artifacts"));
 }
 
 function makeFileOps(scopeRoot: string): FileOps {
@@ -365,6 +375,7 @@ export function makePluginRuntime(deps: MakePluginRuntimeDeps): MulmoclaudeRunti
     files: {
       data: makeFileOps(dataRoot),
       config: makeFileOps(configRoot),
+      artifacts: makeArtifactsFileOps(),
     },
     log: makeScopedLogger(pkgName),
     fetch: scopedFetch,
