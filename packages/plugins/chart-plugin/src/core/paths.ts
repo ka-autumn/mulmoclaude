@@ -10,11 +10,15 @@ const ARTIFACTS_ROOT = "artifacts";
 /** Lowercase ASCII slug; empty / non-ASCII input falls back to `fallback`. */
 export function slugify(title: string | undefined, fallback = "chart"): string {
   if (!title) return fallback;
-  const slug = title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  return slug || fallback;
+  const collapsed = title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  // Strip leading/trailing hyphens with a linear scan rather than a regex
+  // like /^-+|-+$/ — CodeQL flags the trailing-anchor form as polynomial
+  // backtracking on attacker-influenced input (the LLM-provided title).
+  let start = 0;
+  let end = collapsed.length;
+  while (start < end && collapsed[start] === "-") start += 1;
+  while (end > start && collapsed[end - 1] === "-") end -= 1;
+  return collapsed.slice(start, end) || fallback;
 }
 
 /** UTC `YYYY/MM` partition (matches the host's #764 artifact sharding). */

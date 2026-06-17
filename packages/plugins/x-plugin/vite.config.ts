@@ -17,8 +17,14 @@ export default defineConfig({
   build: {
     lib: {
       entry: { index: "src/index.ts" },
-      formats: ["es"],
-      fileName: (_format, entryName) => `${entryName}.js`,
+      // Dual ESM + CJS so `require("@mulmoclaude/x-plugin")` works under the
+      // host's Docker CJS mode (the package.json `require` condition points at
+      // the .cjs artifact). Named exports only — no default.
+      formats: ["es", "cjs"],
+      fileName: (format, entryName) => `${entryName}.${format === "es" ? "js" : "cjs"}`,
+    },
+    rollupOptions: {
+      output: { exports: "named" },
     },
     minify: false,
     sourcemap: true,
