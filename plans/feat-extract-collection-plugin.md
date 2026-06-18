@@ -44,38 +44,30 @@ Steps 1 + 2a–2e shipped in **PR #1725** as **`@mulmoclaude/collection-plugin@0
 
 - ✅ **step 2f** — `CollectionViewConfigModal` (+ `confirm`, `deleteView` capabilities; shared `errorMessage` core helper) — `6f5a173c`.
 - ✅ **step 2g** — `CollectionCustomView` (+ `mintViewToken`, `fetchViewHtml`, `buildViewSrcdoc`; context result/token types exported from `./vue`) — `a52023c5`.
+- ✅ **step 2h-prep** — moved `shortHexId` / `defangForPrompt` / `collectionViewMode` (CollectionView-only utils) into the package; server now imports `defangForPrompt` from the package too — `90f24b20`.
+- ✅ **step 2h** — **`CollectionView`** (the 2,134-LOC root) → `./vue` — `4d90f783`.
+- ✅ **step 2h-cleanup** — removed the dead `enumColors` / `draft` / `collectionEmbed` host shims — `7a233984`.
 
-`CollectionUi` now exposes: `fetchCollectionDetail`, `fileAssetUrl`, `fileRoutePath`, `imageSrc`,
-`confirm`, `deleteView`, `mintViewToken`, `fetchViewHtml`, `buildViewSrcdoc`.
-
-### Remaining — the `CollectionView` capstone (2,131 LOC, the root)
-
-The last component. It renders the now-migrated sub-components and carries the bulk of the host
-surface. Survey of its coupling → the `CollectionUi` additions still needed:
-
-- **Collection CRUD/actions** (replaces `apiGet/Post/Put/Delete` + `API_ROUTES.collections.*`):
-  create item, update item, delete item, run item-action, run collection-action, refresh,
-  feed detail (`API_ROUTES.feeds.detail`).
-- **Navigation**: `navigate` (router push/replace + `PAGE_ROUTES.collections` / `PAGE_ROUTES.feeds`)
-  + read current route query (`useRoute`, e.g. `?selected=`).
-- **App integration**: `sendMessage`/`startNewChat` (`useAppApi`), `pin` (`useShortcuts`),
-  `notify` + `notifiedSeverities(slug)` (`useNotifications` + `collectionNotifiedSeverities`).
-- **Generic UI**: `ConfirmModal`, `PinToggle` — inject as context-provided components, or have the
-  host render them around the View (CollectionView renders its own `<ConfirmModal>` instance today).
-- **Misc utils**: `shortHexId` (`utils/id`), `defangForPrompt` (`utils/promptSafety`),
-  `BUILTIN_ROLE_IDS` (`config/roles`) — small pure utils, move into core or inject.
-
-After CollectionView lands, the `enumColors`/`draft` host shims can be removed (nothing host-side
-imports them anymore).
+**The entire collection View layer is now in the package.** `CollectionUi` exposes the full host
+surface: `fetchCollectionDetail` (now `CollectionApiResult`, with `status`), `fileAssetUrl`,
+`fileRoutePath`, `imageSrc`, `confirm`, `deleteView`, `mintViewToken`, `fetchViewHtml`,
+`buildViewSrcdoc`, `createItem`, `updateItem`, `deleteItem`, `deleteCollection`, `deleteFeed`,
+`runItemAction`, `runCollectionAction`, `refreshCollection`, `routeSlug`, `routeSelectedId`,
+`isFeedRoute`, `setSelectedId`, `gotoIndex`, `startChat`, `generalRoleId`, `unpin`,
+`notifiedSeverities`, `pinToggle`. Routing is wired via the vue-router *instance* (no inject
+barrier); `startChat` + `notifiedSeverities` are deferred to `installCollectionAppBindings`
+(App.vue setup) because `useAppApi`/`useNotifications` need a component context. App.vue renders the
+global `<ConfirmModal />`; `PinToggle` is injected via `<component :is>`.
 
 ### Sequence (each its own green commit)
 1. ✅ done — steps 1, 2a–2e (PR #1725).
-2. ✅ sub-modals — steps 2f, 2g (this branch). `confirm`/`deleteView`/custom-view caps added.
-3. ⏳ **`CollectionView`** — expand `CollectionUi` with the CRUD/nav/app/notify surface above + the
-   two generic components; move the root → `./vue`; drop the `enumColors`/`draft` shims.
-4. Browsable pages (`CollectionsIndexView`, `/collections` route) → package + host router wiring.
-5. Plugin `./vue` entry (View + Preview + lang); shrink the host `presentCollection` adapter; bump
-   to `0.4.0` + publish.
+2. ✅ sub-modals — steps 2f, 2g.
+3. ✅ **`CollectionView`** — steps 2h-prep / 2h / 2h-cleanup. View layer extraction COMPLETE.
+4. Browsable pages (`CollectionsIndexView` + `FeedsView`, the `/collections` & `/feeds` routes) →
+   package + host router wiring. (These render `PinToggle` + a grid of collection cards; they're the
+   index pages CollectionView's `gotoIndex` navigates to.)
+5. Plugin `./vue` entry (a `ToolPlugin` exposing View + Preview + lang, like chart-plugin); shrink
+   the host `presentCollection` adapter to import it; bump to `0.4.0` + publish.
 
 ## Publish gate
 The launcher pins `@mulmoclaude/collection-plugin`; bump + republish before each PR/smoke run so the
