@@ -70,7 +70,7 @@
     "package": "node scripts/package.mjs"
   },
   "resolutions": {
-    "tar": "7.5.13"
+    "tar": "7.5.16"
   },
   "dependencies": {
     "@codemirror/lang-json": "^6.0.2",
