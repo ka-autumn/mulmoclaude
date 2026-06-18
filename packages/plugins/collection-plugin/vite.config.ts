@@ -28,7 +28,7 @@ export default defineConfig({
       // external (resolved from node_modules at runtime); only the package's own
       // modules are bundled. `gui-chat-protocol/vue` is externalized so plugin
       // and host share ONE injected PLUGIN_RUNTIME_KEY Symbol instance.
-      external: [/^node:/, "zod", "gui-chat-protocol", "gui-chat-protocol/vue", "vue", "vue-i18n"],
+      external: [/^node:/, "zod", "gui-chat-protocol", "gui-chat-protocol/vue", "vue", "vue-i18n", "vuedraggable"],
       output: {
         exports: "named",
         globals: { vue: "Vue" },

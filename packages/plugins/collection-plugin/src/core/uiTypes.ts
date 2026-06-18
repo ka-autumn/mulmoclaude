@@ -93,3 +93,9 @@ export interface EmbedView {
   /** The fixed record id the embed points at, for the message. */
   recordId: string;
 }
+
+/** Active-notification severity for a record, used to accent flagged cards
+ *  (kanban left-stripe, etc.). The host computes these from its notifier and
+ *  passes them in; this is the structural type the view layer accepts. The host's
+ *  own `NotifierSeverity` is the identical union, so its maps pass through. */
+export type CollectionNotifySeverity = "info" | "nudge" | "urgent";

@@ -39,6 +39,7 @@
     "test": "echo 'no in-package tests; collection logic is covered by host tests test/utils/collections/*'"
   },
   "dependencies": {
+    "vuedraggable": "^4.1.0",
     "zod": "^4.4.3"
   },
   "peerDependencies": {

@@ -18,3 +18,4 @@ export { default as CollectionRecordModal } from "./components/CollectionRecordM
 export { default as CollectionEmbedView } from "./components/CollectionEmbedView.vue";
 export { default as CollectionCalendarView } from "./components/CollectionCalendarView.vue";
 export { default as CollectionDayView } from "./components/CollectionDayView.vue";
+export { default as CollectionKanbanView } from "./components/CollectionKanbanView.vue";
