@@ -3,7 +3,7 @@
 // (no Vue, no Node); kept in the core so both the host and MulmoTerminal share
 // them. The host's src/components/collectionTypes.ts re-exports these.
 
-import type { CollectionDetail, CollectionItem, CollectionSchema } from "./schema";
+import type { CollectionDetail, CollectionItem, CollectionSchema, CollectionSummary } from "./schema";
 
 /** A record file the server couldn't load or that violates the schema —
  *  silently skipped at read time (mirror of the server `RecordIssue`). */
@@ -99,3 +99,34 @@ export interface EmbedView {
  *  passes them in; this is the structural type the view layer accepts. The host's
  *  own `NotifierSeverity` is the identical union, so its maps pass through. */
 export type CollectionNotifySeverity = "info" | "nudge" | "urgent";
+
+// ── index-page response types (the browsable /collections + /feeds lists) ──
+
+/** Response of the collections list endpoint (`API_ROUTES.collections.list`). */
+export interface CollectionsListResponse {
+  collections: CollectionSummary[];
+}
+
+/** A row in the feeds index — a data-source collection from the workspace's
+ *  `feeds/` registry. */
+export interface FeedSummary {
+  slug: string;
+  title: string;
+  icon: string;
+  kind: string;
+  schedule: string;
+  lastFetchedAt: string | null;
+}
+
+/** Response of the feeds list endpoint (`API_ROUTES.feeds.list`). */
+export interface FeedsListResponse {
+  feeds: FeedSummary[];
+}
+
+/** The `{slug,title,icon}` triple the index pages reconcile pinned shortcuts
+ *  against (prune dead slugs, refresh stale labels). */
+export interface CollectionShortcutInfo {
+  slug: string;
+  title: string;
+  icon: string;
+}

@@ -73,7 +73,7 @@
             </span>
           </div>
 
-          <PinToggle kind="collection" :slug="collection.slug" :title="collection.title" :icon="collection.icon" />
+          <component :is="pinToggle" kind="collection" :slug="collection.slug" :title="collection.title" :icon="collection.icon" />
 
           <div
             class="h-8 w-8 flex items-center justify-center rounded-lg bg-slate-50 group-hover:bg-indigo-50 text-slate-400 group-hover:text-indigo-600 transition-all duration-300"
@@ -89,31 +89,13 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { useRouter } from "vue-router";
-import { apiGet } from "../utils/api";
-import { API_ROUTES } from "../config/apiRoutes";
-import { PAGE_ROUTES } from "../router/pageRoutes";
-import { useAppApi } from "../composables/useAppApi";
-import { useShortcuts } from "../composables/useShortcuts";
-import { BUILTIN_ROLE_IDS } from "../config/roles";
-import PinToggle from "./PinToggle.vue";
-
-interface CollectionSummary {
-  slug: string;
-  title: string;
-  icon: string;
-  // "feed" = a data-source collection from the <workspace>/feeds/ registry.
-  source: "user" | "project" | "feed";
-}
-
-interface CollectionsListResponse {
-  collections: CollectionSummary[];
-}
+import { collectionUi } from "../uiContext";
+import type { CollectionSummary } from "../../core/schema";
 
 const { t } = useI18n();
-const router = useRouter();
-const appApi = useAppApi();
-const { reconcile } = useShortcuts();
+// Host couplings (list/navigate/chat/shortcuts/pin) via the injected binding.
+const cui = collectionUi();
+const { pinToggle, reconcileShortcuts } = cui;
 
 const collections = ref<CollectionSummary[]>([]);
 const loading = ref(true);
@@ -122,7 +104,7 @@ const loadError = ref<string | null>(null);
 async function loadCollections(): Promise<void> {
   loading.value = true;
   loadError.value = null;
-  const result = await apiGet<CollectionsListResponse>(API_ROUTES.collections.list);
+  const result = await cui.listCollections();
   loading.value = false;
   if (!result.ok) {
     loadError.value = result.error;
@@ -134,18 +116,18 @@ async function loadCollections(): Promise<void> {
   // Bulk-reconcile pinned collection shortcuts against this authoritative
   // list (free — we already fetched it): prune dead slugs, refresh stale
   // titles/icons, self-heal the file. Feed shortcuts are left to FeedsView.
-  void reconcile(
+  void reconcileShortcuts(
     "collection",
     collections.value.map((collection) => ({ slug: collection.slug, title: collection.title, icon: collection.icon })),
   );
 }
 
 function openCollection(slug: string): void {
-  router.push({ name: PAGE_ROUTES.collections, params: { slug } }).catch(() => {});
+  cui.gotoDetail("collection", slug);
 }
 
 function startCreateCollectionChat(): void {
-  appApi.startNewChat(t("collectionsView.addCollectionPrompt"), BUILTIN_ROLE_IDS.general);
+  cui.startChat(t("collectionsView.addCollectionPrompt"), cui.generalRoleId);
 }
 
 onMounted(loadCollections);

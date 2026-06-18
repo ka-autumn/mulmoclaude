@@ -62,7 +62,7 @@
             </span>
           </div>
 
-          <PinToggle kind="feed" :slug="feed.slug" :title="feed.title" :icon="feed.icon || 'dynamic_feed'" />
+          <component :is="pinToggle" kind="feed" :slug="feed.slug" :title="feed.title" :icon="feed.icon || 'dynamic_feed'" />
 
           <button
             type="button"
@@ -117,32 +117,13 @@
 <script setup lang="ts">
 import { nextTick, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { useRouter } from "vue-router";
-import { apiGet, apiPost } from "../utils/api";
-import { API_ROUTES } from "../config/apiRoutes";
-import { PAGE_ROUTES } from "../router/pageRoutes";
-import { useAppApi } from "../composables/useAppApi";
-import { useShortcuts } from "../composables/useShortcuts";
-import { BUILTIN_ROLE_IDS } from "../config/roles";
-import PinToggle from "./PinToggle.vue";
-
-interface FeedSummary {
-  slug: string;
-  title: string;
-  icon: string;
-  kind: string;
-  schedule: string;
-  lastFetchedAt: string | null;
-}
-// GET /api/feeds → { feeds }.
-interface FeedsListResponse {
-  feeds: FeedSummary[];
-}
+import { collectionUi } from "../uiContext";
+import type { FeedSummary } from "../../core/uiTypes";
 
 const { t } = useI18n();
-const router = useRouter();
-const appApi = useAppApi();
-const { reconcile } = useShortcuts();
+// Host couplings (list/refresh/navigate/chat/shortcuts/pin) via the binding.
+const cui = collectionUi();
+const { pinToggle, reconcileShortcuts } = cui;
 
 const feeds = ref<FeedSummary[]>([]);
 const loading = ref(true);
@@ -160,7 +141,7 @@ const addInputEl = ref<HTMLInputElement | null>(null);
 async function load(): Promise<void> {
   loading.value = true;
   loadError.value = null;
-  const result = await apiGet<FeedsListResponse>(API_ROUTES.feeds.list);
+  const result = await cui.listFeeds();
   loading.value = false;
   if (!result.ok) {
     loadError.value = result.error;
@@ -169,21 +150,20 @@ async function load(): Promise<void> {
   feeds.value = result.data.feeds;
   // Bulk-reconcile pinned feed shortcuts against this authoritative list:
   // prune dead slugs, refresh stale titles/icons, self-heal the file.
-  void reconcile(
+  void reconcileShortcuts(
     "feed",
     feeds.value.map((feed) => ({ slug: feed.slug, title: feed.title, icon: feed.icon || "dynamic_feed" })),
   );
 }
 
 function open(slug: string): void {
-  router.push({ name: PAGE_ROUTES.feeds, params: { slug } }).catch(() => {});
+  cui.gotoDetail("feed", slug);
 }
 
 async function refresh(slug: string): Promise<void> {
   refreshingSlug.value = slug;
   refreshError.value = null;
-  const url = API_ROUTES.collections.refresh.replace(":slug", encodeURIComponent(slug));
-  const result = await apiPost<{ refreshed: boolean; written: number; errors: string[] }>(url, {});
+  const result = await cui.refreshCollection(slug);
   refreshingSlug.value = null;
   if (!result.ok) {
     refreshError.value = t("collectionsView.refreshFailed", { error: result.error });
@@ -213,7 +193,7 @@ function submitAdd(): void {
   const url = addUrl.value.trim();
   if (!url) return;
   addOpen.value = false;
-  appApi.startNewChat(t("collectionsView.addFeedPrompt", { url }), BUILTIN_ROLE_IDS.personal);
+  cui.startChat(t("collectionsView.addFeedPrompt", { url }), cui.personalRoleId);
 }
 
 function formatTime(iso: string): string {

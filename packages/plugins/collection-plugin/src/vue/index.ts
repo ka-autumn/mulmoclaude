@@ -47,3 +47,5 @@ export { default as CollectionRecordPanel } from "./components/CollectionRecordP
 export { default as CollectionViewConfigModal } from "./components/CollectionViewConfigModal.vue";
 export { default as CollectionCustomView } from "./components/CollectionCustomView.vue";
 export { default as CollectionView } from "./components/CollectionView.vue";
+export { default as CollectionsIndexView } from "./components/CollectionsIndexView.vue";
+export { default as FeedsView } from "./components/FeedsView.vue";

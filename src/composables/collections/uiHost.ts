@@ -28,10 +28,11 @@ import { useConfirm } from "../useConfirm";
 import { useShortcuts } from "../useShortcuts";
 import PinToggle from "../../components/PinToggle.vue";
 import type { NotifierSeverity } from "../../utils/collections/notifiedItems";
+import type { CollectionsListResponse, FeedsListResponse } from "@mulmoclaude/collection-plugin";
 import type { CollectionDetailResponse, ItemMutationResponse } from "../../components/collectionTypes";
 
 const { openConfirm } = useConfirm();
-const { unpin } = useShortcuts();
+const { unpin, reconcile } = useShortcuts();
 
 // ── URL builders (mirror the route templates in API_ROUTES.collections) ──
 const withSlug = (route: string, slug: string): string => route.replace(":slug", encodeURIComponent(slug));
@@ -93,10 +94,19 @@ configureCollectionUi({
   gotoIndex: (kind) => {
     router.push({ name: kind === "feed" ? PAGE_ROUTES.feeds : PAGE_ROUTES.collections, params: {} }).catch(() => {});
   },
+  gotoDetail: (kind, slug) => {
+    router.push({ name: kind === "feed" ? PAGE_ROUTES.feeds : PAGE_ROUTES.collections, params: { slug } }).catch(() => {});
+  },
+
+  // index pages
+  listCollections: () => apiGet<CollectionsListResponse>(API_ROUTES.collections.list),
+  listFeeds: () => apiGet<FeedsListResponse>(API_ROUTES.feeds.list),
+  reconcileShortcuts: (kind, live) => reconcile(kind, live),
 
   // app integration
   startChat: (prompt, role) => startChatFn?.(prompt, role),
   generalRoleId: BUILTIN_ROLE_IDS.general,
+  personalRoleId: BUILTIN_ROLE_IDS.personal,
   unpin: (kind, slug) => unpin(kind, slug),
   notifiedSeverities: (slug) => notifiedSeveritiesFn?.(slug) ?? new Map<string, NotifierSeverity>(),
 

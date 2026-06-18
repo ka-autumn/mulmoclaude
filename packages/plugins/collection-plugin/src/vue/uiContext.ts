@@ -8,7 +8,14 @@
 // confirm, …) as components migrate.
 
 import type { Component } from "vue";
-import type { CollectionDetailResponse, ItemMutationResponse, CollectionNotifySeverity } from "../core/uiTypes";
+import type {
+  CollectionDetailResponse,
+  ItemMutationResponse,
+  CollectionNotifySeverity,
+  CollectionsListResponse,
+  FeedsListResponse,
+  CollectionShortcutInfo,
+} from "../core/uiTypes";
 import type { CollectionItem } from "../core/schema";
 
 /** Result of a host data fetch — structurally a subset of the host's own
@@ -133,12 +140,26 @@ export interface CollectionUi {
   setSelectedId: (itemId: string | null) => void;
   /** Navigate to the collections / feeds index after a delete. */
   gotoIndex: (kind: "collection" | "feed") => void;
+  /** Navigate to a specific collection / feed detail page (from an index card). */
+  gotoDetail: (kind: "collection" | "feed", slug: string) => void;
+
+  // ── index pages (the browsable /collections + /feeds lists) ──
+  /** List skill-backed collections (`apiGet` over `…collections.list`). */
+  listCollections: () => Promise<CollectionApiResult<CollectionsListResponse>>;
+  /** List feed-backed collections (`apiGet` over `…feeds.list`). */
+  listFeeds: () => Promise<CollectionApiResult<FeedsListResponse>>;
+  /** Bulk-reconcile pinned launcher shortcuts of one kind against the
+   *  authoritative list — prune dead slugs, refresh stale labels
+   *  (`useShortcuts().reconcile`). */
+  reconcileShortcuts: (kind: "collection" | "feed", live: CollectionShortcutInfo[]) => Promise<void>;
 
   // ── app integration ──
   /** Start a new chat with a seed prompt + role (host: `useAppApi().startNewChat`). */
   startChat: (prompt: string, role: string) => void;
   /** The host's "general" role id, for chats seeded without a specific role. */
   generalRoleId: string;
+  /** The host's "personal" role id (the feed-add chat seeds into it). */
+  personalRoleId: string;
   /** Remove a pinned launcher shortcut for a 404'd collection/feed
    *  (`useShortcuts().unpin`). */
   unpin: (kind: "collection" | "feed", slug: string) => Promise<boolean>;
