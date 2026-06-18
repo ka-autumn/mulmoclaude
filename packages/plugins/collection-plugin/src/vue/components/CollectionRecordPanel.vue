@@ -434,13 +434,19 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { CollectionEmbedView } from "@mulmoclaude/collection-plugin/vue";
-import { fieldVisible } from "@mulmoclaude/collection-plugin";
-import { resolveEnumColor } from "../utils/collections/enumColors";
-import { emptyRow } from "../utils/collections/draft";
-import { resolveImageSrc } from "../utils/image/resolve";
-import type { CollectionRendering } from "@mulmoclaude/collection-plugin/vue";
-import type { CollectionAction, CollectionDetail, CollectionItem, EditState, FieldSpec, TableRowDraft } from "./collectionTypes";
+import CollectionEmbedView from "./CollectionEmbedView.vue";
+import { fieldVisible } from "../../core/actionVisible";
+import { resolveEnumColor } from "../../core/enumColors";
+import { emptyRow } from "../../core/draft";
+import { collectionUi } from "../uiContext";
+import type { CollectionRendering } from "../useCollectionRendering";
+import type { CollectionAction, CollectionDetail, CollectionItem, CollectionFieldSpec as FieldSpec } from "../../core/schema";
+import type { EditState, TableRowDraft } from "../../core/uiTypes";
+
+// `resolveImageSrc` lives host-side (it points at the host's raw-file endpoint);
+// the view layer reaches it through the UI binding. Kept under the same local
+// name so the template's `:src` binding is unchanged.
+const resolveImageSrc = collectionUi().imageSrc;
 
 const props = defineProps<{
   collection: CollectionDetail;

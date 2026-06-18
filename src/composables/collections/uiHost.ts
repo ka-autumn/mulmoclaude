@@ -7,10 +7,12 @@ import { apiGet } from "../../utils/api";
 import { API_ROUTES } from "../../config/apiRoutes";
 import { htmlPreviewUrlFor, svgPreviewUrlFor } from "../useContentDisplay";
 import { isValidFilePath } from "../useFileSelection";
+import { resolveImageSrc } from "../../utils/image/resolve";
 import type { CollectionDetailResponse } from "../../components/collectionTypes";
 
 configureCollectionUi({
   fetchCollectionDetail: (slug) => apiGet<CollectionDetailResponse>(API_ROUTES.collections.detail.replace(":slug", encodeURIComponent(slug))),
   fileAssetUrl: (value) => (isValidFilePath(value) ? (htmlPreviewUrlFor(value) ?? svgPreviewUrlFor(value)) : null),
   fileRoutePath: (value) => (isValidFilePath(value) ? `/files/${value.split("/").map(encodeURIComponent).join("/")}` : null),
+  imageSrc: (imageData) => resolveImageSrc(imageData),
 });

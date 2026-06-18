@@ -26,6 +26,9 @@ export interface CollectionUi {
    *  `file` values that aren't a directly-served artifact), or null when the
    *  value isn't a valid in-workspace path. */
   fileRoutePath: (value: unknown) => string | null;
+  /** Browser `<img src>` for a stored image value (a workspace file path), via
+   *  the host's raw-file endpoint. Replaces the host's `resolveImageSrc`. */
+  imageSrc: (imageData: string) => string;
 }
 
 let current: CollectionUi | null = null;
