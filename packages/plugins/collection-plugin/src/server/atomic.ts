@@ -5,6 +5,7 @@
 // half-written one. (The engine only needs the async, default-tmp variant.)
 
 import { promises } from "node:fs";
+import { randomBytes } from "node:crypto";
 import path from "node:path";
 
 const IS_WINDOWS = process.platform === "win32";
@@ -41,7 +42,9 @@ function writeOptionsFor(content: string | Uint8Array): { encoding?: "utf-8" } {
 }
 
 export async function writeFileAtomic(filePath: string, content: string | Uint8Array): Promise<void> {
-  const tmp = `${filePath}.tmp`;
+  // Unique tmp suffix so two concurrent writes to the same target don't clobber
+  // each other's temp file (which would cause a rename failure or lost update).
+  const tmp = `${filePath}.${randomBytes(6).toString("hex")}.tmp`;
   await promises.mkdir(path.dirname(filePath), { recursive: true });
   try {
     await promises.writeFile(tmp, content, writeOptionsFor(content));

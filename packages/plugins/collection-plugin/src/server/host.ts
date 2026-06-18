@@ -45,8 +45,13 @@ export interface CollectionHost {
 let current: CollectionHost | null = null;
 
 /** Wire the engine to a host. Call once at server startup, before any
- *  collection storage operation. */
+ *  collection storage operation. Re-binding to a *different* host throws —
+ *  silently redirecting later filesystem operations to another workspace
+ *  would be a bug, not a feature. Re-calling with the same host is a no-op. */
 export function configureCollectionHost(host: CollectionHost): void {
+  if (current !== null && current !== host) {
+    throw new Error("@mulmoclaude/collection-plugin/server: configureCollectionHost() was already called with a different host");
+  }
   current = host;
 }
 

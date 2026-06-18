@@ -6,7 +6,7 @@
 import { lstat, mkdir, open, readdir, readFile, unlink } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
-import { getWorkspaceRoot, log } from "./host";
+import { getWorkspaceRoot, log, skillsStagingDir } from "./host";
 import { writeFileAtomic } from "./atomic";
 import { isContainedInRoot, itemFilePath, resolveTemplatePath, safeSlugName } from "./paths";
 import type { CollectionItem, CollectionSchema } from "../core/schema";
@@ -233,7 +233,7 @@ export async function readCustomViewHtml(
   const safeSlug = safeSlugName(collection.slug);
   if (safeSlug === null) return null;
   const workspaceRoot = opts.workspaceRoot ?? getWorkspaceRoot();
-  const base = collection.source === "project" ? path.join(workspaceRoot, "data", "skills", safeSlug) : collection.skillDir;
+  const base = collection.source === "project" ? path.join(skillsStagingDir(workspaceRoot), safeSlug) : collection.skillDir;
   const resolved = resolveTemplatePath(base, viewFile);
   if (resolved === null) return null;
   try {
