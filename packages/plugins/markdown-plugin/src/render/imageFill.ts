@@ -18,8 +18,26 @@ export const IMAGE_PLACEHOLDER = /!\[([^\]]{1,1000})\]\(\/?__too_be_replaced_ima
 // decide whether a title-less placeholder's alt is a prompt (generate) or a
 // layout directive (skip — a directive image needs its prompt in the title).
 const MARP_DIRECTIVE_KEYWORDS = new Set([
-  "bg", "fit", "cover", "auto", "left", "right", "vertical", "center", "top", "bottom",
-  "blur", "brightness", "contrast", "grayscale", "invert", "opacity", "saturate", "sepia", "drop-shadow", "hue-rotate",
+  "bg",
+  "fit",
+  "cover",
+  "auto",
+  "left",
+  "right",
+  "vertical",
+  "center",
+  "top",
+  "bottom",
+  "blur",
+  "brightness",
+  "contrast",
+  "grayscale",
+  "invert",
+  "opacity",
+  "saturate",
+  "sepia",
+  "drop-shadow",
+  "hue-rotate",
 ]);
 
 function isMarpDirectiveToken(token: string): boolean {

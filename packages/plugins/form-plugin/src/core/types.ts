@@ -70,15 +70,7 @@ export interface NumberField extends BaseField {
   defaultValue?: number;
 }
 
-export type FormField =
-  | TextField
-  | TextareaField
-  | RadioField
-  | DropdownField
-  | CheckboxField
-  | DateField
-  | TimeField
-  | NumberField;
+export type FormField = TextField | TextareaField | RadioField | DropdownField | CheckboxField | DateField | TimeField | NumberField;
 
 export interface FormData {
   title?: string;

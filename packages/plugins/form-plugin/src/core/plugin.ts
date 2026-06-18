@@ -82,8 +82,7 @@ export const executeForm = async (_context: ToolContext, args: FormArgs): Promis
   } catch (error) {
     return {
       message: `Form error: ${error instanceof Error ? error.message : "Unknown error"}`,
-      instructions:
-        "Acknowledge that there was an error creating the form and suggest trying again with corrected field definitions.",
+      instructions: "Acknowledge that there was an error creating the form and suggest trying again with corrected field definitions.",
     };
   }
 };

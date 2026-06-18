@@ -68,8 +68,7 @@ export const TOOL_DEFINITION = {
             choices: {
               type: "array",
               items: { type: "string" },
-              description:
-                "Array of choices for radio/dropdown/checkbox fields. Radio should have 2-6 choices, dropdown for 7+ choices.",
+              description: "Array of choices for radio/dropdown/checkbox fields. Radio should have 2-6 choices, dropdown for 7+ choices.",
             },
             searchable: {
               type: "boolean",
