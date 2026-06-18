@@ -2,15 +2,11 @@
 // record panel (CollectionRecordPanel.vue), the calendar view, and the
 // rendering composable (composables/collections/useCollectionRendering.ts).
 //
-// The canonical schema types (field types, field/action specs, schema, custom
-// views, detail) now live in @mulmoclaude/collection-plugin — the single source
-// of truth shared with the server and MulmoTerminal. They are re-exported here
-// under the names the frontend has always used (FieldType ← CollectionFieldType,
-// FieldSpec ← CollectionFieldSpec) so the 13 importing components keep compiling
-// unchanged. This file additionally owns the UI-only view-state types, which
-// have no server/storage analog.
-
-import type { CollectionDetail, CollectionItem, CollectionSchema } from "@mulmoclaude/collection-plugin";
+// All of these now live in @mulmoclaude/collection-plugin — the canonical schema
+// types AND the UI-only view-state types — the single source of truth shared
+// with the server and MulmoTerminal. They are re-exported here under the names
+// the frontend has always used (FieldType ← CollectionFieldType, FieldSpec ←
+// CollectionFieldSpec) so the importing components keep compiling unchanged.
 
 export type {
   CollectionFieldType as FieldType,
@@ -21,71 +17,17 @@ export type {
   CollectionSchema,
   CollectionDetail,
   CollectionItem,
+  // UI-only view-state types (no server/storage analog):
+  CollectionRecordIssue,
+  CollectionDetailResponse,
+  ItemMutationResponse,
+  TableRowDraft,
+  EditState,
+  RefDisplayMap,
+  RefCache,
+  RefRecordMap,
+  RefRecordCache,
+  EmbedTargetData,
+  EmbedCache,
+  RefOption,
 } from "@mulmoclaude/collection-plugin";
-
-// ── UI-only types (frontend view state; no server/storage analog) ──
-
-/** A record file the server couldn't load or that violates the schema —
- *  silently skipped at read time. Mirror of `RecordIssue` in
- *  `server/workspace/collections/validate.ts`. */
-export interface CollectionRecordIssue {
-  /** Record filename, e.g. `lesson-003.json`. */
-  file: string;
-  /** Human-readable problem, written to be actionable by the LLM. */
-  problem: string;
-}
-
-export interface CollectionDetailResponse {
-  collection: CollectionDetail;
-  items: CollectionItem[];
-  /** Record files that failed validation; drives the in-view Repair
-   *  prompt. Absent or empty when every record is fine. */
-  issues?: CollectionRecordIssue[];
-}
-
-export interface ItemMutationResponse {
-  itemId: string;
-  item: CollectionItem;
-}
-
-/** One row of a `table`-typed field, in draft form. */
-export interface TableRowDraft {
-  text: Record<string, string>;
-  bool: Record<string, boolean>;
-  boolOriginallyPresent: Record<string, boolean>;
-  boolTouched: Record<string, boolean>;
-}
-
-export interface EditState {
-  mode: "create" | "edit";
-  text: Record<string, string>;
-  bool: Record<string, boolean>;
-  boolOriginallyPresent: Record<string, boolean>;
-  boolTouched: Record<string, boolean>;
-  table: Record<string, TableRowDraft[]>;
-  /** For edit mode: the original item id pinned to the URL. */
-  originalId: string | null;
-}
-
-/** Per-target-collection cache: an item's primary-key slug → display label. */
-export type RefDisplayMap = Record<string, string>;
-export type RefCache = Record<string, RefDisplayMap>;
-
-/** Per-target-collection cache of full referenced records, for
- *  `<field>.<col>` derefs in derived formulas. */
-export type RefRecordMap = Record<string, CollectionItem>;
-export type RefRecordCache = Record<string, RefRecordMap>;
-
-/** Per-target cache for `embed` fields: the target collection's schema +
- *  items, kept in full so the detail view can render the embedded record. */
-export interface EmbedTargetData {
-  schema: CollectionSchema;
-  items: CollectionItem[];
-}
-export type EmbedCache = Record<string, EmbedTargetData>;
-
-/** Option shown in a `ref` field's `<select>` dropdown. */
-export interface RefOption {
-  slug: string;
-  display: string;
-}
