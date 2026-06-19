@@ -71,8 +71,15 @@ configureCollectionUi({
   deleteView: (slug, viewId) => apiDelete(viewDeleteUrl(slug, viewId)),
   mintViewToken: (slug, viewId) => apiPost<CollectionViewToken>(withSlug(API_ROUTES.collections.viewToken, slug), { viewId }),
   fetchViewHtml: async (slug, viewId) => {
-    const resp = await apiFetchRaw(withSlug(API_ROUTES.collections.viewFile, slug), { query: { id: viewId } });
-    return resp.ok ? { ok: true, html: await resp.text() } : { ok: false, status: resp.status };
+    try {
+      const resp = await apiFetchRaw(withSlug(API_ROUTES.collections.viewFile, slug), { query: { id: viewId } });
+      return resp.ok ? { ok: true, html: await resp.text() } : { ok: false, status: resp.status };
+    } catch {
+      // Network / abort error — surface a typed failure (status 0) like the
+      // host's apiCall helpers do, so the custom-view loader shows "HTTP 0"
+      // rather than rejecting.
+      return { ok: false, status: 0 };
+    }
   },
   buildViewSrcdoc: (html, boot) => buildCustomViewSrcdoc(html, boot),
 
