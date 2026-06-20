@@ -21,7 +21,7 @@
 
 import { randomUUID } from "node:crypto";
 import { loadActive, loadHistory, saveActive, saveHistory, type WriteJson } from "./store.js";
-import { NOTIFIER_LIMITS, validatePublishInput } from "./validate.js";
+import { validatePublishInput } from "./validate.js";
 import {
   HISTORY_CAP,
   type NotifierEntry,
@@ -69,27 +69,6 @@ function logger(): NotifierLogger {
  *  load and a test can override them without re-supplying the deps. */
 export function configureNotifier(injected: NotifierConfig): void {
   config = injected;
-}
-
-/** Point the engine at its active/history files. Resets the write
- *  queue, so callers must not have in-flight mutations. The host calls
- *  this once with the workspace paths; tests call it per-case with temp
- *  files. */
-export function setNotifierFilePaths(paths: { active: string; history: string }): void {
-  activeFilePath = paths.active;
-  historyFilePath = paths.history;
-  writing = false;
-  waiters = [];
-}
-
-/** Test-only: clear config + queue so each suite starts clean. */
-export function resetNotifier(): void {
-  config = null;
-  activeFilePath = "";
-  historyFilePath = "";
-  writing = false;
-  waiters = [];
-  listeners.length = 0;
 }
 
 // ── In-process event listeners ────────────────────────────────────
@@ -166,6 +145,27 @@ type MutationResult = { ok: true; outcome: MutationOutcome } | { ok: false; erro
 
 let writing = false;
 let waiters: Waiter[] = [];
+
+/** Point the engine at its active/history files. Resets the write
+ *  queue, so callers must not have in-flight mutations. The host calls
+ *  this once with the workspace paths; tests call it per-case with temp
+ *  files. */
+export function setNotifierFilePaths(paths: { active: string; history: string }): void {
+  activeFilePath = paths.active;
+  historyFilePath = paths.history;
+  writing = false;
+  waiters = [];
+}
+
+/** Test-only: clear config + queue so each suite starts clean. */
+export function resetNotifier(): void {
+  config = null;
+  activeFilePath = "";
+  historyFilePath = "";
+  writing = false;
+  waiters = [];
+  listeners.length = 0;
+}
 
 function requireWriteJson(): WriteJson {
   if (!config) throw new Error("notifier: configureNotifier() not called");

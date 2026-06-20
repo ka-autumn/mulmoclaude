@@ -23,7 +23,15 @@
 
 import { clear as notifierClear, listAll, publish as notifierPublish, updateForPlugin as notifierUpdate, type NotifierEntry } from "@mulmoclaude/notifier";
 import { whenMatches, type CollectionItem, type CollectionSchema } from "@mulmoclaude/collection-plugin";
-import { type DiscoveryOptions, listItems, readItem, type IoOptions, isTriggerDue, maybeSpawnSuccessor, loadCollection } from "@mulmoclaude/collection-plugin/server";
+import {
+  type DiscoveryOptions,
+  listItems,
+  readItem,
+  type IoOptions,
+  isTriggerDue,
+  maybeSpawnSuccessor,
+  loadCollection,
+} from "@mulmoclaude/collection-plugin/server";
 import { type CompletionPriority, errMsg, log, requireAdapter } from "./config.js";
 
 /** The internal-id prefix every collection-completion bell entry carries.
@@ -108,18 +116,21 @@ function notifyPriorityForItem(schema: CollectionSchema, item: CollectionItem): 
   return spec.in.indexOf(value) === 0 ? "high" : "normal";
 }
 
-async function ensureItemNotification(slug: string, schema: CollectionSchema, itemId: string, displayLabel: string, priority: CompletionPriority): Promise<void> {
+async function ensureItemNotification(
+  slug: string,
+  schema: CollectionSchema,
+  itemId: string,
+  displayLabel: string,
+  priority: CompletionPriority,
+): Promise<void> {
   const legacyId = completionLegacyId(slug, itemId);
   // Drain any in-flight publish for this key BEFORE our check + set. The
   // drain + claim runs synchronously between `ensureLocks.get` and
   // `ensureLocks.set`, so two callers can't both observe an empty slot.
-  let keepDraining = true;
-  while (keepDraining) {
+
+  while (true) {
     const inflight = ensureLocks.get(legacyId);
-    if (!inflight) {
-      keepDraining = false;
-      break;
-    }
+    if (!inflight) break;
     await inflight.promise;
   }
   const lock: EnsureLock = { promise: doEnsureItemNotification(slug, schema, itemId, legacyId, displayLabel, priority) };
@@ -157,7 +168,14 @@ async function reconcileEntrySeverity(slug: string, itemId: string, entries: Not
   }
 }
 
-async function doEnsureItemNotification(slug: string, schema: CollectionSchema, itemId: string, legacyId: string, displayLabel: string, priority: CompletionPriority): Promise<void> {
+async function doEnsureItemNotification(
+  slug: string,
+  schema: CollectionSchema,
+  itemId: string,
+  legacyId: string,
+  displayLabel: string,
+  priority: CompletionPriority,
+): Promise<void> {
   const adapter = requireAdapter();
   try {
     const existing = await findActiveEntries(slug, itemId);
@@ -204,7 +222,14 @@ export async function clearItemNotification(slug: string, itemId: string): Promi
  *  `ioOpts` flows into `readItem`'s workspace-containment check —
  *  production callers (the watcher) pass nothing; tests pass
  *  `{ workspaceRoot: <tmpdir> }` so the check accepts a fixture dataDir. */
-export async function reconcileItem(slug: string, schema: CollectionSchema, dataDir: string, itemId: string, ioOpts: IoOptions = {}, now: Date = new Date()): Promise<void> {
+export async function reconcileItem(
+  slug: string,
+  schema: CollectionSchema,
+  dataDir: string,
+  itemId: string,
+  ioOpts: IoOptions = {},
+  now: Date = new Date(),
+): Promise<void> {
   if (!schema.completionField) {
     // Schema doesn't track completion — drop any stale entry.
     await clearItemNotification(slug, itemId);
@@ -250,7 +275,13 @@ export async function reconcileItem(slug: string, schema: CollectionSchema, data
  *  reconcile it. Catches up changes that happened while the server was
  *  down. Deleted items are covered by `sweepStaleActiveEntries`, not this
  *  function (it only sees files that exist). */
-export async function reconcileAllItems(slug: string, schema: CollectionSchema, dataDir: string, ioOpts: IoOptions = {}, now: Date = new Date()): Promise<void> {
+export async function reconcileAllItems(
+  slug: string,
+  schema: CollectionSchema,
+  dataDir: string,
+  ioOpts: IoOptions = {},
+  now: Date = new Date(),
+): Promise<void> {
   if (!schema.completionField) return;
   let items: CollectionItem[];
   try {

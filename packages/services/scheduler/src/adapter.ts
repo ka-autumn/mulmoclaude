@@ -236,7 +236,14 @@ async function executeAndLog(task: SystemTaskDef, scheduledFor: string, trigger:
 
 /** Best-effort persistence — state and log are independent. A failure in
  *  one does not block the other, and neither propagates upward. */
-async function safePersist(task: SystemTaskDef, scheduledFor: string, startedAt: string, durationMs: number, trigger: TaskTrigger, errMsg: string | null): Promise<void> {
+async function safePersist(
+  task: SystemTaskDef,
+  scheduledFor: string,
+  startedAt: string,
+  durationMs: number,
+  trigger: TaskTrigger,
+  errMsg: string | null,
+): Promise<void> {
   const isSuccess = errMsg === null;
   const currentState = stateMap.get(task.id);
   try {

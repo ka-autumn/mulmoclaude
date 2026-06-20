@@ -7,45 +7,45 @@ import { configureFileChangePublisher, resetFileChangePublisher, publishFileChan
 
 afterEach(() => resetFileChangePublisher());
 
-function withWorkspace(): { ws: string; rel: string } {
-  const ws = mkdtempSync(path.join(tmpdir(), "fcp-"));
+function withWorkspace(): { workspace: string; rel: string } {
+  const workspace = mkdtempSync(path.join(tmpdir(), "fcp-"));
   const rel = "artifacts/html/page.html";
-  const abs = path.join(ws, rel);
+  const abs = path.join(workspace, rel);
   mkdirSync(path.dirname(abs), { recursive: true });
   writeFileSync(abs, "<html></html>");
-  return { ws, rel };
+  return { workspace, rel };
 }
 
 test("publishes the primary channel + every matching plugin scope (and skips non-matches)", async () => {
-  const { ws, rel } = withWorkspace();
-  const events: Array<{ channel: string; path: string; mtimeMs: number }> = [];
+  const { workspace, rel } = withWorkspace();
+  const events: { channel: string; path: string; mtimeMs: number }[] = [];
   configureFileChangePublisher({
     publish: (channel, payload) => events.push({ channel, ...payload }),
-    workspaceRoot: ws,
-    toPosix: (p) => p.split(path.sep).join("/"),
+    workspaceRoot: workspace,
+    toPosix: (rawPath) => rawPath.split(path.sep).join("/"),
     primaryChannel: (posix) => `file:${posix}`,
     pluginScopes: [
-      { scope: "html", matches: (p) => p.endsWith(".html") },
-      { scope: "markdown", matches: (p) => p.endsWith(".md") }, // shouldn't match
+      { scope: "html", matches: (posix) => posix.endsWith(".html") },
+      { scope: "markdown", matches: (posix) => posix.endsWith(".md") }, // shouldn't match
     ],
   });
   try {
     await publishFileChange(rel);
-    const channels = events.map((e) => e.channel);
+    const channels = events.map((event) => event.channel);
     assert.deepEqual(channels.sort(), [`file:${rel}`, pluginFileChannel("html", rel)].sort());
-    assert.ok(events.every((e) => e.path === rel && typeof e.mtimeMs === "number" && e.mtimeMs > 0));
+    assert.ok(events.every((event) => event.path === rel && typeof event.mtimeMs === "number" && event.mtimeMs > 0));
   } finally {
-    rmSync(ws, { recursive: true, force: true });
+    rmSync(workspace, { recursive: true, force: true });
   }
 });
 
 test("runs onPublished after publishing", async () => {
-  const { ws, rel } = withWorkspace();
+  const { workspace, rel } = withWorkspace();
   let seen: string | null = null;
   configureFileChangePublisher({
     publish: () => {},
-    workspaceRoot: ws,
-    toPosix: (p) => p,
+    workspaceRoot: workspace,
+    toPosix: (rawPath) => rawPath,
     onPublished: (posix) => {
       seen = posix;
     },
@@ -54,25 +54,25 @@ test("runs onPublished after publishing", async () => {
     await publishFileChange(rel);
     assert.equal(seen, rel);
   } finally {
-    rmSync(ws, { recursive: true, force: true });
+    rmSync(workspace, { recursive: true, force: true });
   }
 });
 
 test("no-op until configured; falls back to Date.now() when stat fails", async () => {
   await publishFileChange("anything"); // unconfigured → no throw, no-op
-  const ws = mkdtempSync(path.join(tmpdir(), "fcp-"));
-  const events: Array<{ mtimeMs: number }> = [];
+  const workspace = mkdtempSync(path.join(tmpdir(), "fcp-"));
+  const events: { mtimeMs: number }[] = [];
   configureFileChangePublisher({
-    publish: (_c, payload) => events.push(payload),
-    workspaceRoot: ws,
-    toPosix: (p) => p,
-    primaryChannel: (p) => `file:${p}`,
+    publish: (_channel, payload) => events.push(payload),
+    workspaceRoot: workspace,
+    toPosix: (rawPath) => rawPath,
+    primaryChannel: (posix) => `file:${posix}`,
   });
   try {
     await publishFileChange("missing-file.txt"); // stat fails → Date.now() fallback, still publishes
     assert.equal(events.length, 1);
     assert.ok(events[0].mtimeMs > 0);
   } finally {
-    rmSync(ws, { recursive: true, force: true });
+    rmSync(workspace, { recursive: true, force: true });
   }
 });

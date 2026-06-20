@@ -79,7 +79,6 @@ export interface SyncPresetSkillsResult {
   skipped: string[];
 }
 
-
 // Classification of one source entry. `silent` distinguishes
 // structural skips (hidden files, non-directory entries — not the
 // dev's fault) from misconfigurations (bad slug, missing or

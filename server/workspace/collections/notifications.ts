@@ -6,13 +6,32 @@
 // CollectionNotificationAdapter, and re-exports the reconciler surface
 // existing callers + tests import from `./notifications.js`.
 
-import { NOTIFICATION_ACTION_TYPES, NOTIFICATION_KINDS, NOTIFICATION_PRIORITIES, NOTIFICATION_VIEWS, type NotificationAction } from "../../../src/types/notification.js";
-import { isLegacyNotifierPluginData, legacyActionToNavigateTarget, legacyKindToPluginPkg, legacyPriorityToSeverity, type LegacyNotifierPluginData } from "../../events/notifications.js";
+import {
+  NOTIFICATION_ACTION_TYPES,
+  NOTIFICATION_KINDS,
+  NOTIFICATION_PRIORITIES,
+  NOTIFICATION_VIEWS,
+  type NotificationAction,
+} from "../../../src/types/notification.js";
+import {
+  isLegacyNotifierPluginData,
+  legacyActionToNavigateTarget,
+  legacyKindToPluginPkg,
+  legacyPriorityToSeverity,
+  type LegacyNotifierPluginData,
+} from "../../events/notifications.js";
 import { log } from "../../system/logger/index.js";
 import { configureCollectionWatchers, type CollectionNotificationAdapter, type CompletionPriority } from "@mulmoclaude/collection-watchers";
 
 // Re-export the reconciler surface verbatim from the package.
-export { reconcileItem, reconcileAllItems, sweepStaleActiveEntries, clearItemNotification, resolveDisplayLabel, itemIsDone } from "@mulmoclaude/collection-watchers";
+export {
+  reconcileItem,
+  reconcileAllItems,
+  sweepStaleActiveEntries,
+  clearItemNotification,
+  resolveDisplayLabel,
+  itemIsDone,
+} from "@mulmoclaude/collection-watchers";
 
 const COLLECTION_PLUGIN_PKG = legacyKindToPluginPkg(NOTIFICATION_KINDS.todo);
 

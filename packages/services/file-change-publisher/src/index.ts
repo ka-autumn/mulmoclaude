@@ -52,8 +52,8 @@ export interface FileChangePublisherConfig {
 let config: FileChangePublisherConfig | null = null;
 
 /** Wire the publisher to a host. Call once at startup, before any write route. */
-export function configureFileChangePublisher(c: FileChangePublisherConfig): void {
-  config = c;
+export function configureFileChangePublisher(cfg: FileChangePublisherConfig): void {
+  config = cfg;
 }
 
 /** Clear the binding — test-only. */
@@ -69,34 +69,44 @@ export function pluginFileChannel(scope: string, posixPath: string): string {
 /** Publish a file-change for a workspace-relative path: the primary channel (if any)
  *  + every matching plugin scope, with the post-write mtime. No-op until configured. */
 export async function publishFileChange(relativePath: string): Promise<void> {
-  const c = config;
-  if (!c) return;
-  const absPath = path.join(c.workspaceRoot, relativePath);
+  const cfg = config;
+  if (!cfg) return;
+  // `relativePath` comes from the host's write routes. Resolve + contain it
+  // before statting so a traversal can't make us read an arbitrary file's
+  // mtime — defence-in-depth, since this is the shared package both hosts use.
+  // An escaping path is treated like a stat failure (wall-clock fallback).
+  const root = path.resolve(cfg.workspaceRoot);
+  const absPath = path.resolve(root, relativePath);
   let mtimeMs: number;
-  try {
-    ({ mtimeMs } = await stat(absPath));
-  } catch (err) {
-    c.warn?.("stat failed; falling back to Date.now()", { path: relativePath, error: errMsg(err) });
+  if (absPath !== root && !absPath.startsWith(root + path.sep)) {
+    cfg.warn?.("path escapes workspace; falling back to Date.now()", { path: relativePath });
     mtimeMs = Date.now();
+  } else {
+    try {
+      ({ mtimeMs } = await stat(absPath));
+    } catch (err) {
+      cfg.warn?.("stat failed; falling back to Date.now()", { path: relativePath, error: errMsg(err) });
+      mtimeMs = Date.now();
+    }
   }
-  const posixPath = c.toPosix(relativePath);
+  const posixPath = cfg.toPosix(relativePath);
   const payload: FileChannelPayload = { path: posixPath, mtimeMs };
 
-  if (c.primaryChannel) {
-    safePublish(c, c.primaryChannel(posixPath), payload, "primary publish failed");
+  if (cfg.primaryChannel) {
+    safePublish(cfg, cfg.primaryChannel(posixPath), payload, "primary publish failed");
   }
-  for (const { scope, matches } of c.pluginScopes ?? []) {
+  for (const { scope, matches } of cfg.pluginScopes ?? []) {
     if (!matches(posixPath)) continue;
-    safePublish(c, pluginFileChannel(scope, posixPath), payload, `${scope} plugin forward failed`);
+    safePublish(cfg, pluginFileChannel(scope, posixPath), payload, `${scope} plugin forward failed`);
   }
-  c.onPublished?.(posixPath, payload);
+  cfg.onPublished?.(posixPath, payload);
 }
 
-function safePublish(c: FileChangePublisherConfig, channel: string, payload: FileChannelPayload, failMsg: string): void {
+function safePublish(cfg: FileChangePublisherConfig, channel: string, payload: FileChannelPayload, failMsg: string): void {
   try {
-    c.publish(channel, payload);
+    cfg.publish(channel, payload);
   } catch (err) {
-    c.warn?.(`${failMsg}; subscribers will miss this event`, { channel, error: errMsg(err) });
+    cfg.warn?.(`${failMsg}; subscribers will miss this event`, { channel, error: errMsg(err) });
   }
 }
 

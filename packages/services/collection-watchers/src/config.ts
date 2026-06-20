@@ -32,13 +32,7 @@ export interface CollectionNotificationAdapter {
   /** Wrap the reconciler's internal key + priority into the host's
    *  `pluginData` shape. Stored verbatim on the entry; recovered via
    *  `readEntry`. */
-  buildPluginData: (input: {
-    legacyId: string;
-    slug: string;
-    itemId: string;
-    priority: CompletionPriority;
-    navigateTarget: string;
-  }) => unknown;
+  buildPluginData: (input: { legacyId: string; slug: string; itemId: string; priority: CompletionPriority; navigateTarget: string }) => unknown;
   /** Recognise a bell entry produced by this reconciler and recover its
    *  internal key + stored priority. Returns null for entries that didn't
    *  originate here, so `listAll()` scans skip foreign entries. */
@@ -53,7 +47,7 @@ let activeLogger: CollectionWatcherLogger = NOOP_LOG;
 /** Wire the host adapter + logger. Call once at startup, before
  *  `startCollectionWatchers` or any direct reconcile call. */
 export function configureCollectionWatchers(config: { adapter: CollectionNotificationAdapter; log?: CollectionWatcherLogger }): void {
-  adapter = config.adapter;
+  ({ adapter } = config);
   activeLogger = config.log ?? NOOP_LOG;
 }
 

@@ -50,7 +50,7 @@ test("publish persists, emits, and is readable", async () => {
     assert.equal(all.length, 1);
     assert.equal(all[0].title, "Hi");
     assert.deepEqual(
-      events.map((e) => e.type),
+      events.map((event) => event.type),
       ["published"],
     );
   } finally {
@@ -68,7 +68,7 @@ test("clear moves to history and emits cleared", async () => {
     assert.equal(history.length, 1);
     assert.equal(history[0].terminalType, "cleared");
     assert.deepEqual(
-      events.map((e) => e.type),
+      events.map((event) => event.type),
       ["published", "cleared"],
     );
   } finally {
@@ -100,7 +100,7 @@ test("updateForPlugin refreshes in place and rejects invalid merges silently", a
     await updateForPlugin("todo", id, { title: "" });
     assert.equal((await listAll())[0].title, "v2");
     assert.deepEqual(
-      events.map((e) => e.type),
+      events.map((event) => event.type),
       ["published", "updated"],
     );
   } finally {
@@ -124,7 +124,7 @@ test("onEvent in-process listener fires before pubsub and can unsubscribe", asyn
   const dir = setup();
   try {
     const seen: string[] = [];
-    const off = onEvent((e) => seen.push(e.type));
+    const off = onEvent((event) => seen.push(event.type));
     await publish({ pluginPkg: "todo", severity: "nudge", title: "a" });
     off();
     await publish({ pluginPkg: "todo", severity: "nudge", title: "b" });
@@ -137,13 +137,13 @@ test("onEvent in-process listener fires before pubsub and can unsubscribe", asyn
 test("cancel emits cancelled; concurrent publishes both persist", async () => {
   const dir = setup();
   try {
-    const [a, b] = await Promise.all([
+    const [first, second] = await Promise.all([
       publish({ pluginPkg: "todo", severity: "nudge", title: "a" }),
       publish({ pluginPkg: "todo", severity: "nudge", title: "b" }),
     ]);
-    assert.notEqual(a.id, b.id);
+    assert.notEqual(first.id, second.id);
     assert.equal((await listAll()).length, 2);
-    await cancel(a.id);
+    await cancel(first.id);
     const history = await listHistory();
     assert.equal(history[0].terminalType, "cancelled");
   } finally {
@@ -154,10 +154,7 @@ test("cancel emits cancelled; concurrent publishes both persist", async () => {
 test("validatePublishInput is pure and matches the engine's wall", () => {
   assert.equal(validatePublishInput({ pluginPkg: "x", severity: "nudge", title: "ok" }), null);
   assert.match(validatePublishInput({ pluginPkg: "x", severity: "nudge", title: "" }) ?? "", /non-empty/);
-  assert.match(
-    validatePublishInput({ pluginPkg: "x", severity: "nudge", title: "t", navigateTarget: "//evil.com" }) ?? "",
-    /single '\/'/,
-  );
+  assert.match(validatePublishInput({ pluginPkg: "x", severity: "nudge", title: "t", navigateTarget: "//evil.com" }) ?? "", /single '\/'/);
 });
 
 test("malformed active.json surfaces as an error", async () => {

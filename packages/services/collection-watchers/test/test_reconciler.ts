@@ -22,9 +22,9 @@ configureCollectionHost({
   log: noopLog,
   paths: {
     userSkillsDir: path.join(root, ".user-skills"),
-    projectSkillsDir: (r) => path.join(r, ".claude", "skills"),
-    feedsRoot: (r) => path.join(r, "data", "feeds"),
-    skillsStagingDir: (r) => path.join(r, "data", "skills"),
+    projectSkillsDir: (wsRoot) => path.join(wsRoot, ".claude", "skills"),
+    feedsRoot: (wsRoot) => path.join(wsRoot, "data", "feeds"),
+    skillsStagingDir: (wsRoot) => path.join(wsRoot, "data", "skills"),
     archiveDir: "data/archive",
   },
   isPresetSlug: () => false,
@@ -43,7 +43,7 @@ configureNotifier({
 // proves the seam is real (not the legacy machinery leaking through).
 const adapter: CollectionNotificationAdapter = {
   pluginPkg: "test-bells",
-  priorityToSeverity: (p) => (p === "high" ? "urgent" : "nudge"),
+  priorityToSeverity: (prio) => (prio === "high" ? "urgent" : "nudge"),
   buildNavigateTarget: (slug, itemId) => `/x/${slug}/${itemId}`,
   buildPluginData: ({ legacyId, priority }) => ({ kind: "cw", legacyId, priority }),
   readEntry: (pluginData) => {
@@ -114,7 +114,10 @@ test("reconcileItem clears the bell when the record becomes done", async () => {
     writeFileSync(path.join(dataDir, "t1.json"), JSON.stringify({ id: "t1", name: "Task", done: "true" }));
     await reconcileItem("todo", SCHEMA, dataDir, "t1", { workspaceRoot: root });
     assert.equal((await listAll()).length, 0);
-    assert.deepEqual(events.map((e) => e.type), ["published", "cleared"]);
+    assert.deepEqual(
+      events.map((event) => event.type),
+      ["published", "cleared"],
+    );
   } finally {
     rmSync(dataDir, { recursive: true, force: true });
   }

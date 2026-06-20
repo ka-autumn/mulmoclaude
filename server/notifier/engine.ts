@@ -10,11 +10,7 @@ import { PUBSUB_CHANNELS } from "../../src/config/pubsubChannels.js";
 import { log } from "../system/logger/index.js";
 import { WORKSPACE_PATHS } from "../workspace/paths.js";
 import { writeJsonAtomic } from "../utils/files/json.js";
-import {
-  configureNotifier,
-  setNotifierFilePaths,
-  type NotifierEvent,
-} from "@mulmoclaude/notifier";
+import { configureNotifier, setNotifierFilePaths, type NotifierEvent } from "@mulmoclaude/notifier";
 
 // Engine methods + validation re-exported verbatim from the package.
 export {

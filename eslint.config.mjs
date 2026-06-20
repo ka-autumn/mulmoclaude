@@ -24,6 +24,7 @@ export default [
       "packages/*/dist",
       "packages/bridges/*/dist",
       "packages/plugins/*/dist",
+      "packages/services/*/dist",
       // Sample runtime plugin (#1110) — has its own eslint.config.mjs
       // that uses gui-chat-protocol/eslint-preset. The host's much
       // stricter rules (T[] over Array<T>, identifier length, etc.)
