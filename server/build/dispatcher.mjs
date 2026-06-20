@@ -131,21 +131,9 @@ async function handleConfigRefresh(payload) {
   await safePost(req);
 }
 
-// server/workspace/hooks/handlers/skillBridge.ts
-import { mkdirSync, readFileSync as readFileSync2, renameSync, rmSync, writeFileSync } from "node:fs";
+// packages/services/skill-bridge/dist/index.js
 import path4 from "node:path";
-
-// server/utils/errors.ts
-function errorMessage(err, fallback) {
-  if (err instanceof Error) return err.message;
-  if (err !== null && typeof err === "object") {
-    const obj = err;
-    if (typeof obj.details === "string" && obj.details) return obj.details;
-    if (typeof obj.message === "string" && obj.message) return obj.message;
-  }
-  if (fallback !== void 0) return fallback;
-  return String(err);
-}
+import { mkdirSync, readFileSync as readFileSync2, renameSync, rmSync, writeFileSync } from "node:fs";
 
 // packages/plugins/collection-plugin/dist/schema-DyfSfVzh.js
 var INGEST_KINDS = [
@@ -14995,7 +14983,7 @@ var CollectionSchemaZ = external_exports.object({
 });
 var ONE_DAY_MS = 1440 * 60 * 1e3;
 
-// server/workspace/hooks/handlers/skillBridge.ts
+// packages/services/skill-bridge/dist/index.js
 var DATA_SKILLS_DIR = path4.join("data", "skills");
 var CLAUDE_SKILLS_DIR = path4.join(".claude", "skills");
 var SKILL_FILENAME = "SKILL.md";
@@ -15003,21 +14991,18 @@ var SCHEMA_FILENAME = "schema.json";
 var SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 var RM_RE = /^\s*rm\s+((?:-[a-zA-Z]+\s+)+)['"]?data\/skills\/([a-z0-9-]+)\/?['"]?\s*$/;
 var RECURSIVE_FLAG_RE = /[rR]/;
-function dataSkillDir(slug) {
-  return path4.join(workspaceRoot(), DATA_SKILLS_DIR, slug);
+function dataSkillDir(workspaceRoot2, slug) {
+  return path4.join(workspaceRoot2, DATA_SKILLS_DIR, slug);
 }
-function claudeSkillDir(slug) {
-  return path4.join(workspaceRoot(), CLAUDE_SKILLS_DIR, slug);
+function claudeSkillDir(workspaceRoot2, slug) {
+  return path4.join(workspaceRoot2, CLAUDE_SKILLS_DIR, slug);
 }
 function isAllowlisted(relSegments) {
-  if (relSegments.length === 1) {
-    return relSegments[0] === SKILL_FILENAME || relSegments[0] === SCHEMA_FILENAME;
-  }
+  if (relSegments.length === 1) return relSegments[0] === SKILL_FILENAME || relSegments[0] === SCHEMA_FILENAME;
   return isSafeActionTemplatePath(relSegments.join("/"));
 }
-function bridgeTargetFromDataPath(filePath) {
-  const root = workspaceRoot();
-  const staging = path4.join(root, DATA_SKILLS_DIR);
+function bridgeTargetFromDataPath(workspaceRoot2, filePath) {
+  const staging = path4.join(workspaceRoot2, DATA_SKILLS_DIR);
   const rel = path4.relative(staging, filePath);
   if (!rel || rel.startsWith("..") || path4.isAbsolute(rel)) return null;
   const segments = rel.split(path4.sep);
@@ -15025,7 +15010,10 @@ function bridgeTargetFromDataPath(filePath) {
   const [slug, ...relSegments] = segments;
   if (!SLUG_RE.test(slug)) return null;
   if (!isAllowlisted(relSegments)) return null;
-  return { slug, relSegments };
+  return {
+    slug,
+    relSegments
+  };
 }
 function slugFromRmCommand(command) {
   const match = RM_RE.exec(command);
@@ -15034,52 +15022,74 @@ function slugFromRmCommand(command) {
   if (!RECURSIVE_FLAG_RE.test(flags)) return null;
   return SLUG_RE.test(slug) ? slug : null;
 }
-function mirrorWrite(target) {
+function mirrorSkillWrite(workspaceRoot2, target) {
   const { slug, relSegments } = target;
-  const src = path4.join(dataSkillDir(slug), ...relSegments);
+  const src = path4.join(dataSkillDir(workspaceRoot2, slug), ...relSegments);
   const content = readFileSync2(src, "utf-8");
-  const dest = path4.join(claudeSkillDir(slug), ...relSegments);
+  const dest = path4.join(claudeSkillDir(workspaceRoot2, slug), ...relSegments);
   const destDir = path4.dirname(dest);
   mkdirSync(destDir, { recursive: true });
   const tmp = path4.join(destDir, `.${path4.basename(dest)}.${process.pid}.tmp`);
   writeFileSync(tmp, content, "utf-8");
   renameSync(tmp, dest);
+  return {
+    src,
+    dest
+  };
 }
-function mirrorDelete(slug) {
-  rmSync(claudeSkillDir(slug), { recursive: true, force: true });
+function mirrorSkillDelete(workspaceRoot2, slug) {
+  const dest = claudeSkillDir(workspaceRoot2, slug);
+  rmSync(dest, {
+    recursive: true,
+    force: true
+  });
+  return { dest };
 }
+
+// server/utils/errors.ts
+function errorMessage(err, fallback) {
+  if (err instanceof Error) return err.message;
+  if (err !== null && typeof err === "object") {
+    const obj = err;
+    if (typeof obj.details === "string" && obj.details) return obj.details;
+    if (typeof obj.message === "string" && obj.message) return obj.message;
+  }
+  if (fallback !== void 0) return fallback;
+  return String(err);
+}
+
+// server/workspace/hooks/handlers/skillBridge.ts
+var bridgeTargetFromDataPath2 = (filePath) => bridgeTargetFromDataPath(workspaceRoot(), filePath);
+var slugFromRmCommand2 = (command) => slugFromRmCommand(command);
 async function refreshConfig() {
   await safePost(buildAuthPost("/api/config/refresh"));
 }
 async function handleWriteOrEdit(payload) {
   const filePath = extractFilePath(payload);
   if (!filePath) return;
-  const target = bridgeTargetFromDataPath(filePath);
+  const target = bridgeTargetFromDataPath2(filePath);
   if (target === null) return;
-  const { slug, relSegments } = target;
-  const relPath = relSegments.join("/");
+  const relPath = target.relSegments.join("/");
   try {
-    mirrorWrite(target);
+    const { src, dest } = mirrorSkillWrite(workspaceRoot(), target);
     await refreshConfig();
-    const srcPath = path4.join(dataSkillDir(slug), ...relSegments);
-    const destPath = path4.join(claudeSkillDir(slug), ...relSegments);
-    await serverLog("skill-bridge", `mirrored ${srcPath} \u2192 ${destPath}`, { data: { slug, relPath, op: "write" } });
+    await serverLog("skill-bridge", `mirrored ${src} \u2192 ${dest}`, { data: { slug: target.slug, relPath, op: "write" } });
   } catch (err) {
-    await serverLog("skill-bridge", `mirror write failed for slug=${slug} (${relPath})`, {
+    await serverLog("skill-bridge", `mirror write failed for slug=${target.slug} (${relPath})`, {
       level: "error",
-      data: { slug, relPath, error: errorMessage(err) }
+      data: { slug: target.slug, relPath, error: errorMessage(err) }
     });
   }
 }
 async function handleBash(payload) {
   const command = extractCommand(payload);
   if (!command) return;
-  const slug = slugFromRmCommand(command);
+  const slug = slugFromRmCommand2(command);
   if (slug === null) return;
   try {
-    mirrorDelete(slug);
+    const { dest } = mirrorSkillDelete(workspaceRoot(), slug);
     await refreshConfig();
-    await serverLog("skill-bridge", `removed ${claudeSkillDir(slug)}`, { data: { slug, op: "delete" } });
+    await serverLog("skill-bridge", `removed ${dest}`, { data: { slug, op: "delete" } });
   } catch (err) {
     await serverLog("skill-bridge", `mirror delete failed for slug=${slug}`, {
       level: "error",

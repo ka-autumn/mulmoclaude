@@ -11,7 +11,8 @@
   "workspaces": [
     "packages/*",
     "packages/bridges/*",
-    "packages/plugins/*"
+    "packages/plugins/*",
+    "packages/services/*"
   ],
   "scripts": {
     "plugins:codegen": "tsx scripts/codegen-plugin-barrels.ts",
@@ -41,8 +42,8 @@
     "build:client": "vite build",
     "build:hooks": "node scripts/build-hooks.mjs",
     "memory:swap": "tsx scripts/memory-swap-topic-staging.ts",
-    "build:packages:dev": "concurrently --kill-others-on-fail \"yarn workspace @mulmobridge/protocol run build\" \"yarn workspace @receptron/task-scheduler run build\" && concurrently --kill-others-on-fail \"yarn workspace @mulmobridge/client run build\" \"yarn workspace @mulmobridge/chat-service run build\" && node scripts/build-workspaces.mjs packages/plugins @mulmoclaude --name-suffix=-plugin",
-    "build:packages": "concurrently --kill-others-on-fail \"yarn workspace @mulmobridge/protocol run build\" \"yarn workspace @receptron/task-scheduler run build\" && concurrently --kill-others-on-fail \"yarn workspace @mulmobridge/client run build\" \"yarn workspace @mulmobridge/chat-service run build\" \"yarn workspace @mulmobridge/mock-server run build\" && node scripts/build-workspaces.mjs packages/bridges @mulmobridge && node scripts/build-workspaces.mjs packages/plugins @mulmoclaude --name-suffix=-plugin",
+    "build:packages:dev": "concurrently --kill-others-on-fail \"yarn workspace @mulmobridge/protocol run build\" \"yarn workspace @receptron/task-scheduler run build\" && concurrently --kill-others-on-fail \"yarn workspace @mulmobridge/client run build\" \"yarn workspace @mulmobridge/chat-service run build\" && node scripts/build-workspaces.mjs packages/services @mulmoclaude && node scripts/build-workspaces.mjs packages/plugins @mulmoclaude --name-suffix=-plugin",
+    "build:packages": "concurrently --kill-others-on-fail \"yarn workspace @mulmobridge/protocol run build\" \"yarn workspace @receptron/task-scheduler run build\" && concurrently --kill-others-on-fail \"yarn workspace @mulmobridge/client run build\" \"yarn workspace @mulmobridge/chat-service run build\" \"yarn workspace @mulmobridge/mock-server run build\" && node scripts/build-workspaces.mjs packages/bridges @mulmobridge && node scripts/build-workspaces.mjs packages/services @mulmoclaude && node scripts/build-workspaces.mjs packages/plugins @mulmoclaude --name-suffix=-plugin",
     "build": "yarn build:packages && yarn build:hooks && vite build",
     "test": "tsx --test ./test/*/test_*.ts ./test/*/*/test_*.ts ./test/*/*/*/test_*.ts && yarn workspaces run test",
     "test:csrf-wiring": "cross-env MULMOCLAUDE_TRUSTED_ORIGINS=http://192.168.1.42:5173 tsx --test test/server/test_csrfGuard_env_wiring.ts",

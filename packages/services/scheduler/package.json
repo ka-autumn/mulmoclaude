@@ -1,0 +1,40 @@
+{
+  "name": "@mulmoclaude/scheduler",
+  "version": "0.1.0",
+  "description": "Cron tick engine (dependency-ordered task-manager) + persistence/catch-up adapter over @receptron/task-scheduler, shared by MulmoClaude and MulmoTerminal. Workspace root, atomic writer, and logger are injected; the host supplies its own system tasks.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/test_*.ts"
+  },
+  "peerDependencies": {
+    "@receptron/task-scheduler": "*"
+  },
+  "devDependencies": {
+    "@receptron/task-scheduler": "*",
+    "@types/node": "^25.9.3",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.13",
+    "vite-plugin-dts": "^5.0.0"
+  },
+  "license": "MIT"
+}

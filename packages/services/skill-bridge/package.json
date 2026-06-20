@@ -1,0 +1,40 @@
+{
+  "name": "@mulmoclaude/skill-bridge",
+  "version": "0.1.0",
+  "description": "Skill staging→active mirror rule for MulmoClaude and MulmoTerminal. The agent writes skill drafts under data/skills/<slug>/ (no .claude/ permission gate); this mirrors the allowlist (SKILL.md, schema.json, templates/<safe path>) into .claude/skills/<slug>/. Pure rule + fs ops, parameterized by workspaceRoot. Server-only; no Vue.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/test_*.ts"
+  },
+  "peerDependencies": {
+    "@mulmoclaude/collection-plugin": ">=0.5.0"
+  },
+  "devDependencies": {
+    "@mulmoclaude/collection-plugin": "*",
+    "@types/node": "^25.9.3",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.13",
+    "vite-plugin-dts": "^5.0.0"
+  },
+  "license": "MIT"
+}

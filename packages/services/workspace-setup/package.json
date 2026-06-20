@@ -1,0 +1,41 @@
+{
+  "name": "@mulmoclaude/workspace-setup",
+  "version": "0.1.1",
+  "description": "Workspace bootstrap for MulmoClaude and MulmoTerminal — seeds the bundled help docs + preset skills into a workspace so a fresh workspace created by either app is set up identically. Server-only (`.`); browser-safe isPresetSlug at `./slug`. ESM-only (assets resolve via import.meta.url).",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./slug": {
+      "types": "./dist/slug.d.ts",
+      "import": "./dist/slug.js",
+      "default": "./dist/slug.js"
+    }
+  },
+  "files": [
+    "dist",
+    "assets"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/test_*.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.13",
+    "vite-plugin-dts": "^5.0.0"
+  },
+  "license": "MIT"
+}

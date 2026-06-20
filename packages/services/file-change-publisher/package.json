@@ -1,0 +1,36 @@
+{
+  "name": "@mulmoclaude/file-change-publisher",
+  "version": "0.1.1",
+  "description": "Shared workspace file-change broadcaster for MulmoClaude and MulmoTerminal — publishFileChange(relPath) forwards a write to the host's primary channel + the plugin-scoped live-refresh channels (plugin:<scope>:file:<path>). Server-only; all host specifics injected.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/test_*.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.13",
+    "vite-plugin-dts": "^5.0.0"
+  },
+  "license": "MIT"
+}

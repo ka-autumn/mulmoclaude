@@ -2,10 +2,12 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { helpsAssetDir } from "@mulmoclaude/workspace-setup";
 
-// Guards the curated `## Help Pages` list in
-// `server/workspace/helps/index.md`. The list is the canonical
+// Guards the curated `## Help Pages` list in the bundled `helps/index.md`.
+// The help docs now ship inside `@mulmoclaude/workspace-setup`
+// (`helpsAssetDir()`), seeded into `<workspace>/helps/` at startup. The list
+// is the canonical
 // human-readable index of every help file shipped with the app —
 // roles point users (and Claude) at specific helps via canonical
 // `config/helps/<name>.md` paths in their role prompts, and the
@@ -34,9 +36,7 @@ import { fileURLToPath } from "node:url";
 // canonical path directly). This test exists purely as a
 // documentation-completeness guard.
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const HELPS_DIR = path.resolve(__dirname, "../../server/workspace/helps");
+const HELPS_DIR = helpsAssetDir();
 const INDEX_FILENAME = "index.md";
 const HELP_PAGES_HEADING_RE = /^##\s+Help Pages\s*$/;
 const HELP_LIST_LINK_PREFIX = "config/helps/";

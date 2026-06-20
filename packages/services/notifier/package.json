@@ -1,0 +1,36 @@
+{
+  "name": "@mulmoclaude/notifier",
+  "version": "0.1.0",
+  "description": "Host-agnostic notification engine (active + history persistence, write coordinator, lifecycle validation, pub-sub + in-process fan-out) shared by MulmoClaude and MulmoTerminal. File paths, atomic writer, event sink, and logger are injected.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/test_*.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.13",
+    "vite-plugin-dts": "^5.0.0"
+  },
+  "license": "MIT"
+}

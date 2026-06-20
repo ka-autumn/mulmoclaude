@@ -1,16 +1,13 @@
 import { execSync } from "child_process";
-import { copyFileSync, existsSync, mkdirSync, readdirSync } from "fs";
+import { existsSync, mkdirSync } from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
 import { log } from "../system/logger/index.js";
 import { EAGER_WORKSPACE_DIRS, WORKSPACE_PATHS, workspacePath } from "./paths.js";
 import { readWorkspaceTextSync, writeWorkspaceTextSync } from "../utils/files/workspace-io.js";
 import { loadCustomDirs, ensureCustomDirs } from "./custom-dirs.js";
-import { syncActivePresetSkills, syncPresetSkills } from "./skills-preset.js";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const TEMPLATES_DIR = path.join(__dirname, "helps");
-const SKILLS_PRESET_SOURCE_DIR = path.join(__dirname, "skills-preset");
+// Helps + preset skills + their sync logic now live in @mulmoclaude/workspace-setup
+// (shared with MulmoTerminal); the bundled source dirs come from the package.
+import { seedHelps, presetSkillsAssetDir, syncActivePresetSkills, syncPresetSkills } from "@mulmoclaude/workspace-setup";
 
 // Re-exported so existing callers (`import { workspacePath } from
 // "./workspace.js"`) keep working. See workspace-paths.ts for the
@@ -35,11 +32,8 @@ export function initWorkspace(): string {
   // of truth thereafter.
   mkdirSync(WORKSPACE_PATHS.memoryDir, { recursive: true });
 
-  // Always sync all files from server/helps/ into workspace/helps/
-  mkdirSync(WORKSPACE_PATHS.helps, { recursive: true });
-  for (const file of readdirSync(TEMPLATES_DIR)) {
-    copyFileSync(path.join(TEMPLATES_DIR, file), path.join(WORKSPACE_PATHS.helps, file));
-  }
+  // Always sync the bundled help docs into workspace/helps/.
+  seedHelps({ destDir: WORKSPACE_PATHS.helps });
 
   // Sync preset skills from `server/workspace/skills-preset/` into
   // the catalog (#1335 PR-A). Catalog entries are visible to UI /
@@ -51,7 +45,7 @@ export function initWorkspace(): string {
   // (it lives several levels deep and is preset-specific).
   mkdirSync(WORKSPACE_PATHS.skillsCatalogPreset, { recursive: true });
   syncPresetSkills({
-    sourceDir: SKILLS_PRESET_SOURCE_DIR,
+    sourceDir: presetSkillsAssetDir(),
     destDir: WORKSPACE_PATHS.skillsCatalogPreset,
     onInfo: (message, data) => log.info("skills-preset", message, data),
     onWarn: (message, data) => log.warn("skills-preset", message, data),
@@ -70,7 +64,7 @@ export function initWorkspace(): string {
   // are never modified. Slugs that aren't starred yet are skipped
   // (never auto-starred).
   syncActivePresetSkills({
-    sourceDir: SKILLS_PRESET_SOURCE_DIR,
+    sourceDir: presetSkillsAssetDir(),
     activeDir: WORKSPACE_PATHS.claudeSkills,
     onInfo: (message, data) => log.info("skills-preset", message, data),
     onWarn: (message, data) => log.warn("skills-preset", message, data),

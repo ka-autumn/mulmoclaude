@@ -1,10 +1,14 @@
-// Low-level file I/O for the notifier. Kept separate from `engine.ts`
-// so unit tests can override the file path without monkey-patching
-// `WORKSPACE_PATHS`.
+// Low-level file I/O for the notifier. Reads use node:fs directly;
+// writes go through an injected atomic-JSON writer (the host owns the
+// rename-based atomic write so it stays single-sourced with its other
+// writers). Kept separate from `engine.ts` so the path can be
+// overridden in tests without monkey-patching.
 
-import { promises as fsPromises } from "fs";
-import { writeJsonAtomic } from "../utils/files/json.js";
+import { promises as fsPromises } from "node:fs";
 import type { NotifierFile, NotifierHistoryFile } from "./types.js";
+
+/** Injected atomic JSON writer — the host's `writeJsonAtomic`. */
+export type WriteJson = (filePath: string, data: unknown) => Promise<void>;
 
 function isNotFoundError(err: unknown): boolean {
   return typeof err === "object" && err !== null && (err as { code?: unknown }).code === "ENOENT";
@@ -25,11 +29,11 @@ export async function loadActive(filePath: string): Promise<NotifierFile> {
   }
   const parsed: unknown = JSON.parse(text);
   // `typeof null === "object"` and `Array.isArray([])` is also true,
-  // so the previous check `typeof entries !== "object"` let
+  // so a naive `typeof entries !== "object"` check would let
   // `{ entries: null }` and `{ entries: [] }` through, which then
-  // crashed downstream `engine.get` / `list*` mutations. Reject both
+  // crash downstream `engine.get` / `list*` mutations. Reject both
   // shapes here at load time so the failure surfaces as a clear
-  // "malformed file" error (CodeRabbit review on PR #1196).
+  // "malformed file" error.
   if (typeof parsed !== "object" || parsed === null || !("entries" in parsed)) {
     throw new Error(`notifier: malformed active.json at ${filePath}`);
   }
@@ -40,12 +44,12 @@ export async function loadActive(filePath: string): Promise<NotifierFile> {
   return parsed as NotifierFile;
 }
 
-/** Write the active-entries file via `writeFileAtomic` so a half-
- *  written file is never visible to readers. The caller serialises
+/** Write the active-entries file via the injected atomic writer so a
+ *  half-written file is never visible to readers. The caller serialises
  *  writes (engine.ts queues mutations) — this function makes no
  *  concurrency guarantees of its own. */
-export async function saveActive(filePath: string, state: NotifierFile): Promise<void> {
-  await writeJsonAtomic(filePath, state);
+export async function saveActive(writeJson: WriteJson, filePath: string, state: NotifierFile): Promise<void> {
+  await writeJson(filePath, state);
 }
 
 /** Read the history file. Empty array on first run. Same parse-error
@@ -65,6 +69,6 @@ export async function loadHistory(filePath: string): Promise<NotifierHistoryFile
   return parsed as NotifierHistoryFile;
 }
 
-export async function saveHistory(filePath: string, state: NotifierHistoryFile): Promise<void> {
-  await writeJsonAtomic(filePath, state);
+export async function saveHistory(writeJson: WriteJson, filePath: string, state: NotifierHistoryFile): Promise<void> {
+  await writeJson(filePath, state);
 }
