@@ -58,6 +58,29 @@ test("runs onPublished after publishing", async () => {
   }
 });
 
+test("drops paths that escape the workspace — no publish, no onPublished", async () => {
+  const workspace = mkdtempSync(path.join(tmpdir(), "fcp-"));
+  const events: string[] = [];
+  let onPublishedCalls = 0;
+  configureFileChangePublisher({
+    publish: (channel) => events.push(channel),
+    workspaceRoot: workspace,
+    toPosix: (rawPath) => rawPath,
+    primaryChannel: (posix) => `file:${posix}`,
+    onPublished: () => {
+      onPublishedCalls += 1;
+    },
+  });
+  try {
+    await publishFileChange("../escape.txt");
+    await publishFileChange("../../etc/passwd");
+    assert.deepEqual(events, []);
+    assert.equal(onPublishedCalls, 0);
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
 test("no-op until configured; falls back to Date.now() when stat fails", async () => {
   await publishFileChange("anything"); // unconfigured → no throw, no-op
   const workspace = mkdtempSync(path.join(tmpdir(), "fcp-"));

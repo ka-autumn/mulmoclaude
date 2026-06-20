@@ -152,10 +152,19 @@ function copySourcesIntoDest(sourceDir: string, destDir: string, opts: SyncPrese
     // are not preserved across boots. SKILL.md alone would survive
     // the legacy single-file copy, but schema-driven apps and
     // template-bearing skills need the full tree to be authoritative.
-    rmSync(destSlugDir, { recursive: true, force: true });
-    copyDirTreeSync(path.join(sourceDir, entry), destSlugDir);
-    synced.add(entry);
-    result.copied.push(entry);
+    // Per-slug isolation: a transient IO error / permission issue / partial
+    // corruption on one preset must not abort syncing the rest. Skip the
+    // offender (recorded for the caller) and continue.
+    try {
+      rmSync(destSlugDir, { recursive: true, force: true });
+      copyDirTreeSync(path.join(sourceDir, entry), destSlugDir);
+      synced.add(entry);
+      result.copied.push(entry);
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      result.skipped.push(`${entry}: ${reason}`);
+      opts.onWarn?.("preset copy failed, skipping", { slug: entry, reason });
+    }
   }
   return synced;
 }

@@ -72,22 +72,22 @@ export async function publishFileChange(relativePath: string): Promise<void> {
   const cfg = config;
   if (!cfg) return;
   // `relativePath` comes from the host's write routes. Resolve + contain it
-  // before statting so a traversal can't make us read an arbitrary file's
-  // mtime — defence-in-depth, since this is the shared package both hosts use.
-  // An escaping path is treated like a stat failure (wall-clock fallback).
+  // before doing anything: a path that escapes the workspace is dropped
+  // entirely — we neither stat an arbitrary file nor broadcast an
+  // out-of-workspace path to subscribers or host side-effects. Defence-in-
+  // depth, since this is the shared package both hosts use.
   const root = path.resolve(cfg.workspaceRoot);
   const absPath = path.resolve(root, relativePath);
-  let mtimeMs: number;
   if (absPath !== root && !absPath.startsWith(root + path.sep)) {
-    cfg.warn?.("path escapes workspace; falling back to Date.now()", { path: relativePath });
+    cfg.warn?.("ignoring file-change for path outside workspace", { path: relativePath });
+    return;
+  }
+  let mtimeMs: number;
+  try {
+    ({ mtimeMs } = await stat(absPath));
+  } catch (err) {
+    cfg.warn?.("stat failed; falling back to Date.now()", { path: relativePath, error: errMsg(err) });
     mtimeMs = Date.now();
-  } else {
-    try {
-      ({ mtimeMs } = await stat(absPath));
-    } catch (err) {
-      cfg.warn?.("stat failed; falling back to Date.now()", { path: relativePath, error: errMsg(err) });
-      mtimeMs = Date.now();
-    }
   }
   const posixPath = cfg.toPosix(relativePath);
   const payload: FileChannelPayload = { path: posixPath, mtimeMs };
