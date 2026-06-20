@@ -36,11 +36,21 @@ bindRoute(router, API_ROUTES.html.create, async (req: Request<object, unknown, H
   });
   try {
     const result = await executeHtml({ files: { artifacts: makeArtifactsFileOps() } }, req.body);
-    // Fire-and-forget: any subscribed View tab refetches via cache-bust. Only a
-    // freshly-saved page (data present) needs the nudge; present-existing and
-    // validation errors don't change bytes on disk.
-    if (result.data) void publishFileChange(result.data.filePath);
-    log.info("html", "present: ok", { hasData: Boolean(result.data) });
+    if (!result.data) {
+      // Validation failure (both `html`+`path`, neither, or a non-existent
+      // path): executeHtml returns a message-only ToolResult to stay
+      // host-agnostic. Map it to HTTP 400 here so we preserve the
+      // pre-extraction contract — the frontend (`src/plugins/presentHtml/
+      // index.ts`) treats any 2xx as success and would otherwise drop the
+      // error into a data-less, near-empty tool result instead of surfacing
+      // `message` via its `!result.ok` branch.
+      log.warn("html", "present: rejected", { message: result.message });
+      badRequest(res, result.message);
+      return;
+    }
+    // Fire-and-forget: any subscribed View tab refetches via cache-bust.
+    void publishFileChange(result.data.filePath);
+    log.info("html", "present: ok", { filePath: result.data.filePath });
     res.json(result);
   } catch (err) {
     log.error("html", "present: threw", { error: errorMessage(err) });
