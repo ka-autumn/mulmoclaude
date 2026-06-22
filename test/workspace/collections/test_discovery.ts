@@ -1026,6 +1026,137 @@ describe("discoverCollections — triggerField + spawn validation", () => {
   });
 });
 
+describe("discoverCollections — field-driven spawn.every validation", () => {
+  // A bills collection whose recurrence interval is chosen per-record by the
+  // `frequency` enum. Base is well-formed (frequency is an enum, the map
+  // covers its values exactly, and frequency is carried onto the successor).
+  function freqSchema(spawnEvery: unknown = undefined, extra: Record<string, unknown> = {}): Record<string, unknown> {
+    const every = spawnEvery ?? {
+      fromField: "frequency",
+      map: {
+        daily: { unit: "day", interval: 1 },
+        weekly: { unit: "week", interval: 1 },
+        monthly: { unit: "month", interval: 1, dayOfMonth: 1 },
+      },
+    };
+    return {
+      title: "Bills",
+      icon: "receipt",
+      dataPath: "data/bills/items",
+      primaryKey: "id",
+      fields: {
+        id: { type: "string", label: "ID", primary: true, required: true },
+        dueOn: { type: "date", label: "Due", required: true },
+        amount: { type: "number", label: "Amount" },
+        frequency: { type: "enum", values: ["daily", "weekly", "monthly"], label: "Frequency", required: true },
+        status: { type: "enum", values: ["pending", "paid"], label: "Status", required: true },
+      },
+      completionField: "status",
+      completionDoneValues: ["paid"],
+      triggerField: "dueOn",
+      spawn: { when: { field: "status", in: ["paid"] }, every, carry: ["amount", "frequency"], set: { status: "pending" } },
+      ...extra,
+    };
+  }
+
+  it("accepts a well-formed field-driven spawn (enum field, exact map, carried)", async () => {
+    writeSkill("test-freq-ok", freqSchema());
+    assert.equal((await listCollections()).length, 1);
+  });
+
+  it("rejects fromField that is not an enum field", async () => {
+    writeSkill("test-freq-non-enum", freqSchema({ fromField: "amount", map: { daily: { unit: "day", interval: 1 } } }));
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects fromField naming a missing field", async () => {
+    writeSkill("test-freq-missing", freqSchema({ fromField: "ghost", map: { daily: { unit: "day", interval: 1 } } }));
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects a map that misses an enum value", async () => {
+    // `monthly` is a value of `frequency` but absent from the map.
+    writeSkill(
+      "test-freq-missing-key",
+      freqSchema({ fromField: "frequency", map: { daily: { unit: "day", interval: 1 }, weekly: { unit: "week", interval: 1 } } }),
+    );
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects a map with an extra key not in the enum", async () => {
+    writeSkill(
+      "test-freq-extra-key",
+      freqSchema({
+        fromField: "frequency",
+        map: {
+          daily: { unit: "day", interval: 1 },
+          weekly: { unit: "week", interval: 1 },
+          monthly: { unit: "month", interval: 1 },
+          yearly: { unit: "year", interval: 1 },
+        },
+      }),
+    );
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects when fromField is not carried (and not set) onto the successor", async () => {
+    writeSkill(
+      "test-freq-not-carried",
+      freqSchema(undefined, {
+        spawn: {
+          when: { field: "status", in: ["paid"] },
+          every: {
+            fromField: "frequency",
+            map: { daily: { unit: "day", interval: 1 }, weekly: { unit: "week", interval: 1 }, monthly: { unit: "month", interval: 1, dayOfMonth: 1 } },
+          },
+          carry: ["amount"],
+          set: { status: "pending" },
+        },
+      }),
+    );
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("accepts when fromField is written by `set` instead of carried", async () => {
+    writeSkill(
+      "test-freq-set-driver",
+      freqSchema(undefined, {
+        spawn: {
+          when: { field: "status", in: ["paid"] },
+          every: {
+            fromField: "frequency",
+            map: { daily: { unit: "day", interval: 1 }, weekly: { unit: "week", interval: 1 }, monthly: { unit: "month", interval: 1, dayOfMonth: 1 } },
+          },
+          carry: ["amount"],
+          set: { status: "pending", frequency: "monthly" },
+        },
+      }),
+    );
+    assert.equal((await listCollections()).length, 1);
+  });
+
+  it("rejects an `every` carrying BOTH unit and fromField (strict union)", async () => {
+    writeSkill("test-freq-both", freqSchema({ unit: "month", interval: 1, fromField: "frequency", map: { daily: { unit: "day", interval: 1 } } }));
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects an `every` carrying NEITHER unit nor fromField (strict union)", async () => {
+    writeSkill("test-freq-neither", freqSchema({ map: { daily: { unit: "day", interval: 1 } } }));
+    assert.equal((await listCollections()).length, 0);
+  });
+
+  it("rejects a bad interval inside a map value", async () => {
+    writeSkill(
+      "test-freq-bad-map-interval",
+      freqSchema({
+        fromField: "frequency",
+        map: { daily: { unit: "day", interval: 0 }, weekly: { unit: "week", interval: 1 }, monthly: { unit: "month", interval: 1 } },
+      }),
+    );
+    assert.equal((await listCollections()).length, 0);
+  });
+});
+
 describe("discoverCollections — calendarField + calendarEndField validation", () => {
   // A collection with two date fields, cloned + mutated per case.
   function calendarSchema(extra: Record<string, unknown> = {}): Record<string, unknown> {

@@ -489,6 +489,30 @@ month's rent `paid`, and next month's pending record appears on its own.
     short months don't cause drift — "31st of every month" yields
     31 → 28/29 → 31 → 30 … correctly. Omit it for days ≤ 28 and the source
     date's day is preserved.
+  - **Field-driven interval** (one list, mixed cadences): instead of a single
+    `{ unit, interval }`, `every` may select the interval **per record** from
+    an `enum` field. Use `{ "fromField": "<enum field>", "map": { <value>:
+    { unit, interval, … } } }` — the host reads the record's value and
+    advances by the matching entry. This lets one collection carry daily,
+    weekly, and monthly obligations together:
+
+    ```json
+    "every": {
+      "fromField": "frequency",
+      "map": {
+        "daily":   { "unit": "day",   "interval": 1 },
+        "weekly":  { "unit": "week",  "interval": 1 },
+        "monthly": { "unit": "month", "interval": 1, "dayOfMonth": 1 }
+      }
+    }
+    ```
+
+    Rules (all enforced at write time): `fromField` must name a top-level
+    `enum` field; the `map` keys must **exactly cover** that enum's `values`
+    (no missing or extra keys); and `fromField` must be in `carry` (or written
+    by `set`) so the successor keeps its frequency and the chain keeps
+    recurring. Each `map` value is a literal `every` (same `unit` / `interval`
+    / `dayOfMonth` rules as above).
 - **`carry`** — record fields copied verbatim onto the successor (must name
   real fields). Fields not in `carry` / `set` / the trigger+primary keys start
   blank.

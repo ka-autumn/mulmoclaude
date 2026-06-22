@@ -95,6 +95,32 @@ export interface CollectionEvery {
   dayOfMonth?: number | "last";
 }
 
+/** Field-driven recurrence: the advance interval is selected PER RECORD by
+ *  the value of an `enum` field (`fromField`), looked up in `map`. Lets one
+ *  collection mix daily / weekly / monthly obligations in a single list — the
+ *  host reads `record[fromField]`, finds the matching `CollectionEvery`, and
+ *  advances by it. `fromField` must point at a top-level `enum` field whose
+ *  `values` the `map` keys exactly cover (validated at discovery), and must
+ *  itself be carried/`set` onto the successor so the chain keeps recurring. */
+export interface CollectionEveryFieldDriven {
+  /** Top-level `enum` field whose value selects the interval. */
+  fromField: string;
+  /** Interval per enum value. Keys exactly cover `fromField`'s `values`;
+   *  each value is a literal {@link CollectionEvery}. */
+  map: Record<string, CollectionEvery>;
+}
+
+/** The `every` of a `spawn`: either a single literal interval applied to
+ *  every record, or a per-record interval selected by an `enum` field. The
+ *  literal arm is what `advanceTriggerDate` consumes — the field-driven arm
+ *  is resolved down to one of its `map` values before the date math runs. */
+export type CollectionSpawnEvery = CollectionEvery | CollectionEveryFieldDriven;
+
+/** Narrowing guard: true when `every` is the field-driven arm. */
+export function isFieldDrivenEvery(every: CollectionSpawnEvery): every is CollectionEveryFieldDriven {
+  return "fromField" in every;
+}
+
 /** Host-driven recurrence: when a record satisfies `when`, the host
  *  creates the next record with a forward-advanced `triggerField` date.
  *  The successor's id and contents are a pure function of (source
@@ -106,8 +132,9 @@ export interface CollectionSpawn {
    *  "`completionField` value ∈ `completionDoneValues`" (i.e. spawn the
    *  next instance when this one is done). */
   when?: CollectionWhen;
-  /** How to advance `triggerField` from the source to the successor. */
-  every: CollectionEvery;
+  /** How to advance `triggerField` from the source to the successor —
+   *  either a single literal interval or a per-record, field-driven map. */
+  every: CollectionSpawnEvery;
   /** Record fields copied verbatim onto the successor. Fields not listed
    *  here, not in `set`, and not the trigger / primary keys start
    *  blank. */

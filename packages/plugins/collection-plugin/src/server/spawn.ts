@@ -23,7 +23,8 @@
 import { log } from "./host";
 import { errorMessage, ONE_DAY_MS } from "./util";
 import { writeItem, type IoOptions } from "./io";
-import type { CollectionEvery, CollectionItem, CollectionSchema, CollectionWhen } from "../core/schema";
+import { isFieldDrivenEvery } from "../core/schema";
+import type { CollectionEvery, CollectionItem, CollectionSchema, CollectionSpawnEvery, CollectionWhen } from "../core/schema";
 
 /** A timezone-free calendar date. `m` is 1-12. */
 export interface CivilDate {
@@ -139,6 +140,19 @@ function matchesWhen(when: CollectionWhen | undefined, schema: CollectionSchema,
   return raw !== undefined && raw !== null && completionDoneValues.includes(String(raw));
 }
 
+/** Resolve the literal `every` that applies to `sourceItem`. Literal-arm
+ *  `spawn.every` passes through unchanged. Field-driven `spawn.every` reads
+ *  `sourceItem[fromField]` and looks it up in `map`; an empty field or a
+ *  value with no map entry yields null (caller skips + logs — see plan §5).
+ *  Discovery rejects a map that doesn't cover the enum's values, so null
+ *  here means a record that predates a map/enum edit. */
+export function resolveEvery(every: CollectionSpawnEvery, sourceItem: CollectionItem): CollectionEvery | null {
+  if (!isFieldDrivenEvery(every)) return every;
+  const raw = sourceItem[every.fromField];
+  if (raw === undefined || raw === null || raw === "") return null;
+  return every.map[String(raw)] ?? null;
+}
+
 export interface ComputedSuccessor {
   id: string;
   record: CollectionItem;
@@ -152,7 +166,9 @@ export function computeSuccessor(schema: CollectionSchema, sourceItem: Collectio
   if (!spawn || !triggerField) return null;
   const srcDate = parseCivil(sourceItem[triggerField]);
   if (srcDate === null) return null;
-  const next = advanceTriggerDate(srcDate, spawn.every);
+  const every = resolveEvery(spawn.every, sourceItem);
+  if (every === null) return null;
+  const next = advanceTriggerDate(srcDate, every);
   const nextId = successorId(sourceId, next);
   const record: CollectionItem = {};
   for (const field of spawn.carry ?? []) {
@@ -162,6 +178,24 @@ export function computeSuccessor(schema: CollectionSchema, sourceItem: Collectio
   record[triggerField] = formatCivil(next);
   record[schema.primaryKey] = nextId;
   return { id: nextId, record };
+}
+
+/** Warn precisely about which of `computeSuccessor`'s two null causes fired
+ *  (plan §5): an unparseable source trigger date (the original cause), or a
+ *  field-driven `every` whose record value has no `map` entry (a record that
+ *  predates a map/enum edit — discovery rejects this statically otherwise). */
+function logSpawnSkip(slug: string, triggerField: string, every: CollectionSpawnEvery, sourceItem: CollectionItem, sourceId: string): void {
+  if (parseCivil(sourceItem[triggerField]) === null) {
+    log.warn("collections", "spawn skipped: source trigger date unparseable", { slug, sourceId, triggerField });
+    return;
+  }
+  const fromField = isFieldDrivenEvery(every) ? every.fromField : undefined;
+  log.warn("collections", "spawn skipped: no `every` mapping for frequency value", {
+    slug,
+    sourceId,
+    fromField,
+    value: fromField === undefined ? undefined : sourceItem[fromField],
+  });
 }
 
 /** Idempotently create the successor for `sourceItem` when it matches the
@@ -182,7 +216,7 @@ export async function maybeSpawnSuccessor(
   if (!matchesWhen(spawn.when, schema, sourceItem)) return;
   const computed = computeSuccessor(schema, sourceItem, sourceId);
   if (computed === null) {
-    log.warn("collections", "spawn skipped: source trigger date unparseable", { slug, sourceId, triggerField: schema.triggerField });
+    logSpawnSkip(slug, schema.triggerField, spawn.every, sourceItem, sourceId);
     return;
   }
   // Runaway guard: a successor born already matching its own `when` would

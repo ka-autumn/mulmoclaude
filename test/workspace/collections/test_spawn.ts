@@ -18,12 +18,13 @@ import {
   isTriggerDue,
   maybeSpawnSuccessor,
   parseCivil,
+  resolveEvery,
   successorId,
   type CivilDate,
   readItem,
   writeItem,
 } from "@mulmoclaude/collection-plugin/server";
-import type { CollectionEvery, CollectionSchema } from "../../../server/workspace/collections/types.js";
+import type { CollectionEvery, CollectionSchema, CollectionSpawnEvery } from "../../../server/workspace/collections/types.js";
 
 describe("daysInMonth", () => {
   it("knows month lengths incl. leap years", () => {
@@ -258,5 +259,108 @@ describe("maybeSpawnSuccessor", () => {
     const source = { id: "rent-20260610", dueOn: "2026-06-10", amount: 1500, status: "paid" };
     await maybeSpawnSuccessor("rent", schema, dataDir, source, "rent-20260610", { workspaceRoot: workdir });
     assert.notEqual(await readItem(dataDir, "rent-20260710", { workspaceRoot: workdir }), null);
+  });
+});
+
+// --- Field-driven `every` (per-record interval via an enum field) ---
+
+const FREQ_EVERY: CollectionSpawnEvery = {
+  fromField: "frequency",
+  map: {
+    daily: { unit: "day", interval: 1 },
+    weekly: { unit: "week", interval: 1 },
+    monthly: { unit: "month", interval: 1, dayOfMonth: 1 },
+  },
+};
+
+// A bills schema whose interval is selected per record by `frequency`.
+function freqSchema(extra: Partial<CollectionSchema> = {}): CollectionSchema {
+  return {
+    title: "Bills",
+    icon: "receipt",
+    dataPath: "data/bills/items",
+    primaryKey: "id",
+    fields: {
+      id: { type: "string", label: "ID", primary: true, required: true },
+      dueOn: { type: "date", label: "Due", required: true },
+      frequency: { type: "enum", values: ["daily", "weekly", "monthly"], label: "Frequency", required: true },
+      status: { type: "enum", values: ["pending", "paid"], label: "Status", required: true },
+    },
+    completionField: "status",
+    completionDoneValues: ["paid"],
+    triggerField: "dueOn",
+    spawn: { when: { field: "status", in: ["paid"] }, every: FREQ_EVERY, carry: ["frequency"], set: { status: "pending" } },
+    ...extra,
+  };
+}
+
+describe("resolveEvery", () => {
+  it("passes a literal `every` through unchanged", () => {
+    const literal: CollectionEvery = { unit: "month", interval: 1, dayOfMonth: 10 };
+    assert.equal(resolveEvery(literal, { frequency: "weekly" }), literal);
+  });
+
+  it("maps the record's enum value to its interval", () => {
+    assert.deepEqual(resolveEvery(FREQ_EVERY, { frequency: "weekly" }), { unit: "week", interval: 1 });
+    assert.deepEqual(resolveEvery(FREQ_EVERY, { frequency: "monthly" }), { unit: "month", interval: 1, dayOfMonth: 1 });
+  });
+
+  it("returns null on an unmapped value or an empty/missing field", () => {
+    assert.equal(resolveEvery(FREQ_EVERY, { frequency: "yearly" }), null); // value not in map
+    assert.equal(resolveEvery(FREQ_EVERY, { frequency: "" }), null); // empty
+    assert.equal(resolveEvery(FREQ_EVERY, {}), null); // missing
+  });
+});
+
+describe("computeSuccessor — field-driven every", () => {
+  it("advances by the per-record interval (weekly)", () => {
+    const result = computeSuccessor(freqSchema(), { id: "netflix-20260610", dueOn: "2026-06-10", frequency: "weekly", status: "paid" }, "netflix-20260610");
+    assert.deepEqual(result, {
+      id: "netflix-20260617",
+      record: { frequency: "weekly", status: "pending", dueOn: "2026-06-17", id: "netflix-20260617" },
+    });
+  });
+
+  it("advances by the per-record interval (monthly, dayOfMonth anchor)", () => {
+    const result = computeSuccessor(freqSchema(), { id: "rent-20260601", dueOn: "2026-06-01", frequency: "monthly", status: "paid" }, "rent-20260601");
+    assert.equal(result?.record.dueOn, "2026-07-01");
+  });
+
+  it("returns null when the record's frequency isn't in the map", () => {
+    assert.equal(computeSuccessor(freqSchema(), { id: "x", dueOn: "2026-06-10", frequency: "yearly", status: "paid" }, "x"), null);
+  });
+});
+
+describe("maybeSpawnSuccessor — field-driven every", () => {
+  let workdir: string;
+  let dataDir: string;
+
+  beforeEach(() => {
+    workdir = mkdtempSync(path.join(tmpdir(), "test-spawn-freq-"));
+    dataDir = path.join(workdir, "data", "bills", "items");
+  });
+  afterEach(() => {
+    rmSync(workdir, { recursive: true, force: true });
+  });
+
+  it("creates a weekly successor 7 days out and carries the frequency driver", async () => {
+    const source = { id: "gym-20260610", dueOn: "2026-06-10", frequency: "weekly", status: "paid" };
+    await maybeSpawnSuccessor("bills", freqSchema(), dataDir, source, "gym-20260610", { workspaceRoot: workdir });
+    const next = await readItem(dataDir, "gym-20260617", { workspaceRoot: workdir });
+    assert.deepEqual(next, { frequency: "weekly", status: "pending", dueOn: "2026-06-17", id: "gym-20260617" });
+  });
+
+  it("skips (no write) when the record's frequency isn't in the map", async () => {
+    const source = { id: "odd-20260610", dueOn: "2026-06-10", frequency: "yearly", status: "paid" };
+    await maybeSpawnSuccessor("bills", freqSchema(), dataDir, source, "odd-20260610", { workspaceRoot: workdir });
+    assert.equal(await readItem(dataDir, "odd-20260617", { workspaceRoot: workdir }), null);
+  });
+
+  it("runaway guard still fires under field-driven every (successor born matching its predicate)", async () => {
+    // `set` seeds status back to a done value → the successor would respawn.
+    const schema = freqSchema({ spawn: { when: { field: "status", in: ["paid"] }, every: FREQ_EVERY, carry: ["frequency"], set: { status: "paid" } } });
+    const source = { id: "gym-20260610", dueOn: "2026-06-10", frequency: "weekly", status: "paid" };
+    await maybeSpawnSuccessor("bills", schema, dataDir, source, "gym-20260610", { workspaceRoot: workdir });
+    assert.equal(await readItem(dataDir, "gym-20260617", { workspaceRoot: workdir }), null);
   });
 });
