@@ -10,10 +10,10 @@ import path from "node:path";
 import { z } from "zod";
 import { log, getWorkspaceRoot, userSkillsDir, projectSkillsDir, feedsRoot } from "./host";
 import { INGEST_KINDS, FEED_SCHEDULES } from "../core/schema";
-import { SCHEMA_FILE, resolveDataDir, safeSlugName } from "./paths";
+import { SCHEMA_FILE, resolveDataDir, safeRecordId, safeSlugName } from "./paths";
 import type { LoadedCollection } from "./discoveredCollection";
 import { isSafeActionTemplatePath, isSafeCustomViewPath } from "./templatePath";
-import type { CollectionDetail, CollectionSource, CollectionSummary } from "../core/schema";
+import type { CollectionDetail, CollectionSchema, CollectionSource, CollectionSummary } from "../core/schema";
 
 // Cross-field refines, factored out so they can apply at both the
 // top-level FieldSpec and the table-row SubFieldSpec without prose
@@ -396,12 +396,12 @@ export const CollectionSchemaZ = z
     ingest: IngestSchemaZ.optional(),
   })
   // The singleton value becomes a record id (and thus a `<id>.json`
-  // filename), so it must satisfy the SAME `safeSlugName` rule the
+  // filename), so it must satisfy the SAME `safeRecordId` rule the
   // write path enforces — otherwise the create form would lock the
   // primary key to a value the POST route then rejects as an invalid
   // item id, making the collection impossible to initialize (Codex P1).
-  .refine((schema) => schema.singleton === undefined || safeSlugName(schema.singleton) !== null, {
-    message: "schema `singleton` must be a valid item id (alphanumeric / hyphen / underscore, no path separators)",
+  .refine((schema) => schema.singleton === undefined || safeRecordId(schema.singleton) !== null, {
+    message: "schema `singleton` must be a valid item id (alphanumeric / hyphen / underscore / interior dot, no `..` or path separators)",
     path: ["singleton"],
   })
   // Action ids must be unique so the dispatch route resolves
@@ -597,6 +597,35 @@ function applyFeedSchemaDefaults(parsed: unknown, slug: string): unknown {
   return { ...obj, icon, dataPath: `data/feeds/${slug}` };
 }
 
+/** Result of the post-Zod acceptance gates: the resolved record dir on
+ *  success, or a one-line reason discovery would skip the schema. */
+export type SchemaAcceptance = { ok: true; dataDir: string } | { ok: false; reason: string };
+
+/** The acceptance gates discovery applies AFTER `CollectionSchemaZ` parses,
+ *  before a schema becomes a live collection:
+ *
+ *  - the `primaryKey` must be a declared field flagged `primary: true` —
+ *    without the flag CollectionView renders the field editable, and a
+ *    rename is silently pinned back to the URL itemId on save, so the user's
+ *    edit is dropped with no error;
+ *  - a `feed` schema must declare an `ingest` block (else it's a dead,
+ *    non-refreshable card);
+ *  - `dataPath` must resolve INSIDE the workspace.
+ *
+ *  Exported so `manageCollection`'s `putSchema` can run the SAME gates before
+ *  it reports success — a schema that passes `CollectionSchemaZ` but fails one
+ *  of these would otherwise write cleanly yet be skipped on the next discovery,
+ *  hiding the collection (the exact failure that tool exists to prevent). */
+export function acceptParsedSchema(schema: CollectionSchema, opts: { source: CollectionSource; workspaceRoot: string }): SchemaAcceptance {
+  const primaryField = schema.fields[schema.primaryKey];
+  if (!primaryField) return { ok: false, reason: `primaryKey '${schema.primaryKey}' is not one of the declared fields` };
+  if (primaryField.primary !== true) return { ok: false, reason: `the primaryKey field '${schema.primaryKey}' must be flagged \`primary: true\`` };
+  if (opts.source === "feed" && !schema.ingest) return { ok: false, reason: "a feed schema must declare an `ingest` block" };
+  const dataDir = resolveDataDir(schema.dataPath, opts.workspaceRoot);
+  if (dataDir === null) return { ok: false, reason: `dataPath '${schema.dataPath}' escapes the workspace` };
+  return { ok: true, dataDir };
+}
+
 async function loadOneCollection(skillsRoot: string, slug: string, source: CollectionSource, workspaceRoot: string): Promise<LoadedCollection | null> {
   const safeName = safeSlugName(slug);
   if (safeName === null) return null;
@@ -631,39 +660,17 @@ async function loadOneCollection(skillsRoot: string, slug: string, source: Colle
     return null;
   }
 
-  // Verify the primary key is one of the declared fields AND is
-  // flagged `primary: true`. Without the flag the CollectionView
-  // would render the field as editable (its disabled-on-edit check
-  // is `field.primary === true`), the user's rename would silently
-  // be pinned back to the URL itemId on save, and they'd never know
-  // the edit was dropped. Reject the schema up front rather than
-  // ship that UX.
+  // Post-Zod acceptance gates (primaryKey flagged primary, feed ingest,
+  // workspace-contained dataPath) — shared with manageCollection's putSchema
+  // so a validated write and discovery agree on what's a live collection.
   const schema = parsed.data;
-  const primaryField = schema.fields[schema.primaryKey];
-  if (!primaryField) {
-    log.warn("collections", "schema.json primaryKey not found in fields, skipping", { slug: safeName, primaryKey: schema.primaryKey });
-    return null;
-  }
-  if (primaryField.primary !== true) {
-    log.warn("collections", "schema.json primaryKey field is not flagged primary: true, skipping", { slug: safeName, primaryKey: schema.primaryKey });
+  const acceptance = acceptParsedSchema(schema, { source, workspaceRoot });
+  if (!acceptance.ok) {
+    log.warn("collections", "schema.json rejected after validation, skipping", { slug: safeName, reason: acceptance.reason });
     return null;
   }
 
-  // A feed-registry schema MUST declare an `ingest` block — without it the
-  // host can never fetch it, so it'd be a dead, non-refreshable card in
-  // /feeds. Skip it (the old register tool rejected this case explicitly).
-  if (source === "feed" && !schema.ingest) {
-    log.warn("collections", "feed schema.json has no `ingest` block, skipping", { slug: safeName });
-    return null;
-  }
-
-  const dataDir = resolveDataDir(schema.dataPath, workspaceRoot);
-  if (dataDir === null) {
-    log.warn("collections", "schema.json dataPath escapes workspace, skipping", { slug: safeName, dataPath: schema.dataPath, workspaceRoot });
-    return null;
-  }
-
-  return { slug: safeName, source, schema, dataDir, skillDir: path.join(skillsRoot, safeName) };
+  return { slug: safeName, source, schema, dataDir: acceptance.dataDir, skillDir: path.join(skillsRoot, safeName) };
 }
 
 async function collectFromDir(skillsRoot: string, source: CollectionSource, workspaceRoot: string): Promise<LoadedCollection[]> {

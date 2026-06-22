@@ -16,7 +16,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { isContainedInRoot, safeSlugName } from "@mulmoclaude/collection-plugin/server";
+import { isContainedInRoot, safeRecordId, safeSlugName } from "@mulmoclaude/collection-plugin/server";
 
 let rootDir: string;
 let outsideDir: string;
@@ -106,5 +106,35 @@ describe("safeSlugName", () => {
     assert.equal(safeSlugName(null as unknown as string), null);
     assert.equal(safeSlugName(undefined as unknown as string), null);
     assert.equal(safeSlugName(42 as unknown as string), null);
+  });
+});
+
+describe("safeRecordId", () => {
+  it("accepts everything a slug accepts, including repeated -/_", () => {
+    assert.equal(safeRecordId("acme-corp"), "acme-corp");
+    assert.equal(safeRecordId("client42"), "client42");
+    assert.equal(safeRecordId("a--b"), "a--b");
+    assert.equal(safeRecordId("a__b"), "a__b");
+  });
+
+  it("accepts natural keys with interior dots", () => {
+    assert.equal(safeRecordId("1718900000.123456"), "1718900000.123456"); // Slack ts
+    assert.equal(safeRecordId("1.2.3"), "1.2.3"); // SemVer
+  });
+
+  it("rejects `..`, path separators, and leading/trailing dots", () => {
+    assert.equal(safeRecordId("a..b"), null);
+    assert.equal(safeRecordId(".."), null);
+    assert.equal(safeRecordId(".hidden"), null);
+    assert.equal(safeRecordId("trailing."), null);
+    assert.equal(safeRecordId("../etc"), null);
+    assert.equal(safeRecordId("a/b"), null);
+    assert.equal(safeRecordId("a\\b"), null);
+  });
+
+  it("rejects non-string and empty input", () => {
+    assert.equal(safeRecordId(""), null);
+    assert.equal(safeRecordId(null as unknown as string), null);
+    assert.equal(safeRecordId(42 as unknown as string), null);
   });
 });

@@ -8,7 +8,7 @@ import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { getWorkspaceRoot, log, skillsStagingDir } from "./host";
 import { writeFileAtomic } from "./atomic";
-import { isContainedInRoot, itemFilePath, resolveTemplatePath, safeSlugName } from "./paths";
+import { isContainedInRoot, itemFilePath, resolveTemplatePath, safeRecordId, safeSlugName } from "./paths";
 import type { CollectionItem, CollectionSchema } from "../core/schema";
 import type { LoadedCollection } from "./discoveredCollection";
 
@@ -95,7 +95,7 @@ export async function listItems(dataDir: string, opts: IoOptions = {}): Promise<
  *  when the record file itself is a symlink (file-disclosure
  *  defense — see `isRegularFile`). */
 export async function readItem(dataDir: string, itemId: string, opts: IoOptions = {}): Promise<CollectionItem | null> {
-  const safeId = safeSlugName(itemId);
+  const safeId = safeRecordId(itemId);
   if (safeId === null) return null;
   const workspaceRoot = opts.workspaceRoot ?? getWorkspaceRoot();
   if (!isContainedInRoot(dataDir, workspaceRoot)) return null;
@@ -142,7 +142,7 @@ export type WriteItemResult =
  *  Update path (`refuseOverwrite: false`) uses `writeFileAtomic` so
  *  PUT remains crash-atomic. No race there — the URL pins the id. */
 export async function writeItem(dataDir: string, itemId: string, item: CollectionItem, opts: WriteItemOptions = {}): Promise<WriteItemResult> {
-  const safeId = safeSlugName(itemId);
+  const safeId = safeRecordId(itemId);
   if (safeId === null) return { kind: "invalid-id", itemId };
   const workspaceRoot = opts.workspaceRoot ?? getWorkspaceRoot();
   // Containment check runs BEFORE mkdir so we never create
@@ -190,7 +190,7 @@ export type DeleteItemResult =
   | { kind: "path-escape"; itemId: string };
 
 export async function deleteItem(dataDir: string, itemId: string, opts: IoOptions = {}): Promise<DeleteItemResult> {
-  const safeId = safeSlugName(itemId);
+  const safeId = safeRecordId(itemId);
   if (safeId === null) return { kind: "invalid-id", itemId };
   const workspaceRoot = opts.workspaceRoot ?? getWorkspaceRoot();
   if (!isContainedInRoot(dataDir, workspaceRoot)) {

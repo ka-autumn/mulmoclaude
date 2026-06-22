@@ -250,10 +250,14 @@ export async function reconcileItem(
   }
   // Time gate: when the schema declares `triggerField`, suppress the bell
   // until the clock reaches that date (minus `triggerLeadDays`).
-  // Unparseable date ⇒ fail safe (no bell) + warn.
+  // Unparseable date ⇒ fail safe (no bell); warn ONLY when the field carries
+  // a non-empty value that won't parse — an empty optional trigger date is a
+  // normal state and must not spam a WARN every reconcile tick.
   if (schema.triggerField) {
-    const due = isTriggerDue(item[schema.triggerField], now, schema.triggerLeadDays);
-    if (due === null) {
+    const triggerRaw = item[schema.triggerField];
+    const due = isTriggerDue(triggerRaw, now, schema.triggerLeadDays);
+    const isEmpty = triggerRaw === undefined || triggerRaw === null || triggerRaw === "";
+    if (due === null && !isEmpty) {
       log().warn("trigger date unparseable, suppressing bell", { slug, itemId, triggerField: schema.triggerField });
     }
     if (due !== true) {

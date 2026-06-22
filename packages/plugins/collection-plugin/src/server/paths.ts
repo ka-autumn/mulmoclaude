@@ -27,6 +27,31 @@ export function safeSlugName(slug: string): string | null {
   return basename;
 }
 
+// Record ids are a superset of slugs: they're only ever filename stems
+// (`<id>.json`), never directory names or URL segments, so they may carry
+// dots — natural keys like a Slack ts (`1718900000.123456`), a SemVer
+// (`1.2.3`), or a decimal timestamp. The interior class adds `.` to the slug
+// set; the explicit `..` reject below keeps a parent-dir-looking segment out
+// while still allowing repeated `-`/`_` (`a--b`, `a__b`). Start/end stay
+// alphanumeric so leading/trailing dots (hidden files, the special `.`/`..`
+// names) and `..`-only ids are all excluded.
+// eslint-disable-next-line security/detect-unsafe-regex -- non-overlapping character classes, no catastrophic backtracking
+const SAFE_RECORD_ID_PATTERN = /^[a-zA-Z0-9](?:[a-zA-Z0-9_.-]*[a-zA-Z0-9])?$/;
+
+/** Sanitise a user-supplied record id into a safe filename stem. Like
+ *  `safeSlugName` but tolerates interior dots (so natural keys work),
+ *  while still rejecting any `..` substring, path separators, and
+ *  leading/trailing dots. The `path.basename` round-trip is the same
+ *  `js/path-injection` sanitiser CodeQL recognises on `safeSlugName`. */
+export function safeRecordId(recordId: string): string | null {
+  if (typeof recordId !== "string") return null;
+  if (!SAFE_RECORD_ID_PATTERN.test(recordId)) return null;
+  if (recordId.includes("..")) return null;
+  const basename = path.basename(recordId);
+  if (basename !== recordId) return null;
+  return basename;
+}
+
 /** Realpath the closest existing ancestor of `absPath` and return it.
  *  Returns null if no ancestor exists or if the realpath call fails
  *  for a non-ENOENT reason (permissions, etc.). Used by

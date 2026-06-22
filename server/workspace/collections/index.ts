@@ -1,4 +1,12 @@
-export { discoverCollections, loadCollection, toSummary, toDetail, CollectionSchemaZ, type LoadedCollection } from "@mulmoclaude/collection-plugin/server";
+export {
+  discoverCollections,
+  loadCollection,
+  toSummary,
+  toDetail,
+  CollectionSchemaZ,
+  resolveDataDir,
+  type LoadedCollection,
+} from "@mulmoclaude/collection-plugin/server";
 export { validateCollectionRecords, validateRecordObject, COMPUTED_TYPES, type RecordIssue } from "@mulmoclaude/collection-plugin/server";
 export { enrichItems } from "@mulmoclaude/collection-plugin/server";
 export { deleteCollection, deleteCollectionRefusalMessage, type DeleteCollectionResult } from "@mulmoclaude/collection-plugin/server";

@@ -13,7 +13,7 @@ import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { makeManageCollectionTool, MAX_UNSELECTIVE_ITEMS } from "../../server/agent/mcp-tools/manageCollection.js";
+import { makeManageCollectionTool, MAX_UNSELECTIVE_ITEMS, MAX_SCHEMA_ISSUES } from "../../server/agent/mcp-tools/manageCollection.js";
 import { mcpTools } from "../../server/agent/mcp-tools/index.js";
 
 let workdir: string;
@@ -289,5 +289,141 @@ describe("manageCollection — putItems", () => {
     assert.equal(stored("h1").status, "open"); // untouched
     const computed = await runJson({ action: "putItems", slug: "portfolio", items: [{ id: "h1", value: 1 }], mode: "merge" });
     assert.match((computed.rejected as { problem: string }[])[0]?.problem ?? "", /'value' is derived/);
+  });
+});
+
+describe("manageCollection — dotted record ids", () => {
+  // A natural key with interior dots (Slack ts) must round-trip through every
+  // targeted op, not just the full-scan listing (issue #1735).
+  const tsId = "1718900000.123456";
+
+  it("create / get-by-id / merge all accept an interior-dot id", async () => {
+    const created = await runJson({ action: "putItems", slug: "stock-quotes", items: [{ symbol: tsId, price: 1 }], mode: "create" });
+    assert.deepEqual(created.written, [tsId]);
+    assert.ok(existsSync(path.join(workdir, `data/stock-quotes/items/${tsId}.json`)), "record file written under the dotted id");
+
+    const got = await runJson({ action: "getItems", slug: "stock-quotes", ids: [tsId] });
+    assert.equal(got.count, 1);
+    assert.equal((got.items as Record<string, unknown>[])[0]?.symbol, tsId);
+    assert.deepEqual(got.missing ?? [], []);
+
+    const merged = await runJson({ action: "putItems", slug: "stock-quotes", items: [{ symbol: tsId, price: 2 }], mode: "merge" });
+    assert.deepEqual(merged.written, [tsId]);
+  });
+
+  it("still rejects a `..` id", async () => {
+    const result = await runJson({ action: "putItems", slug: "stock-quotes", items: [{ symbol: "a..b", price: 1 }], mode: "create" });
+    assert.match((result.rejected as { problem: string }[])[0]?.problem ?? "", /not a valid record id/);
+  });
+});
+
+describe("manageCollection — schemaDocs", () => {
+  it("returns the bundled authoring reference when the workspace has none", async () => {
+    const docs = await run({ action: "schemaDocs" });
+    assert.doesNotMatch(docs, /could not read/);
+    assert.match(docs, /Collection skills/); // heading from the bundled collection-skills.md
+  });
+
+  it("prefers the workspace copy over the bundled asset", async () => {
+    const helpsDir = path.join(workdir, "config/helps");
+    mkdirSync(helpsDir, { recursive: true });
+    writeFileSync(path.join(helpsDir, "collection-skills.md"), "SENTINEL workspace doc");
+    assert.equal(await run({ action: "schemaDocs" }), "SENTINEL workspace doc");
+  });
+
+  it("needs no slug", async () => {
+    assert.doesNotMatch(await run({ action: "schemaDocs" }), /`slug` is required/);
+  });
+});
+
+describe("manageCollection — getSchema", () => {
+  it("returns the raw schema.json of an existing collection", async () => {
+    const parsed = JSON.parse(await run({ action: "getSchema", slug: "portfolio" })) as Record<string, unknown>;
+    assert.equal(parsed.title, "Portfolio");
+    assert.ok((parsed.fields as Record<string, unknown>).value, "derived field present");
+  });
+
+  it("reports an unknown collection", async () => {
+    assert.match(await run({ action: "getSchema", slug: "nope" }), /unknown collection 'nope'/);
+  });
+});
+
+describe("manageCollection — putSchema", () => {
+  // Inject a no-op refresh so the write never touches the real workspace.
+  let putTool: ReturnType<typeof makeManageCollectionTool>;
+  const putRun = (args: Record<string, unknown>) => putTool.handler(args);
+  const readJson = (rel: string) => JSON.parse(readFileSync(path.join(workdir, rel), "utf-8")) as Record<string, unknown>;
+  const withField = (fields: Record<string, unknown>) => ({ ...quotesSchema, fields: { ...quotesSchema.fields, ...fields } });
+
+  beforeEach(() => {
+    putTool = makeManageCollectionTool({ workspaceRoot: workdir, userSkillsDir: emptyUserDir, refreshAfterWrite: async () => {} });
+  });
+
+  it("validates, writes to data/skills staging, and mirrors to .claude/skills", async () => {
+    const updated = withField({ volume: { type: "number", label: "Volume" } });
+    const result = JSON.parse(await putRun({ action: "putSchema", slug: "stock-quotes", schema: updated })) as Record<string, unknown>;
+    assert.equal(result.written, true);
+    assert.ok((readJson("data/skills/stock-quotes/schema.json").fields as Record<string, unknown>).volume, "new field in canonical staging copy");
+    assert.ok((readJson(".claude/skills/stock-quotes/schema.json").fields as Record<string, unknown>).volume, "new field mirrored to active copy");
+  });
+
+  it("rejects an invalid schema, points at schemaDocs, and writes nothing", async () => {
+    const msg = await putRun({ action: "putSchema", slug: "stock-quotes", schema: { ...quotesSchema, primaryKey: "" } });
+    assert.match(msg, /schema rejected/);
+    assert.match(msg, /schemaDocs/);
+    assert.ok(!existsSync(path.join(workdir, "data/skills/stock-quotes/schema.json")), "no staging file on rejection");
+  });
+
+  it("requires a schema object", async () => {
+    assert.match(await putRun({ action: "putSchema", slug: "stock-quotes" }), /`schema` is required/);
+  });
+
+  it("refuses a user-scope collection (read-only)", async () => {
+    const dir = path.join(emptyUserDir, "house-rules");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, "SKILL.md"), "---\nname: house-rules\ndescription: test fixture\n---\nbody\n");
+    writeFileSync(path.join(dir, "schema.json"), JSON.stringify(quotesSchema));
+    assert.match(await putRun({ action: "putSchema", slug: "house-rules", schema: quotesSchema }), /user-scope and read-only/);
+  });
+
+  it("refuses a preset (mc-*) collection", async () => {
+    writeSkill("mc-budget", quotesSchema);
+    assert.match(await putRun({ action: "putSchema", slug: "mc-budget", schema: quotesSchema }), /preset \(mc-\*\)/);
+  });
+
+  it("refuses an unknown collection with a create hint", async () => {
+    assert.match(await putRun({ action: "putSchema", slug: "ghost", schema: quotesSchema }), /create it by writing SKILL\.md/);
+  });
+
+  // Post-Zod gates discovery applies — a schema that passes CollectionSchemaZ
+  // but fails one of these would write cleanly yet vanish on next discovery.
+  const noStagingWrite = () => assert.ok(!existsSync(path.join(workdir, "data/skills/stock-quotes/schema.json")), "no staging write on rejection");
+
+  it("rejects a primaryKey that is not a declared field", async () => {
+    const bad = { ...quotesSchema, primaryKey: "ghostkey" };
+    assert.match(await putRun({ action: "putSchema", slug: "stock-quotes", schema: bad }), /not one of the declared fields/);
+    noStagingWrite();
+  });
+
+  it("rejects a primaryKey field not flagged primary: true", async () => {
+    const bad = { ...quotesSchema, fields: { ...quotesSchema.fields, symbol: { type: "string", label: "Symbol", required: true } } };
+    assert.match(await putRun({ action: "putSchema", slug: "stock-quotes", schema: bad }), /must be flagged `primary: true`/);
+    noStagingWrite();
+  });
+
+  it("rejects a dataPath that escapes the workspace", async () => {
+    const bad = { ...quotesSchema, dataPath: "../../etc/evil" };
+    assert.match(await putRun({ action: "putSchema", slug: "stock-quotes", schema: bad }), /escapes the workspace/);
+    noStagingWrite();
+  });
+
+  it("caps the issue list and flags how many were omitted", async () => {
+    const fields: Record<string, unknown> = {};
+    for (let i = 0; i < MAX_SCHEMA_ISSUES + 5; i++) fields[`f${i}`] = { type: "not-a-real-type", label: `F${i}` };
+    const msg = await putRun({ action: "putSchema", slug: "stock-quotes", schema: { ...quotesSchema, fields } });
+    const bullets = msg.split("\n").filter((line) => line.startsWith("- "));
+    const issueBullets = bullets.filter((line) => !line.includes("…and"));
+    assert.equal(issueBullets.length, MAX_SCHEMA_ISSUES, "issue bullets capped at MAX_SCHEMA_ISSUES");
+    assert.match(msg, /…and \d+ more issue\(s\)/);
   });
 });

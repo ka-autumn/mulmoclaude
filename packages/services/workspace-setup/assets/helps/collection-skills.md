@@ -42,6 +42,16 @@ data/<name>/items/             ← the records (separate from the skill dir)
   triggers a re-scan, so the collection appears at `/collections/<slug>`
   without a restart. (Other files you drop in `data/skills/<slug>/` — a README,
   scratch notes — stay put and are NOT mirrored.)
+- **To CHANGE an existing collection's schema, use `manageCollection` — not raw
+  file edits.** Call `schemaDocs` for this very reference, `getSchema` to read
+  the current `schema.json` (you don't need to know its path), then `putSchema`
+  to write it back. `putSchema` validates the whole schema against the same rules
+  discovery enforces and reports the exact problem, where a hand-edit can
+  silently fail validation and make the collection vanish from the UI. It writes
+  the canonical `data/skills/<slug>/schema.json` and mirrors it for you — same
+  destination as authoring, just validated. (Creating a *new* collection still
+  means writing `SKILL.md` + `schema.json` under `data/skills/<slug>/`, since
+  there's nothing to `getSchema` yet.)
 - **Do NOT use the `mc-` prefix** for skills you create. `mc-*` is reserved for
   the bundled presets (`mc-cooking-coach`, `mc-library`, `mc-wiki-*`,
   `mc-manage-*`); the server overwrites those on every boot, so your edits would
@@ -67,7 +77,8 @@ description: A personal recipe box. Use whenever the user asks to add, list,
   (one JSON per recipe); the user views them at `/collections/recipes`,
   rendered from `schema.json` by the host. Record I/O via the
   `manageCollection` tool (raw Read / Write / Edit on the JSON files is the
-  escape hatch).
+  escape hatch); schema/structure edits via `manageCollection`
+  `schemaDocs` / `getSchema` / `putSchema`.
 ---
 
 # Recipes (schema-driven collection)
@@ -90,6 +101,12 @@ the WHOLE record and would erase every optional field the row omits.
 host-computed `derived` / `toggle` / `embed` values (the stored JSON never
 contains them); pass `ids` / `fields` on large collections.
 **Delete** — remove the record file.
+**Change the schema** (add / rename / remove a field, view, or action) —
+`manageCollection` `schemaDocs` for the field DSL, `getSchema` to read the
+current schema, then `putSchema` to validate-and-write it. Do NOT hand-edit
+`schema.json` with Read / Write / Edit — `putSchema` validates the whole schema
+first and tells you exactly what's wrong, where a raw edit can silently fail
+discovery's validation and make the collection vanish.
 Don't recite the whole table in chat. After adding or updating a record,
 call `presentCollection` (with the collection slug and the record's id) to
 show it inline; for a plain "show/list" request, call `presentCollection`
@@ -110,7 +127,7 @@ skipped, never crashes the host):
 | `title`                | Human name shown in the sidebar / header. Required.                                                                                                                                                                                                                                                                                                                                                                           |
 | `icon`                 | A **Material Symbols** name (`receipt_long`, `people`, `schedule`, `menu_book`). Required.                                                                                                                                                                                                                                                                                                                                    |
 | `dataPath`             | Workspace-relative records folder, e.g. `data/recipes/items`. Must stay under the workspace. Required.                                                                                                                                                                                                                                                                                                                        |
-| `primaryKey`           | The field name whose value is the filename. That field MUST set `primary: true`. Required.                                                                                                                                                                                                                                                                                                                                    |
+| `primaryKey`           | The field name whose value is the filename. That field MUST set `primary: true`. The value must be a valid record id (see the **Records** section's id-charset rule). Required.                                                                                                                                                                                                                                                |
 | `singleton`            | Optional. When set, at most one record exists, pinned to this exact id (e.g. `me`). Host pre-fills + locks the create form and hides Add once it exists.                                                                                                                                                                                                                                                                      |
 | `fields`               | Ordered map of field-name → field spec. **Insertion order = column order** in the table. Required.                                                                                                                                                                                                                                                                                                                            |
 | `actions`              | Optional array of per-record buttons (see below).                                                                                                                                                                                                                                                                                                                                                                             |
@@ -660,6 +677,17 @@ single source of truth and the "done" checkbox is a `toggle` field projecting it
 
 - Write each record to `<dataPath>/<id>.json` via the **Write** tool; the `id`
   field's value is the filename (no extension).
+- **Id charset** (enforced by `safeRecordId` in
+  `packages/plugins/collection-plugin/src/server/paths.ts` — the single source of
+  truth; `manageCollection` rejects ids that fail it): start and end with a
+  letter or digit; inside, also `-`, `_`, and `.` are allowed (so natural keys
+  like a Slack ts `1718900000.123456` or a SemVer `1.2.3` work). **No** path
+  separators, **no** leading/trailing dot, and **no** `..` substring. If your
+  natural key contains anything else (a space, `/`, `:`, a leading dot), sanitise
+  it first — e.g. replace each illegal run with `_`. Note `manageCollection`
+  enforces this on every targeted read/write, so an id that only *looks* fine in
+  a full `getItems` listing but violates the rule can't be updated or deleted by
+  id — fix the id, don't work around it with raw file I/O.
 - **The file MUST be valid JSON.** A malformed record is **silently skipped** at
   read time (logged server-side, but invisible in the UI) — so one bad file out
   of fifteen looks like "fourteen records vanished." The #1 cause is an
@@ -713,6 +741,27 @@ single source of truth and the "done" checkbox is a `toggle` field projecting it
    requires `completionField` and names a real field.
    (A schema that fails validation is logged server-side and silently skipped
    at discovery.)
+
+## Editing an existing collection's schema
+
+To change the structure of a collection that already exists (add a field,
+rename a label, add a view or action), go through `manageCollection` rather than
+hand-editing the file:
+
+1. `manageCollection` `schemaDocs` — reload this reference for the field DSL.
+2. `manageCollection` `getSchema` (slug) — read the current `schema.json`
+   verbatim. You don't need to know where the file lives.
+3. Apply your change to that object, then `manageCollection` `putSchema`
+   (slug, schema) — it validates the whole schema against the same rules
+   discovery enforces and either writes it (canonical `data/skills/<slug>/`,
+   mirrored for you) or returns the exact field + problem to fix and retry.
+4. Call `presentCollection` to show the updated collection.
+
+Why not raw Read / Write / Edit on `schema.json`? A hand-edit that fails
+validation is **silently skipped** at discovery — the collection disappears from
+the UI with no error. `putSchema` catches the mistake before the write and hands
+you an actionable message. (`putSchema` is edit-only and refuses user-scope and
+`mc-*` preset collections; create a new collection with the Write flow above.)
 
 ## Worked reference: the billing suite
 

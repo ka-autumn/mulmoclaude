@@ -14674,6 +14674,15 @@ function safeSlugName(slug) {
   if (basename !== slug) return null;
   return basename;
 }
+var SAFE_RECORD_ID_PATTERN = /^[a-zA-Z0-9](?:[a-zA-Z0-9_.-]*[a-zA-Z0-9])?$/;
+function safeRecordId(recordId) {
+  if (typeof recordId !== "string") return null;
+  if (!SAFE_RECORD_ID_PATTERN.test(recordId)) return null;
+  if (recordId.includes("..")) return null;
+  const basename = path3.basename(recordId);
+  if (basename !== recordId) return null;
+  return basename;
+}
 var TEMPLATES_PREFIX = "templates/";
 function isSafeTemplatePath(value) {
   if (value.length === 0 || value.includes("\\") || value.startsWith("/")) return false;
@@ -14899,8 +14908,8 @@ var CollectionSchemaZ = external_exports.object({
   views: external_exports.array(CustomViewSchema).optional(),
   notifyWhen: WhenSchema.optional(),
   ingest: IngestSchemaZ.optional()
-}).refine((schema) => schema.singleton === void 0 || safeSlugName(schema.singleton) !== null, {
-  message: "schema `singleton` must be a valid item id (alphanumeric / hyphen / underscore, no path separators)",
+}).refine((schema) => schema.singleton === void 0 || safeRecordId(schema.singleton) !== null, {
+  message: "schema `singleton` must be a valid item id (alphanumeric / hyphen / underscore / interior dot, no `..` or path separators)",
   path: ["singleton"]
 }).refine((schema) => schema.actions === void 0 || new Set(schema.actions.map((action) => action.id)).size === schema.actions.length, {
   message: "schema `actions` must have unique `id`s",
