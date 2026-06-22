@@ -9,11 +9,11 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { log, getWorkspaceRoot, userSkillsDir, projectSkillsDir, feedsRoot } from "./host";
-import { INGEST_KINDS, FEED_SCHEDULES } from "../core/schema";
+import { INGEST_KINDS, FEED_SCHEDULES, isFieldDrivenEvery } from "../core/schema";
 import { SCHEMA_FILE, resolveDataDir, safeRecordId, safeSlugName } from "./paths";
 import type { LoadedCollection } from "./discoveredCollection";
 import { isSafeActionTemplatePath, isSafeCustomViewPath } from "./templatePath";
-import type { CollectionDetail, CollectionSchema, CollectionSource, CollectionSummary } from "../core/schema";
+import type { CollectionDetail, CollectionEveryFieldDriven, CollectionSchema, CollectionSource, CollectionSpawnEvery, CollectionSummary } from "../core/schema";
 
 // Cross-field refines, factored out so they can apply at both the
 // top-level FieldSpec and the table-row SubFieldSpec without prose
@@ -226,11 +226,32 @@ const CustomViewSchema = z.object({
 // Recurrence advance for `spawn.every`. `interval` is a positive integer
 // count of `unit`s; `dayOfMonth` (month/year only) is the canonical
 // day-of-month anchor (1-31) or the `"last"` sentinel for end-of-month.
-const EverySchema = z.object({
-  unit: z.enum(["day", "week", "month", "year"]),
-  interval: z.number().int().min(1),
-  dayOfMonth: z.union([z.number().int().min(1).max(31), z.literal("last")]).optional(),
-});
+// `.strict()` so the union below cleanly rejects an object carrying BOTH
+// `unit` and `fromField` (it fails this arm on the unknown `fromField`).
+const EveryLiteralSchema = z
+  .object({
+    unit: z.enum(["day", "week", "month", "year"]),
+    interval: z.number().int().min(1),
+    dayOfMonth: z.union([z.number().int().min(1).max(31), z.literal("last")]).optional(),
+  })
+  .strict();
+
+// Field-driven recurrence: pick the interval per-record by an `enum` field's
+// value. `map` keys are validated to exactly cover that field's `values` by a
+// `CollectionSchemaZ` refine (which can see the sibling `fields`); here each
+// map value just has to be a well-formed literal `every`. `.strict()` mirrors
+// the literal arm so a both-keys object fails this arm too.
+const EveryFieldDrivenSchema = z
+  .object({
+    fromField: z.string().trim().min(1),
+    map: z.record(z.string(), EveryLiteralSchema),
+  })
+  .strict();
+
+// Either a single literal interval (today's behaviour, byte-identical) or the
+// field-driven map. Two `.strict()` arms mean "both keys" and "neither key"
+// both fail validation, with no extra refine.
+const EverySchema = z.union([EveryLiteralSchema, EveryFieldDrivenSchema]);
 
 // Host-driven recurrence. `when` defaults to the completion-done
 // condition; `every` is required; `carry`/`set` shape the successor.
@@ -305,6 +326,72 @@ function spawnSuccessorStartsInert(schema: {
     return !values.includes(String(spawn.set[field])); // `set` wins over `carry`
   }
   return !(spawn.carry ?? []).includes(field); // carried ⇒ inherits the matching value
+}
+
+// The slice of a parsed schema the field-driven `spawn.every` refines read.
+interface FieldDrivenSchemaView {
+  fields: Record<string, { type: string; values?: readonly string[] }>;
+  spawn?: {
+    every?: CollectionSpawnEvery;
+    carry?: readonly string[];
+    set?: Record<string, unknown>;
+  };
+}
+
+// Resolve the field-driven arm of `spawn.every`, or null when spawn is absent
+// or its `every` is the literal arm. Lets each refine below short-circuit
+// (return valid) without re-checking the discriminant.
+function fieldDrivenSpawnEvery(schema: FieldDrivenSchemaView): CollectionEveryFieldDriven | null {
+  const every = schema.spawn?.every;
+  if (!every || !isFieldDrivenEvery(every)) return null;
+  return every;
+}
+
+// §4.1 — `fromField` must name a real top-level `enum` field. The `map` keys
+// are only meaningful against a closed value set, and the field renders as a
+// form `<select>`; a non-enum target has no finite values to validate against.
+function fieldDrivenFromFieldIsEnum(schema: FieldDrivenSchemaView): boolean {
+  const driven = fieldDrivenSpawnEvery(schema);
+  if (!driven) return true;
+  return schema.fields[driven.fromField]?.type === "enum";
+}
+
+// §4.2 — `map` keys must EXACTLY cover the enum's `values` (no missing keys —
+// a record could pick an unmapped frequency and silently stall; no extra keys
+// — a stale map outliving an enum edit). Mirrors `everyToggleProjectsValidEnum`'s
+// "author values ⊆ enum's closed set" shape, tightened to set equality.
+function fieldDrivenMapCoversValues(schema: FieldDrivenSchemaView): boolean {
+  const driven = fieldDrivenSpawnEvery(schema);
+  if (!driven) return true;
+  const target = schema.fields[driven.fromField];
+  if (!target || target.type !== "enum" || target.values === undefined) return true; // §4.1 reports the type error
+  const values = new Set(target.values);
+  const keys = Object.keys(driven.map);
+  return keys.length === values.size && keys.every((key) => values.has(key));
+}
+
+// §4.5 — `fromField` must reach the successor (via `carry` or `set`); otherwise
+// the successor loses its frequency and the NEXT spawn along the chain can't
+// resolve an interval, silently halting the recurrence. Hard error, not a warn
+// (see plan §6) — authoring a field-driven spawn without propagating its driver
+// is almost always a mistake.
+//
+// `set` writes a FIXED value, so it must itself be a key of `map` (else the
+// successor is born with an unresolvable driver and `resolveEvery` skips it —
+// the exact silent-halt §4.5 exists to prevent). `carry` copies the source's
+// own value, which — for a record that matched the spawn — is one of the
+// enum's values, all of which `map` covers by §4.2; so a carried driver is
+// always resolvable and needs no value check here.
+function fieldDrivenFromFieldCarried(schema: FieldDrivenSchemaView): boolean {
+  const driven = fieldDrivenSpawnEvery(schema);
+  if (!driven) return true;
+  const { carry, set } = schema.spawn ?? {};
+  if (set && Object.prototype.hasOwnProperty.call(set, driven.fromField)) {
+    const raw = set[driven.fromField];
+    if (raw === undefined || raw === null || raw === "") return false;
+    return Object.prototype.hasOwnProperty.call(driven.map, String(raw));
+  }
+  return (carry ?? []).includes(driven.fromField);
 }
 
 // Declarative retrieval config for a Feed (a collection that refills
@@ -502,6 +589,28 @@ export const CollectionSchemaZ = z
   .refine((schema) => spawnSuccessorStartsInert(schema), {
     message:
       "`spawn` must leave the successor in a non-matching state (e.g. `set` the status to a pending value); seeding the predicate field to a matching value via `set`/`carry` would respawn forever",
+    path: ["spawn"],
+  })
+  // Field-driven `spawn.every` (§4.1): `fromField` must name a top-level
+  // `enum` — the only field type with a closed, finite value set to drive
+  // the `map` and the form `<select>`.
+  .refine((schema) => fieldDrivenFromFieldIsEnum(schema), {
+    message: "`spawn.every.fromField` must name a top-level `enum` field declared in `fields`",
+    path: ["spawn"],
+  })
+  // Field-driven `spawn.every` (§4.2): the `map` keys must exactly cover the
+  // enum's `values` — a missing key would stall a record at that frequency;
+  // an extra key signals a map left stale after an enum edit.
+  .refine((schema) => fieldDrivenMapCoversValues(schema), {
+    message: "`spawn.every.map` keys must exactly cover the `values` of the `enum` named by `fromField` (no missing or extra keys)",
+    path: ["spawn"],
+  })
+  // Field-driven `spawn.every` (§4.5): `fromField` must be carried (or `set`)
+  // onto the successor, or the next spawn in the chain can't resolve an
+  // interval and the recurrence silently halts.
+  .refine((schema) => fieldDrivenFromFieldCarried(schema), {
+    message:
+      "`spawn.every.fromField` must appear in `spawn.carry`, or be written by `spawn.set` to a value present in `spawn.every.map`, so the successor keeps a resolvable recurrence interval",
     path: ["spawn"],
   })
   // `calendarField` must name a real `date`/`datetime` field — the calendar

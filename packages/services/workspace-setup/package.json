@@ -1,6 +1,6 @@
 {
   "name": "@mulmoclaude/workspace-setup",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Workspace bootstrap for MulmoClaude and MulmoTerminal — seeds the bundled help docs + preset skills into a workspace so a fresh workspace created by either app is set up identically. Server-only (`.`); browser-safe isPresetSlug at `./slug`. ESM-only (assets resolve via import.meta.url).",
   "type": "module",
   "main": "./dist/index.js",

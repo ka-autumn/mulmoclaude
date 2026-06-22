@@ -1,6 +1,6 @@
 {
   "name": "@mulmoclaude/collection-plugin",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "Schema-driven Collections plugin (presentCollection) — shared gui-chat-protocol plugin for MulmoClaude and MulmoTerminal. This entry is the isomorphic collection engine (derive / formula / visibility); Vue surfaces land in ./vue.",
   "type": "module",
   "main": "./dist/index.js",

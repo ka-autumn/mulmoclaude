@@ -135,7 +135,7 @@ async function handleConfigRefresh(payload) {
 import path4 from "node:path";
 import { mkdirSync, readFileSync as readFileSync2, renameSync, rmSync, writeFileSync } from "node:fs";
 
-// packages/plugins/collection-plugin/dist/schema-DyfSfVzh.js
+// packages/plugins/collection-plugin/dist/schema-BcnitlL8.js
 var INGEST_KINDS = [
   "rss",
   "atom",
@@ -147,6 +147,9 @@ var FEED_SCHEDULES = [
   "weekly",
   "on-demand"
 ];
+function isFieldDrivenEvery(every) {
+  return "fromField" in every;
+}
 
 // packages/plugins/collection-plugin/dist/server.js
 import path3 from "node:path";
@@ -14826,7 +14829,7 @@ var CustomViewSchema = external_exports.object({
   file: external_exports.string().trim().min(1).refine(isSafeCustomViewPath, "must be a safe path under `views/` ending in `.html` (e.g. `views/year.html`; no `..`, no leading `/`, no backslash)"),
   capabilities: external_exports.array(external_exports.enum(["read", "write"])).optional()
 });
-var EverySchema = external_exports.object({
+var EveryLiteralSchema = external_exports.object({
   unit: external_exports.enum([
     "day",
     "week",
@@ -14835,7 +14838,12 @@ var EverySchema = external_exports.object({
   ]),
   interval: external_exports.number().int().min(1),
   dayOfMonth: external_exports.union([external_exports.number().int().min(1).max(31), external_exports.literal("last")]).optional()
-});
+}).strict();
+var EveryFieldDrivenSchema = external_exports.object({
+  fromField: external_exports.string().trim().min(1),
+  map: external_exports.record(external_exports.string(), EveryLiteralSchema)
+}).strict();
+var EverySchema = external_exports.union([EveryLiteralSchema, EveryFieldDrivenSchema]);
 var SpawnSchema = external_exports.object({
   when: WhenSchema.optional(),
   every: EverySchema,
@@ -14876,6 +14884,36 @@ function spawnSuccessorStartsInert(schema) {
   if (!field || !values) return true;
   if (spawn.set && Object.prototype.hasOwnProperty.call(spawn.set, field)) return !values.includes(String(spawn.set[field]));
   return !(spawn.carry ?? []).includes(field);
+}
+function fieldDrivenSpawnEvery(schema) {
+  const every = schema.spawn?.every;
+  if (!every || !isFieldDrivenEvery(every)) return null;
+  return every;
+}
+function fieldDrivenFromFieldIsEnum(schema) {
+  const driven = fieldDrivenSpawnEvery(schema);
+  if (!driven) return true;
+  return schema.fields[driven.fromField]?.type === "enum";
+}
+function fieldDrivenMapCoversValues(schema) {
+  const driven = fieldDrivenSpawnEvery(schema);
+  if (!driven) return true;
+  const target = schema.fields[driven.fromField];
+  if (!target || target.type !== "enum" || target.values === void 0) return true;
+  const values = new Set(target.values);
+  const keys = Object.keys(driven.map);
+  return keys.length === values.size && keys.every((key) => values.has(key));
+}
+function fieldDrivenFromFieldCarried(schema) {
+  const driven = fieldDrivenSpawnEvery(schema);
+  if (!driven) return true;
+  const { carry, set: set2 } = schema.spawn ?? {};
+  if (set2 && Object.prototype.hasOwnProperty.call(set2, driven.fromField)) {
+    const raw = set2[driven.fromField];
+    if (raw === void 0 || raw === null || raw === "") return false;
+    return Object.prototype.hasOwnProperty.call(driven.map, String(raw));
+  }
+  return (carry ?? []).includes(driven.fromField);
 }
 var IngestSchemaZ = external_exports.object({
   kind: external_exports.enum(INGEST_KINDS),
@@ -14952,6 +14990,15 @@ var CollectionSchemaZ = external_exports.object({
   path: ["spawn"]
 }).refine((schema) => spawnSuccessorStartsInert(schema), {
   message: "`spawn` must leave the successor in a non-matching state (e.g. `set` the status to a pending value); seeding the predicate field to a matching value via `set`/`carry` would respawn forever",
+  path: ["spawn"]
+}).refine((schema) => fieldDrivenFromFieldIsEnum(schema), {
+  message: "`spawn.every.fromField` must name a top-level `enum` field declared in `fields`",
+  path: ["spawn"]
+}).refine((schema) => fieldDrivenMapCoversValues(schema), {
+  message: "`spawn.every.map` keys must exactly cover the `values` of the `enum` named by `fromField` (no missing or extra keys)",
+  path: ["spawn"]
+}).refine((schema) => fieldDrivenFromFieldCarried(schema), {
+  message: "`spawn.every.fromField` must appear in `spawn.carry`, or be written by `spawn.set` to a value present in `spawn.every.map`, so the successor keeps a resolvable recurrence interval",
   path: ["spawn"]
 }).refine((schema) => schema.calendarField === void 0 || isDateLike(schema.fields[schema.calendarField]?.type), {
   message: "schema `calendarField` must name a top-level `date` or `datetime` field declared in `fields`",
