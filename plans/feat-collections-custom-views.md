@@ -260,6 +260,12 @@ correctly is dead weight. Must cover, terse and operational:
 - **How to write data** (write-capability views only): `PUT` to `dataUrl` with
   `{ items, mode }`, the validation contract, and the per-row `rejected`
   shape to surface to the user. Note: **no delete**.
+- **How to open a record**: `window.__MC_VIEW.openItem(id, mode)` posts an
+  `mc-open-item` ping to the host, which opens the record in its shared
+  detail/edit modal (`mode`: `"view"` default / `"edit"`). Needs **no `write`
+  capability** even for `"edit"` — the host owns the save, so it's a user action
+  through trusted UI, not a view-code write. Pair with `onChange` to repaint
+  after the user saves.
 - **The sandbox rules**: inline `<script>`/`<style>` only; external resources
   limited to the CDN allowlist (`HTML_PREVIEW_CSP_ALLOWED_CDNS` — jsdelivr /
   unpkg / cdnjs / Google Fonts / plotly); **`fetch` is allowed only to

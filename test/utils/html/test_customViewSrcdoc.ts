@@ -69,6 +69,18 @@ describe("buildCustomViewSrcdoc", () => {
     assert.ok(out.indexOf("onChange") < out.indexOf("</head>"));
   });
 
+  it("injects the openItem bridge + origin so the view can open the host modal", () => {
+    const out = buildCustomViewSrcdoc("<head></head>", boot);
+    // The origin is injected so openItem can target the parent frame's origin.
+    assert.match(out, /"origin":"http:\/\/localhost:3001"/);
+    // openItem posts an mc-open-item message up to the parent.
+    assert.match(out, /v\.openItem=function/);
+    assert.match(out, /mc-open-item/);
+    assert.match(out, /window\.parent\.postMessage\(/);
+    // Targets the known parent origin, never '*'.
+    assert.ok(out.includes("},v.origin)"), "openItem must post to the parent origin, not '*'");
+  });
+
   it("keeps the onChange bootstrap free of a </script> breakout sequence", () => {
     const out = buildCustomViewSrcdoc("<head></head>", boot);
     // The bootstrap is inlined in a <script>; a literal </script> inside it would

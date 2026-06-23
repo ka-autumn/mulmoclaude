@@ -396,7 +396,7 @@
            the collection's records. Placed before the empty states so it shows
            even for an empty collection (e.g. a still-empty year grid). -->
       <div v-else-if="activeCustomView" class="h-full" data-testid="collection-custom-view-body">
-        <CollectionCustomView :slug="collection.slug" :view="activeCustomView" />
+        <CollectionCustomView :slug="collection.slug" :view="activeCustomView" @open-item="onCustomViewOpenItem" />
       </div>
 
       <div v-else-if="items.length === 0 && editing?.mode !== 'create'" class="flex flex-col items-center justify-center py-20 text-sm text-slate-400 gap-2">
@@ -1995,6 +1995,22 @@ function onCalendarSelect(itemId: string | null): void {
   if (calendarActive.value) openDay.value = dayOfItem(item);
   showDetail(item);
   writeSelectedToUrl(itemId);
+}
+
+/** A custom (sandboxed) view asked to open a record in the shared modal.
+ *  `view` → read-only detail, `edit` → straight into the editor. Ungated: the
+ *  capability token governs the view's *code*, not user actions through the
+ *  host's own trusted modal (no write happens without an explicit Save). */
+function onCustomViewOpenItem(payload: { id: string; mode: "view" | "edit" }): void {
+  const item = findItemById(payload.id);
+  if (!item) return;
+  if (editing.value) closeEditor();
+  if (payload.mode === "edit") {
+    openEdit(item);
+    return;
+  }
+  showDetail(item);
+  writeSelectedToUrl(payload.id);
 }
 
 /** A calendar day cell was activated → open its popup on a clean slate
