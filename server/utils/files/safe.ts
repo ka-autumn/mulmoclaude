@@ -126,10 +126,19 @@ function parseWriteSegments(relPath: string): { parentSegments: string[]; leaf: 
 // Returns false if any existing ancestor escapes root via symlink. The
 // first non-existing ancestor marks the boundary: every directory
 // below sits under verified-in-root soil and is safe to `mkdir -p`.
+//
+// The lexical `isPathInsideRoot` check before `realpath` is redundant
+// at runtime (parseWriteSegments already rejected `..` / `.` / absolute
+// / Windows-drive inputs, so `path.join(rootReal, segment)` cannot
+// escape lexically) — it is kept so CodeQL's data-flow analysis can
+// see the user-derived `cursor` is constrained inside `rootReal`
+// before the filesystem call. Two layers also catch the rare case of
+// rootReal containing unusual normalization edges.
 async function existingAncestorsStayInRoot(rootReal: string, parentSegments: string[]): Promise<boolean> {
   let cursor = rootReal;
   for (const segment of parentSegments) {
     cursor = path.join(cursor, segment);
+    if (!isPathInsideRoot(cursor, rootReal)) return false;
     let cursorReal: string;
     try {
       cursorReal = await promises.realpath(cursor);
