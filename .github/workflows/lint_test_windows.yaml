@@ -66,6 +66,19 @@ jobs:
           key: win-node-modules-${{ matrix.node-version }}-${{ hashFiles('yarn.lock') }}
           restore-keys: |
             win-node-modules-${{ matrix.node-version }}-
+      # Puppeteer downloads its browsers into ~/.cache/puppeteer during the
+      # `yarn install` postinstall — outside node_modules, so the cache above
+      # doesn't cover it, and the PDF-route tests in test:coverage launch it.
+      # Restored BEFORE install so the postinstall skips the download on a hit.
+      # Keyed on yarn.lock (busts on a puppeteer bump); restore-keys keeps a
+      # warm browser across unrelated lockfile changes.
+      - name: Cache puppeteer browsers
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/puppeteer
+          key: puppeteer-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: |
+            puppeteer-${{ runner.os }}-
       - run: yarn install --frozen-lockfile --network-timeout 120000
       # Cache the output of `yarn build:packages` keyed on the source
       # files it consumes. The 25 @mulmobridge/* workspaces all run tsc

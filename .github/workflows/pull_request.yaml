@@ -73,6 +73,21 @@ jobs:
       with:
         node-version: ${{ matrix.node-version }}
         cache: yarn
+    # Puppeteer's postinstall downloads chrome + chrome-headless-shell
+    # (~120 MB) into ~/.cache/puppeteer during `yarn install` — the PDF-route
+    # tests in test:coverage launch it. That dir lives OUTSIDE node_modules and
+    # the yarn cache, so without this it re-downloads on every cell of the
+    # matrix. Restored BEFORE install so the postinstall finds the browser and
+    # skips the download. Keyed on yarn.lock (busts on a puppeteer bump);
+    # restore-keys lets an unrelated lockfile change still land on a warm
+    # browser (postinstall re-downloads only if the pinned revision differs).
+    - name: Cache puppeteer browsers
+      uses: actions/cache@v5
+      with:
+        path: ~/.cache/puppeteer
+        key: puppeteer-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+        restore-keys: |
+          puppeteer-${{ runner.os }}-
     - run: yarn install --frozen-lockfile --network-timeout 120000
     # Cache the output of `yarn build:packages` keyed on the source
     # files it consumes. The 25 @mulmobridge/* workspaces all run tsc
