@@ -111,41 +111,22 @@ export function resolveWithinRoot(rootReal: string, relPath: string): string | n
 // stage explicitly.
 const WINDOWS_DRIVE_RE = /^[a-zA-Z]:/;
 
-// Write-time sibling of `resolveWithinRoot`. `resolveWithinRoot`
-// runs `realpathSync` on the full path which throws `ENOENT` for a
-// leaf that does not exist yet — fine for reads, but the swallowed
-// ENOENT is indistinguishable from a traversal escape, so callers
-// pre-validating a not-yet-written path get a false "rejected".
-//
-// Algorithm:
-//   1. String-validate `relPath` (NUL / absolute / Windows drive
-//      relative / empty / "."/"..").
-//   2. Walk the parent's ancestors from `rootReal` downward; at every
-//      already-existing ancestor, realpath it and confirm it is still
-//      inside `rootReal`. Reject as soon as an ancestor escapes —
-//      BEFORE `mkdir -p` creates any directory, so a symlinked
-//      intermediate component cannot cause writes outside root.
-//   3. `mkdir -p` the parent (now provably safe — the unbuilt portion
-//      sits under a confirmed-in-root ancestor).
-//   4. Realpath the parent one more time as a defense-in-depth check.
-//
-// Returns `null` ONLY when the input itself is unsafe (string
-// validation failed or a verified ancestor escapes root). Filesystem
-// errors that are NOT security-related (`EACCES`, `EROFS`, …) are
-// propagated so the caller sees the real failure mode instead of a
-// misleading "path traversal rejected".
-export async function resolveWriteWithinRoot(rootReal: string, relPath: string): Promise<string | null> {
+function isPathInsideRoot(candidate: string, rootReal: string): boolean {
+  return candidate === rootReal || candidate.startsWith(rootReal + path.sep);
+}
+
+function parseWriteSegments(relPath: string): { parentSegments: string[]; leaf: string } | null {
   if (!relPath || relPath.includes("\0") || path.isAbsolute(relPath) || WINDOWS_DRIVE_RE.test(relPath)) return null;
   const segments = relPath.split(/[/\\]/);
   if (segments.some((segment) => segment === "" || segment === "." || segment === "..")) return null;
-  const leaf = segments[segments.length - 1];
-  const parentSegments = segments.slice(0, -1);
-  const parentAbs = path.resolve(rootReal, parentSegments.join(path.sep));
+  return { parentSegments: segments.slice(0, -1), leaf: segments[segments.length - 1] };
+}
 
-  // Walk root → parent, realpath-checking every existing ancestor.
-  // The first ancestor that does not exist marks the "all directories
-  // below this point will be created by us under verified-in-root
-  // soil" boundary.
+// Walk rootReal → parent, realpath-checking every existing ancestor.
+// Returns false if any existing ancestor escapes root via symlink. The
+// first non-existing ancestor marks the boundary: every directory
+// below sits under verified-in-root soil and is safe to `mkdir -p`.
+async function existingAncestorsStayInRoot(rootReal: string, parentSegments: string[]): Promise<boolean> {
   let cursor = rootReal;
   for (const segment of parentSegments) {
     cursor = path.join(cursor, segment);
@@ -153,16 +134,33 @@ export async function resolveWriteWithinRoot(rootReal: string, relPath: string):
     try {
       cursorReal = await promises.realpath(cursor);
     } catch (err) {
-      if (isEnoent(err)) break;
+      if (isEnoent(err)) return true;
       throw err;
     }
-    if (cursorReal !== rootReal && !cursorReal.startsWith(rootReal + path.sep)) return null;
+    if (!isPathInsideRoot(cursorReal, rootReal)) return false;
     cursor = cursorReal;
   }
+  return true;
+}
 
+// Write-time sibling of `resolveWithinRoot`. `resolveWithinRoot`
+// runs `realpathSync` on the full path which throws `ENOENT` for a
+// leaf that does not exist yet — fine for reads, but the swallowed
+// ENOENT is indistinguishable from a traversal escape, so callers
+// pre-validating a not-yet-written path get a false "rejected".
+//
+// Returns `null` ONLY when the input itself is unsafe (string
+// validation failed or a verified ancestor escapes root). Filesystem
+// errors that are NOT security-related (`EACCES`, `EROFS`, …) are
+// propagated so the caller sees the real failure mode instead of a
+// misleading "path traversal rejected".
+export async function resolveWriteWithinRoot(rootReal: string, relPath: string): Promise<string | null> {
+  const parsed = parseWriteSegments(relPath);
+  if (!parsed) return null;
+  if (!(await existingAncestorsStayInRoot(rootReal, parsed.parentSegments))) return null;
+  const parentAbs = path.resolve(rootReal, parsed.parentSegments.join(path.sep));
   await promises.mkdir(parentAbs, { recursive: true });
-
   const parentReal = await promises.realpath(parentAbs);
-  if (parentReal !== rootReal && !parentReal.startsWith(rootReal + path.sep)) return null;
-  return path.join(parentReal, leaf);
+  if (!isPathInsideRoot(parentReal, rootReal)) return null;
+  return path.join(parentReal, parsed.leaf);
 }
