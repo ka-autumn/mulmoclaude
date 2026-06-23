@@ -127,27 +127,28 @@ function parseWriteSegments(relPath: string): { parentSegments: string[]; leaf: 
 // first non-existing ancestor marks the boundary: every directory
 // below sits under verified-in-root soil and is safe to `mkdir -p`.
 //
-// The lexical `isPathInsideRoot` check before `realpath` is redundant
-// at runtime (parseWriteSegments already rejected `..` / `.` / absolute
-// / Windows-drive inputs, so `path.join(rootReal, segment)` cannot
-// escape lexically) — it is kept so CodeQL's data-flow analysis can
-// see the user-derived `cursor` is constrained inside `rootReal`
-// before the filesystem call. Two layers also catch the rare case of
-// rootReal containing unusual normalization edges.
+// The lexical `startsWith` check before `realpath` is redundant at
+// runtime (parseWriteSegments rejects `..` / `.` / absolute /
+// Windows-drive inputs, so `path.resolve(rootReal, segment)` cannot
+// escape lexically) but is inlined so CodeQL's `js/path-injection`
+// data-flow analysis recognizes the standard root-prefix sanitizer
+// pattern. Two layers also catch the rare case of `rootReal`
+// containing unusual normalization edges.
 async function existingAncestorsStayInRoot(rootReal: string, parentSegments: string[]): Promise<boolean> {
+  const rootPrefix = rootReal + path.sep;
   let cursor = rootReal;
   for (const segment of parentSegments) {
-    cursor = path.join(cursor, segment);
-    if (!isPathInsideRoot(cursor, rootReal)) return false;
-    let cursorReal: string;
+    const candidate = path.resolve(cursor, segment);
+    if (candidate !== rootReal && !candidate.startsWith(rootPrefix)) return false;
+    let candidateReal: string;
     try {
-      cursorReal = await promises.realpath(cursor);
+      candidateReal = await promises.realpath(candidate);
     } catch (err) {
       if (isEnoent(err)) return true;
       throw err;
     }
-    if (!isPathInsideRoot(cursorReal, rootReal)) return false;
-    cursor = cursorReal;
+    if (candidateReal !== rootReal && !candidateReal.startsWith(rootPrefix)) return false;
+    cursor = candidateReal;
   }
   return true;
 }
