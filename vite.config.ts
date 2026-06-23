@@ -7,9 +7,26 @@ import path from 'node:path'
 
 // Token file path mirrors `WORKSPACE_PATHS.sessionToken` in
 // server/workspace-paths.ts. Duplicated here (rather than imported)
-// because Vite config runs outside the TS server tsconfig; keep in
-// sync when either side moves the workspace root.
-const TOKEN_FILE_PATH = path.join(os.homedir(), 'mulmoclaude', '.session-token')
+// because Vite config runs outside the TS server tsconfig.
+//
+// Honors MULMOCLAUDE_WORKSPACE_PATH (via process.env or directly
+// parsing .env file) so the dev token plugin reads the same workspace
+// the server is using. Local patch 2026-05-30 to fix the unauthorized
+// error when workspace is relocated.
+function resolveWorkspacePath(): string {
+  const fromProcess = process.env.MULMOCLAUDE_WORKSPACE_PATH
+  if (fromProcess && fromProcess.length > 0) return fromProcess
+  try {
+    const envPath = path.join(process.cwd(), '.env')
+    const content = fs.readFileSync(envPath, 'utf-8')
+    const match = content.match(/^MULMOCLAUDE_WORKSPACE_PATH=(.+)$/m)
+    if (match) return match[1].trim()
+  } catch {
+    /* .env not present, fall through to default */
+  }
+  return path.join(os.homedir(), 'mulmoclaude')
+}
+const TOKEN_FILE_PATH = path.join(resolveWorkspacePath(), '.session-token')
 const TOKEN_PLACEHOLDER = '__MULMOCLAUDE_AUTH_TOKEN__'
 
 // Dev-side half of the bearer-token injection (#272). The server
