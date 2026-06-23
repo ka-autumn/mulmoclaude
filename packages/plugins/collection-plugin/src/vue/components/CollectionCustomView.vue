@@ -28,7 +28,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onBeforeUnmount } from "vue";
+import { ref, watch, onMounted, onBeforeUnmount } from "vue";
 import { useCollectionI18n } from "../lang";
 import { errorMessage } from "../../core/errorMessage";
 import type { CollectionCustomView } from "../../core/schema";
@@ -39,6 +39,12 @@ const { t } = useCollectionI18n();
 const props = defineProps<{
   slug: string;
   view: CollectionCustomView;
+}>();
+
+const emit = defineEmits<{
+  /** The view called `__MC_VIEW.openItem(id, mode)` — open the record in the
+   *  host's shared modal. */
+  openItem: [payload: { id: string; mode: "view" | "edit" }];
 }>();
 
 const loading = ref(true);
@@ -142,10 +148,27 @@ watch(
   { immediate: true },
 );
 
+// ── Open-item bridge ──
+// The view calls `__MC_VIEW.openItem(id, mode)`, which posts an `mc-open-item`
+// message up to here. Verify it came from THIS view's iframe and is for THIS
+// collection, then hand the host the record to open in its shared modal. The
+// message carries no secret; the capability token is unaffected.
+function onWindowMessage(event: MessageEvent): void {
+  if (event.source !== iframeEl.value?.contentWindow) return;
+  const msg = event.data as { type?: string; slug?: string; id?: unknown; mode?: unknown };
+  if (!msg || msg.type !== "mc-open-item" || msg.slug !== props.slug) return;
+  const itemId = typeof msg.id === "string" ? msg.id : String(msg.id ?? "");
+  if (!itemId) return;
+  emit("openItem", { id: itemId, mode: msg.mode === "edit" ? "edit" : "view" });
+}
+
+onMounted(() => window.addEventListener("message", onWindowMessage));
+
 onBeforeUnmount(() => {
   clearRefresh();
   changeUnsub?.();
   changeUnsub = null;
+  window.removeEventListener("message", onWindowMessage);
 });
 </script>
 

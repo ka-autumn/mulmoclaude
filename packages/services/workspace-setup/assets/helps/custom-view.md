@@ -62,6 +62,7 @@ window.__MC_VIEW = {
   token: "<scoped capability token>", // Authorization bearer
   dataUrl: "http://localhost:3001/api/collections/annual-plan/view-data",
   onChange: (cb) => unsubscribe, // live refresh — see "Staying live" below
+  openItem: (id, mode) => void, // open a record in the host's panel — see "Opening a record"
 };
 ```
 
@@ -132,6 +133,36 @@ What you need to know:
 - **No extra capability needed** — a read-only view can use `onChange`.
 - It returns an **unsubscribe** function; you rarely need it (the view is torn
   down with the iframe), but it's there for fine-grained control.
+
+### Opening a record — `openItem`
+
+Your view owns the *layout* (a grid, a chart, a board); it doesn't have to
+rebuild a form to view or edit one record. Call `openItem` to hand a record to
+the host's own panel — the same detail/edit modal the user gets clicking a row
+in the table view — centred over your view:
+
+```js
+window.__MC_VIEW.openItem("task-3"); // read-only detail (default)
+window.__MC_VIEW.openItem("task-3", "edit"); // jump straight into the editor
+```
+
+- **`id`** — the record's `primaryKey` value. If it isn't a loaded record,
+  nothing happens (fire-and-forget; returns nothing).
+- **`mode`** — `"view"` (default) opens read-only detail with the panel's own
+  Edit button; `"edit"` opens the editor directly.
+- **No `write` capability required — even for `"edit"`.** Opening the host's
+  panel is a *user* action in the host's trusted UI: the user still has to press
+  Save, and the write goes through the host, not your scoped token. So a
+  `["read"]` view can offer a full "edit this record" affordance without
+  widening its own capabilities. (Capabilities gate what your view's *code* may
+  do to the data; they don't restrict what the user may do through the host.)
+- **Pair it with `onChange`.** After the user saves in the panel, your
+  `onChange` callback fires (the data changed), so a live view repaints itself —
+  no extra wiring needed.
+
+This is the right tool whenever a record's full detail is richer than your
+view's summary, or whenever the user wants to edit but you don't want a
+`write`-capable view doing its own PUTs.
 
 ## Sandbox rules (what the view may and may not do)
 
@@ -223,6 +254,7 @@ fields `start` / `end` and a `title`. `capabilities: ["read"]`.
         border-radius: 4px;
         padding: 2px 6px;
         margin-bottom: 4px;
+        cursor: pointer;
       }
       .err {
         color: #b91c1c;
@@ -242,13 +274,25 @@ fields `start` / `end` and a `title`. `capabilities: ["read"]`.
         const buckets = MONTHS.map(() => []);
         for (const it of items) {
           const m = it.start ? new Date(it.start).getMonth() : -1;
-          if (m >= 0 && m < 12) buckets[m].push(it.title || it.id);
+          if (m >= 0 && m < 12) buckets[m].push(it); // keep the item, not just its title — we need the id
         }
         const root = document.getElementById("root");
         root.className = "grid";
         root.innerHTML = MONTHS.map(
-          (name, i) => '<div class="month"><h2>' + name + "</h2>" + buckets[i].map((t) => '<div class="chip">' + t + "</div>").join("") + "</div>",
+          (name, i) =>
+            '<div class="month"><h2>' +
+            name +
+            "</h2>" +
+            buckets[i].map((it) => '<div class="chip" data-id="' + it.id + '">' + (it.title || it.id) + "</div>").join("") +
+            "</div>",
         ).join("");
+        // Click a chip → open that record in the host's panel (read-only detail;
+        // the panel's own Edit button takes it from there). Pass "edit" to jump
+        // straight into the editor — no `write` capability needed.
+        root.onclick = (e) => {
+          const chip = e.target.closest(".chip");
+          if (chip) window.__MC_VIEW.openItem(chip.dataset.id);
+        };
       }
       main().catch((e) => {
         document.getElementById("root").innerHTML = '<span class="err">Could not load: ' + e.message + "</span>";
