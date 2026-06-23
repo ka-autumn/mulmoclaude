@@ -52,6 +52,8 @@ const koMessages: CollectionMessages = {
     chatTitle: "채팅 시작",
     chatPlaceholder: "이 컬렉션으로 하고 싶은 작업을 설명하세요…",
     chatStart: "채팅 시작",
+    itemChatLabel: "이 레코드에 대해 채팅",
+    itemChatPlaceholder: "이 레코드에 대해 질문하거나 지시하세요…",
     viewToggle: "보기",
     viewTable: "표",
     viewCalendar: "캘린더",

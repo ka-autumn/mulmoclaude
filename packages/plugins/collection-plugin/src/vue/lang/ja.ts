@@ -52,6 +52,8 @@ const jaMessages: CollectionMessages = {
     chatTitle: "チャットを開始",
     chatPlaceholder: "このコレクションで行いたいことを入力してください…",
     chatStart: "チャットを開始",
+    itemChatLabel: "このレコードについてチャット",
+    itemChatPlaceholder: "このレコードについて質問・指示する…",
     viewToggle: "表示",
     viewTable: "テーブル",
     viewCalendar: "カレンダー",

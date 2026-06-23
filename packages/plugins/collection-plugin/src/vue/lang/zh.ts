@@ -52,6 +52,8 @@ const zhMessages: CollectionMessages = {
     chatTitle: "开始对话",
     chatPlaceholder: "描述你想对这个集合做什么…",
     chatStart: "开始对话",
+    itemChatLabel: "就此记录对话",
+    itemChatPlaceholder: "询问或指示有关此记录的操作…",
     viewToggle: "视图",
     viewTable: "表格",
     viewCalendar: "日历",

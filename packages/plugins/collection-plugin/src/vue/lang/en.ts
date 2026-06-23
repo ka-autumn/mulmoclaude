@@ -50,6 +50,8 @@ const enMessages = {
     chatTitle: "Start a chat",
     chatPlaceholder: "Describe what you want to do with this collection…",
     chatStart: "Start chat",
+    itemChatLabel: "Chat about this record",
+    itemChatPlaceholder: "Ask or instruct about this record…",
     viewToggle: "View",
     viewTable: "Table",
     viewCalendar: "Calendar",

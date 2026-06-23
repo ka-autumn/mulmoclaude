@@ -52,6 +52,8 @@ const ptBRMessages: CollectionMessages = {
     chatTitle: "Iniciar um chat",
     chatPlaceholder: "Descreva o que você quer fazer com esta coleção…",
     chatStart: "Iniciar chat",
+    itemChatLabel: "Conversar sobre este registro",
+    itemChatPlaceholder: "Pergunte ou instrua sobre este registro…",
     viewToggle: "Visualização",
     viewTable: "Tabela",
     viewCalendar: "Calendário",

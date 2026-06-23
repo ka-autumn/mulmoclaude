@@ -52,6 +52,8 @@ const esMessages: CollectionMessages = {
     chatTitle: "Iniciar un chat",
     chatPlaceholder: "Describe qué quieres hacer con esta colección…",
     chatStart: "Iniciar chat",
+    itemChatLabel: "Chatear sobre este registro",
+    itemChatPlaceholder: "Pregunta o indica algo sobre este registro…",
     viewToggle: "Vista",
     viewTable: "Tabla",
     viewCalendar: "Calendario",

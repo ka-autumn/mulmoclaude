@@ -347,6 +347,7 @@
               @close="onDayClose"
               @delete="viewing && confirmDelete(viewing)"
               @run-action="runAction"
+              @item-chat="onItemChat"
             />
           </template>
         </CollectionDayView>
@@ -637,6 +638,7 @@
         @close="closeView"
         @delete="viewing && confirmDelete(viewing)"
         @run-action="runAction"
+        @item-chat="onItemChat"
       />
     </CollectionRecordModal>
 
@@ -1205,14 +1207,17 @@ function closeChat(): void {
  *  nothing. Instead, point the agent at the feed's schema + records
  *  (`feeds/<slug>/schema.json` and `<dataPath>/`) and let it act on the
  *  request directly. */
-function buildChatSeed(slug: string, message: string): string {
+function buildChatSeed(slug: string, message: string, itemId?: string): string {
   const schema = collection.value?.schema;
   // A feed carries an `ingest` block; a plain collection does not. Checked
   // here (rather than via the `isFeed` computed, defined further down) to
   // keep this helper self-contained and avoid a use-before-define.
-  if (!schema?.ingest) return `/${slug} ${message}`;
+  if (!schema?.ingest) return itemId ? `/${slug} id=${itemId} ${message}` : `/${slug} ${message}`;
   const dataPath = schema.dataPath ?? `data/feeds/${slug}`;
-  return t("collectionsView.feedChatSeed", { slug, dataPath, message });
+  // A feed has no skill command — point the agent at a specific record by id
+  // inside the same schema-driven seed.
+  const scoped = itemId ? `(for record \`${itemId}\`) ${message}` : message;
+  return t("collectionsView.feedChatSeed", { slug, dataPath, message: scoped });
 }
 
 /** Start a new general-role chat seeded from the current view. */
@@ -1228,6 +1233,23 @@ function submitChat(): void {
     return;
   }
   appApi.startNewChat(text, cui.generalRoleId);
+}
+
+/** The open record's chat box: start a chat scoped to that one record. Seeds
+ *  the collection's skill command with an `id=<itemId>` selector
+ *  (`/<slug> id=<itemId> <message>`) so the agent acts on this record. */
+function onItemChat(message: string): void {
+  if (!collection.value || !viewing.value) return;
+  const text = message.trim();
+  if (!text) return;
+  const itemId = String(viewing.value[collection.value.schema.primaryKey] ?? "");
+  const seed = buildChatSeed(collection.value.slug, text, itemId || undefined);
+  // Chat card → send into the current session; standalone → new chat.
+  if (props.sendTextMessage) {
+    props.sendTextMessage(seed);
+    return;
+  }
+  appApi.startNewChat(seed, cui.generalRoleId);
 }
 
 async function loadCollection(slug: string): Promise<void> {

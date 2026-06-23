@@ -53,6 +53,8 @@ const frMessages: CollectionMessages = {
     chatTitle: "Démarrer une discussion",
     chatPlaceholder: "Décrivez ce que vous voulez faire avec cette collection…",
     chatStart: "Démarrer la discussion",
+    itemChatLabel: "Discuter de cet enregistrement",
+    itemChatPlaceholder: "Posez une question ou donnez une instruction sur cet enregistrement…",
     viewToggle: "Affichage",
     viewTable: "Tableau",
     viewCalendar: "Calendrier",

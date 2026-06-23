@@ -52,6 +52,8 @@ const deMessages: CollectionMessages = {
     chatTitle: "Chat starten",
     chatPlaceholder: "Beschreibe, was du mit dieser Sammlung tun möchtest…",
     chatStart: "Chat starten",
+    itemChatLabel: "Über diesen Eintrag chatten",
+    itemChatPlaceholder: "Stelle eine Frage oder gib eine Anweisung zu diesem Eintrag…",
     viewToggle: "Ansicht",
     viewTable: "Tabelle",
     viewCalendar: "Kalender",

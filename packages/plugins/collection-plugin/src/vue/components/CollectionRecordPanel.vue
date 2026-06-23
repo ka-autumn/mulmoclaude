@@ -434,11 +434,43 @@
         {{ saveError }}
       </p>
     </div>
+
+    <!-- Chat about THIS record (read-only mode only): seeds a new chat with the
+         collection's skill command scoped to the open item
+         (`/<slug> id=<itemId> <message>`). The parent owns the slug/id + send
+         path; this just collects the user's message. -->
+    <div v-if="!editing" class="mt-5 pt-4 border-t border-slate-200/60" data-testid="collections-detail-chat">
+      <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5" for="collections-detail-chat-input">
+        {{ t("collectionsView.itemChatLabel") }}
+      </label>
+      <div class="flex items-end gap-2">
+        <textarea
+          id="collections-detail-chat-input"
+          v-model="chatMessage"
+          rows="2"
+          :placeholder="t('collectionsView.itemChatPlaceholder')"
+          class="flex-1 bg-slate-50 border border-slate-200/80 rounded-xl px-3 py-2 text-xs placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition-all resize-none"
+          data-testid="collections-detail-chat-input"
+          @keydown.meta.enter="submitItemChat"
+          @keydown.ctrl.enter="submitItemChat"
+        ></textarea>
+        <button
+          type="button"
+          class="h-8 px-2.5 rounded bg-indigo-600 text-white font-bold text-xs hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-sm shadow-indigo-600/10 flex items-center gap-1 shrink-0"
+          :disabled="!chatMessage.trim()"
+          data-testid="collections-detail-chat-send"
+          @click="submitItemChat"
+        >
+          <span class="material-icons text-sm">forum</span>
+          <span>{{ t("collectionsView.chat") }}</span>
+        </button>
+      </div>
+    </div>
   </component>
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 import { useCollectionI18n } from "../lang";
 import CollectionEmbedView from "./CollectionEmbedView.vue";
 import { fieldVisible } from "../../core/actionVisible";
@@ -489,9 +521,29 @@ const emit = defineEmits<{
   close: [];
   delete: [];
   runAction: [action: CollectionAction];
+  /** The user typed a message in the per-record chat box and hit Chat — the
+   *  parent seeds a new chat scoped to the open record. */
+  itemChat: [message: string];
 }>();
 
 const { t } = useCollectionI18n();
+
+// Per-record chat draft. Cleared when the open record changes so a message
+// typed for one record never carries over to the next.
+const chatMessage = ref("");
+watch(
+  () => props.viewing,
+  () => {
+    chatMessage.value = "";
+  },
+);
+
+function submitItemChat(): void {
+  const message = chatMessage.value.trim();
+  if (!message) return;
+  emit("itemChat", message);
+  chatMessage.value = "";
+}
 
 // `embedViews` is a ComputedRef nested in the `render` object, so it isn't
 // auto-unwrapped in the template — re-expose it as a top-level computed.
