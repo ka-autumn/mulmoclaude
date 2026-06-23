@@ -135,7 +135,7 @@ async function handleConfigRefresh(payload) {
 import path4 from "node:path";
 import { mkdirSync, readFileSync as readFileSync2, renameSync, rmSync, writeFileSync } from "node:fs";
 
-// packages/plugins/collection-plugin/dist/schema-DSvk40tb.js
+// packages/plugins/collection-plugin/dist/schema-BcnitlL8.js
 var INGEST_KINDS = [
   "rss",
   "atom",

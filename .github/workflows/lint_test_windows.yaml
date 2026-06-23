@@ -82,7 +82,7 @@ jobs:
             packages/bridges/*/dist
             packages/plugins/*/dist
             packages/services/*/dist
-          key: pkg-dist-${{ runner.os }}-${{ matrix.node-version }}-${{ hashFiles('packages/*/src/**', 'packages/*/tsconfig.json', 'packages/*/package.json', 'packages/bridges/*/src/**', 'packages/bridges/*/tsconfig.json', 'packages/bridges/*/package.json', 'packages/plugins/*/src/**', 'packages/plugins/*/tsconfig.json', 'packages/plugins/*/package.json', 'packages/services/*/src/**', 'packages/services/*/tsconfig.json', 'packages/services/*/package.json', 'config/tsconfig.packages.json') }}
+          key: pkg-dist-${{ runner.os }}-${{ matrix.node-version }}-${{ hashFiles('packages/*/src/**', 'packages/*/tsconfig.json', 'packages/*/package.json', 'packages/bridges/*/src/**', 'packages/bridges/*/tsconfig.json', 'packages/bridges/*/package.json', 'packages/plugins/*/src/**', 'packages/plugins/*/tsconfig.json', 'packages/plugins/*/package.json', 'packages/services/*/src/**', 'packages/services/*/tsconfig.json', 'packages/services/*/package.json', 'config/tsconfig.packages.json', 'yarn.lock') }}
       - name: Build internal packages (required before typecheck)
         if: steps.pkg-dist-cache.outputs.cache-hit != 'true'
         run: yarn build:packages
