@@ -16,6 +16,7 @@ import { WORKSPACE_DIRS, WORKSPACE_PATHS } from "../../workspace/paths.js";
 import { shortId } from "../id.js";
 import { writeFileAtomic } from "./atomic.js";
 import { yearMonthUtc } from "./naming.js";
+import { hasTraversalSegment } from "./safe.js";
 import { makeStoreResolvers } from "./store-resolvers.js";
 
 const resolvers = makeStoreResolvers(() => WORKSPACE_PATHS.attachments, WORKSPACE_DIRS.attachments);
@@ -180,15 +181,6 @@ export async function loadAttachmentBase64(relativePath: string): Promise<string
 export async function loadAttachmentBytes(relativePath: string): Promise<Buffer> {
   const absPath = await resolvers.forRead(relativePath);
   return readFile(absPath);
-}
-
-// Reject `.` and `..` segments split on either `/` or `\` so a
-// traversal-shaped value (`data/attachments/../secrets/key.pem`,
-// `data/attachments\..\foo.pdf`) doesn't pass the prefix check
-// and reach `[Attached file: ...]` markers / chat surface
-// (Codex review on PR #1084 follow-up to #1052).
-function hasTraversalSegment(value: string): boolean {
-  return value.split(/[/\\]/).some((segment) => segment === ".." || segment === ".");
 }
 
 export function isAttachmentPath(value: string): boolean {

@@ -87,6 +87,18 @@ export function containsDotfileSegment(relPath: string): boolean {
   return relPath.split(/[/\\]/).some((segment) => segment.startsWith("."));
 }
 
+// True if any segment is the literal `.` or `..` — i.e. a traversal
+// move. Stricter sibling of `containsDotfileSegment`: dotfiles like
+// `.git` are NOT flagged, only the two traversal tokens. Used by
+// `isAttachmentPath` / `isImagePath` where dotfiles are legitimate
+// (encoded shortIds can land near `.tmp` siblings during atomic
+// writes) but `..`/`.` segments must never reach the on-disk path.
+// Splits on `/` AND `\` for the same Windows-decode rationale as
+// `containsDotfileSegment`.
+export function hasTraversalSegment(value: string): boolean {
+  return value.split(/[/\\]/).some((segment) => segment === ".." || segment === ".");
+}
+
 // `rootReal` MUST already be a realpath. Returns null on traversal or if either path doesn't exist on disk.
 export function resolveWithinRoot(rootReal: string, relPath: string): string | null {
   const normalized = path.normalize(relPath || "");

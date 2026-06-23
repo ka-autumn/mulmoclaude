@@ -4,6 +4,7 @@ import { WORKSPACE_DIRS, WORKSPACE_PATHS } from "../../workspace/paths.js";
 import { shortId } from "../id.js";
 import { writeFileAtomic } from "./atomic.js";
 import { yearMonthUtc } from "./naming.js";
+import { hasTraversalSegment } from "./safe.js";
 import { makeStoreResolvers } from "./store-resolvers.js";
 
 const resolvers = makeStoreResolvers(() => WORKSPACE_PATHS.images, WORKSPACE_DIRS.images);
@@ -30,13 +31,6 @@ export async function loadImageBase64(relativePath: string): Promise<string> {
 
 export function stripDataUri(dataUri: string): string {
   return dataUri.replace(/^data:image\/[^;]+;base64,/, "");
-}
-
-// Reject `.` / `..` segments split on either `/` or `\` so a
-// traversal-shaped value can't slip past the prefix/suffix gate
-// (Codex review on PR #1084 follow-up to #1052).
-function hasTraversalSegment(value: string): boolean {
-  return value.split(/[/\\]/).some((segment) => segment === ".." || segment === ".");
 }
 
 // Accepts arbitrary depth so saveImage's images/YYYY/MM/abc.png still validates.
