@@ -1,6 +1,7 @@
 import { basename, dirname, join } from "path";
 import { homedir, tmpdir } from "os";
 import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 import type { Role } from "../../src/config/roles.js";
 import { mcpTools, isMcpToolEnabled } from "./mcp-tools/index.js";
 import { getActiveToolDescriptors } from "./activeTools.js";
@@ -235,11 +236,32 @@ function resolveProjectRoot(): string {
   }
 }
 
+// The MCP broker source (`server/agent/mcp-server.ts`) is a SIBLING of
+// THIS file inside the published mulmoclaude package. Anchor to
+// `import.meta.url` so the path is correct in both shapes:
+//
+//   - dev (yarn dev) :  <repo>/server/agent/config.ts
+//                       → broker at <repo>/server/agent/mcp-server.ts ✓
+//   - npx packaged   :  <consumer>/node_modules/mulmoclaude/server/agent/config.ts
+//                       → broker at <consumer>/node_modules/mulmoclaude/
+//                         server/agent/mcp-server.ts ✓
+//
+// The pre-#1770 code derived the broker path from `resolveProjectRoot()`
+// which anchors to wherever `node_modules/express/` lives. In dev that
+// happens to coincide with the repo root, but in packaged installs npm
+// hoists deps to <consumer>/node_modules/ while the mulmoclaude package
+// itself sits a level deeper at <consumer>/node_modules/mulmoclaude/ —
+// so `<projectRoot>/server/agent/mcp-server.ts` resolved to a path
+// that does not exist, the broker silently failed to spawn, and every
+// `mcp__mulmoclaude__*` tool (incl. `handlePermission`) vanished from
+// the agent's registry (#1770).
+const LOCAL_MCP_SERVER_PATH = join(dirname(fileURLToPath(import.meta.url)), "mcp-server.ts");
+
 function buildMulmoclaudeServer(params: { chatSessionId: string; port: number; activePlugins: string[]; useDocker: boolean }): object {
   const { chatSessionId, port, activePlugins, useDocker } = params;
   const projectRoot = resolveProjectRoot();
   const command = useDocker ? "tsx" : join(projectRoot, "node_modules/.bin/tsx");
-  const mcpServerPath = useDocker ? "/app/server/agent/mcp-server.ts" : join(projectRoot, "server/agent/mcp-server.ts");
+  const mcpServerPath = useDocker ? "/app/server/agent/mcp-server.ts" : LOCAL_MCP_SERVER_PATH;
 
   const dockerEnv = useDocker
     ? {
