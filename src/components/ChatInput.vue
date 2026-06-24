@@ -91,21 +91,22 @@
             <span class="material-icons text-base leading-none">attach_file</span>
           </button>
           <!-- Toggle mic. Hidden unless the backend reports voice input
-               ready (Mac + enabled + model downloaded). Click to start
-               listening; each pause finalizes a segment that is
-               transcribed and appended to the input for review (never
-               auto-sent). Click again to stop. -->
+               ready (Mac + enabled + model downloaded). Click to arm
+               voice input for the session: it listens on the user's
+               turn, pauses while the agent runs, and auto-resumes each
+               turn until clicked off. Each pause finalizes a segment
+               that is transcribed and appended for review (never
+               auto-sent). -->
           <button
             v-if="voiceAvailable"
             data-testid="mic-btn"
             class="rounded w-8 h-8 flex items-center justify-center"
-            :class="voiceListening ? 'bg-red-600 text-white animate-pulse' : voiceTranscribing ? 'text-blue-500' : 'text-gray-400 hover:text-gray-600'"
-            :disabled="isRunning || (!voiceListening && voiceTranscribing)"
-            :title="voiceListening ? t('chatInput.voice.stop') : t('chatInput.voice.start')"
-            :aria-label="voiceListening ? t('chatInput.voice.stop') : t('chatInput.voice.start')"
-            @click="toggleVoice"
+            :class="micButtonClass"
+            :title="micButtonLabel"
+            :aria-label="micButtonLabel"
+            @click="onMicClick"
           >
-            <span class="material-icons text-base leading-none">{{ !voiceListening && voiceTranscribing ? "hourglass_top" : "mic" }}</span>
+            <span class="material-icons text-base leading-none">{{ micButtonIcon }}</span>
           </button>
         </div>
       </div>
@@ -120,7 +121,7 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onMounted, ref, toRef, watch } from "vue";
+import { computed, nextTick, onMounted, ref, toRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useVoiceInput } from "../composables/useVoiceInput";
 import ChatAttachmentPreview from "./ChatAttachmentPreview.vue";
@@ -166,12 +167,48 @@ const {
   available: voiceAvailable,
   listening: voiceListening,
   transcribing: voiceTranscribing,
-  toggle: toggleVoice,
+  start: startVoice,
+  stop: stopVoice,
   refreshAvailability: refreshVoiceAvailability,
 } = useVoiceInput({
   locale: () => locale.value,
   onTranscript: insertTranscript,
 });
+
+// Sticky per-session voice intent. Once the user turns the mic on it
+// stays "armed" for the session: capture pauses while the agent is
+// running (isRunning) and auto-resumes when it's the user's turn again.
+// The button toggles this intent; turning it off stops auto-resume.
+const voiceSessionOn = ref(false);
+
+function onMicClick(): void {
+  voiceSessionOn.value = !voiceSessionOn.value;
+}
+
+const micButtonClass = computed(() => {
+  if (voiceSessionOn.value) return voiceListening.value ? "bg-red-600 text-white animate-pulse" : "bg-red-600 text-white";
+  return voiceTranscribing.value ? "text-blue-500" : "text-gray-400 hover:text-gray-600";
+});
+const micButtonIcon = computed(() => (!voiceSessionOn.value && voiceTranscribing.value ? "hourglass_top" : "mic"));
+const micButtonLabel = computed(() => (voiceSessionOn.value ? t("chatInput.voice.stop") : t("chatInput.voice.start")));
+
+// Drive listening from (intent ∧ available ∧ not the agent's turn).
+// Auto-starts when armed and it becomes the user's turn; pauses when
+// the agent starts running; drops the intent if the mic can't start
+// (permission denied) so it doesn't retry every turn.
+watch([voiceSessionOn, () => props.isRunning, voiceAvailable], () => {
+  const shouldListen = voiceSessionOn.value && voiceAvailable.value && !props.isRunning;
+  if (shouldListen && !voiceListening.value) {
+    startVoice()
+      .then((ok) => {
+        if (!ok) voiceSessionOn.value = false;
+      })
+      .catch(() => undefined);
+  } else if (!shouldListen && voiceListening.value) {
+    stopVoice();
+  }
+});
+
 onMounted(() => {
   void refreshVoiceAvailability();
 });

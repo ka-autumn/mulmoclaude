@@ -86,7 +86,11 @@ export interface UseVoiceInput {
   transcribing: Ref<boolean>;
   error: Ref<string | null>;
   refreshAvailability: () => Promise<void>;
-  toggle: () => Promise<void>;
+  /** Begin listening. Resolves false if the mic is unavailable or
+   *  permission was denied (the caller should drop its session intent
+   *  so it doesn't retry every turn). */
+  start: () => Promise<boolean>;
+  stop: () => void;
 }
 
 export function useVoiceInput(opts: UseVoiceInputOptions): UseVoiceInput {
@@ -196,18 +200,18 @@ export function useVoiceInput(opts: UseVoiceInputOptions): UseVoiceInput {
     if (segmentHasSpeech && now - segmentStart > MAX_SEGMENT_MS) cutSegment();
   }
 
-  async function start(): Promise<void> {
+  async function start(): Promise<boolean> {
     error.value = null;
     mimeType = pickRecorderMime() ?? "";
     if (!mimeType || !navigator.mediaDevices?.getUserMedia) {
       error.value = "unsupported";
-      return;
+      return false;
     }
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch {
       error.value = "permission-denied";
-      return;
+      return false;
     }
     audioCtx = new AudioContext();
     analyser = audioCtx.createAnalyser();
@@ -217,6 +221,7 @@ export function useVoiceInput(opts: UseVoiceInputOptions): UseVoiceInput {
     listening.value = true;
     startRecorder();
     monitorHandle = window.setInterval(monitorTick, MONITOR_INTERVAL_MS);
+    return true;
   }
 
   function stop(): void {
@@ -238,12 +243,7 @@ export function useVoiceInput(opts: UseVoiceInputOptions): UseVoiceInput {
     stream = null;
   }
 
-  async function toggle(): Promise<void> {
-    if (listening.value) stop();
-    else await start();
-  }
-
   onScopeDispose(stop);
 
-  return { available, listening, transcribing, error, refreshAvailability, toggle };
+  return { available, listening, transcribing, error, refreshAvailability, start, stop };
 }
