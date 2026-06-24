@@ -140,14 +140,14 @@ const debugMode = process.argv.includes("--debug");
 // `process.exit(1)` is non-zero so supervisors that branch on exit
 // code treat the bounce as an error condition.
 process.on("uncaughtException", (err) => {
-  log.error("uncaughtException", err instanceof Error ? err.message : String(err), {
+  log.error("uncaughtException", errorMessage(err), {
     stack: err instanceof Error ? err.stack : undefined,
   });
   // Tiny grace so the log line flushes to disk before we exit.
   setTimeout(() => process.exit(1), FATAL_LOG_FLUSH_MS);
 });
 process.on("unhandledRejection", (reason) => {
-  log.error("unhandledRejection", reason instanceof Error ? reason.message : String(reason), {
+  log.error("unhandledRejection", errorMessage(reason), {
     stack: reason instanceof Error ? reason.stack : undefined,
   });
   setTimeout(() => process.exit(1), FATAL_LOG_FLUSH_MS);
@@ -876,7 +876,7 @@ function logExternalMcpPreflight(): void {
     // per-agent-run path will still attempt the preflight and surface
     // any genuine issue when the user actually starts a chat.
     log.warn("mcp", "preflight at boot failed; will retry per-agent-run", {
-      error: err instanceof Error ? err.message : String(err),
+      error: errorMessage(err),
     });
   }
 }

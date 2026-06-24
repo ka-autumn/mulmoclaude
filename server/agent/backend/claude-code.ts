@@ -17,6 +17,7 @@ import { getCachedReferenceDirs, referenceDirMountArgs } from "../../workspace/r
 import { createStreamParser, type AgentEvent, type RawStreamEvent } from "../stream.js";
 import { createMcpFailureMonitor } from "../mcpFailureMonitor.js";
 import { log } from "../../system/logger/index.js";
+import { errorMessage } from "../../utils/errors.js";
 import { EVENT_TYPES } from "../../../src/types/events.js";
 import { env } from "../../system/env.js";
 import type { AgentInput, LLMBackend } from "./types.js";
@@ -202,7 +203,7 @@ async function* runClaudeAgent(input: AgentInput): AsyncGenerator<AgentEvent> {
     });
   } catch (err) {
     const target = input.useDocker ? "docker" : "claude";
-    const message = err instanceof Error ? err.message : String(err);
+    const message = errorMessage(err);
     log.error("agent", `failed to spawn ${target}`, { error: message });
     yield {
       type: EVENT_TYPES.error,

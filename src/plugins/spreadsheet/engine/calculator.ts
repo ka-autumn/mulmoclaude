@@ -10,6 +10,7 @@ import { evaluateFormula as evaluateFormulaFn } from "./evaluator";
 import { parseDate, getDefaultDateFormat } from "./date-parser";
 import type { SheetData, CellValue, CalculatedSheet, CalculationError, FormulaInfo, SpreadsheetCell } from "./types";
 import { isObj } from "../../../utils/types";
+import { errorMessage } from "../../../utils/errors";
 
 /**
  * Normalize malformed data structures
@@ -209,7 +210,7 @@ export function calculateSheet(sheet: SheetData, allSheets?: SheetData[]): Calcu
             errors.push({
               cell: { row, col },
               formula: value,
-              error: error instanceof Error ? error.message : String(error),
+              error: errorMessage(error),
               type: "unknown",
             });
             return 0;

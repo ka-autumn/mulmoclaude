@@ -362,7 +362,7 @@ const renderedHtml = computed(() => {
     return html;
   } catch (error) {
     console.error("Failed to render spreadsheet:", error);
-    return `<div class="error">Failed to render spreadsheet: ${error instanceof Error ? error.message : "Unknown error"}</div>`;
+    return `<div class="error">Failed to render spreadsheet: ${formatErrorMessage(error, "Unknown error")}</div>`;
   }
 });
 
@@ -386,7 +386,7 @@ const downloadExcel = () => {
     XLSX.writeFile(workbook, filename);
   } catch (error) {
     console.error("Failed to download Excel:", error);
-    alert(`Failed to download Excel file: ${error instanceof Error ? error.message : "Unknown error"}`);
+    alert(`Failed to download Excel file: ${formatErrorMessage(error, "Unknown error")}`);
   }
 };
 
@@ -525,7 +525,7 @@ function saveMiniEditor() {
     // Don't close the mini editor - keep it open so user can see the updated references
     // closeMiniEditor();
   } catch (error) {
-    alert(`Failed to save cell: ${error instanceof Error ? error.message : "Unknown error"}`);
+    alert(`Failed to save cell: ${formatErrorMessage(error, "Unknown error")}`);
   }
 }
 

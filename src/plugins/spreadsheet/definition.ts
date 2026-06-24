@@ -1,6 +1,7 @@
 import type { ToolDefinition } from "gui-chat-protocol";
 import { META } from "./meta";
 import type { ResolvedRoute } from "../meta-types";
+import { errorMessage } from "../../utils/errors";
 
 export const TOOL_NAME = META.toolName;
 export type SpreadsheetEndpoints = { readonly [K in keyof typeof META.apiRoutes]: ResolvedRoute };
@@ -99,7 +100,7 @@ export const executeSpreadsheet = async (
     try {
       sheets = JSON.parse(sheets);
     } catch (error) {
-      throw new Error(`Invalid sheets format: sheets must be an array, not a string. Parse error: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`Invalid sheets format: sheets must be an array, not a string. Parse error: ${errorMessage(error)}`);
     }
   }
 

@@ -24,6 +24,7 @@ import type { Readable } from "node:stream";
 
 import { findAvailablePort } from "../utils/port.mjs";
 import { log } from "../system/logger/index.js";
+import { errorMessage } from "../utils/errors.js";
 import { ONE_SECOND_MS } from "../utils/time.js";
 import type { McpStdioSpec } from "../system/config.js";
 
@@ -150,7 +151,7 @@ export async function startStdioHttpShim(serverId: string, spec: McpStdioSpec, w
   let spawnFailed = false;
   child.once("error", (err) => {
     spawnFailed = true;
-    log.warn("mcp-shim", "supergateway spawn failed", { serverId, error: err instanceof Error ? err.message : String(err) });
+    log.warn("mcp-shim", "supergateway spawn failed", { serverId, error: errorMessage(err) });
   });
 
   const close = () => {

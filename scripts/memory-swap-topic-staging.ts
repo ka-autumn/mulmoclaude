@@ -20,6 +20,7 @@
 // chain and goes when the chain goes (along with the
 // `yarn memory:swap` script entry in package.json).
 
+import { errorMessage } from "../server/utils/errors.js";
 import { workspacePath } from "../server/workspace/workspace.js";
 import { swapStagingIntoMemory } from "../server/workspace/memory/topic-swap.js";
 
@@ -39,6 +40,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  console.error(`memory:swap — failed: ${err instanceof Error ? err.message : String(err)}`);
+  console.error(`memory:swap — failed: ${errorMessage(err)}`);
   process.exitCode = 1;
 });

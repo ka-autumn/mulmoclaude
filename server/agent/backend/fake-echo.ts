@@ -27,6 +27,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { getCurrentToken } from "../../api/auth/token.js";
+import { errorMessage } from "../../utils/errors.js";
 import { makeUuid } from "../../utils/id.js";
 import { API_ROUTES } from "../../../src/config/apiRoutes.js";
 import { EVENT_TYPES } from "../../../src/types/events.js";
@@ -271,7 +272,7 @@ async function dispatchToPlugin(call: FakeToolCall, port: number, chatSessionId:
   } catch (err) {
     // Don't tear down the chat turn on plugin-dispatch failure —
     // surface the error in the tool_result so the test sees it.
-    return JSON.stringify({ error: err instanceof Error ? err.message : String(err) });
+    return JSON.stringify({ error: errorMessage(err) });
   }
 }
 
