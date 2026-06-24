@@ -142,8 +142,13 @@ const props = withDefaults(
     pastedFiles: PastedFile[];
     isRunning: boolean;
     queries?: string[];
+    /** Currently displayed session id. Voice "armed" state is reset
+     *  whenever this changes so leaving a session and coming back
+     *  starts with the mic off (the state is in-memory only — never
+     *  persisted). */
+    sessionId?: string;
   }>(),
-  { queries: () => [] },
+  { queries: () => [], sessionId: "" },
 );
 
 const emit = defineEmits<{
@@ -191,6 +196,15 @@ const micButtonClass = computed(() => {
 });
 const micButtonIcon = computed(() => (!voiceSessionOn.value && voiceTranscribing.value ? "hourglass_top" : "mic"));
 const micButtonLabel = computed(() => (voiceSessionOn.value ? t("chatInput.voice.stop") : t("chatInput.voice.start")));
+
+// Disarm when the displayed session changes — voice intent is per
+// session and never persisted, so leaving and returning starts off.
+watch(
+  () => props.sessionId,
+  () => {
+    voiceSessionOn.value = false;
+  },
+);
 
 // Drive listening from (intent ∧ available ∧ not the agent's turn).
 // Auto-starts when armed and it becomes the user's turn; pauses when
