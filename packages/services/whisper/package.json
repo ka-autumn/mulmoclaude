@@ -1,0 +1,42 @@
+{
+  "name": "@mulmoclaude/whisper",
+  "version": "0.1.0",
+  "description": "Local voice-input core (whisper.cpp sidecar) shared by MulmoClaude and MulmoTerminal. Server entry manages the whisper-server sidecar, GGML model download, and ffmpeg→WAV transcription (host injects the models dir + logger). The ./client entry is a framework-neutral browser capture controller (MediaRecorder + VAD pause-segmentation). The whisper-server binary + ffmpeg are provided by the host.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.js"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "import": "./dist/client.js",
+      "require": "./dist/client.cjs",
+      "default": "./dist/client.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/test_*.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.13",
+    "vite-plugin-dts": "^5.0.0"
+  },
+  "license": "MIT"
+}

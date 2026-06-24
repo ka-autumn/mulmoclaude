@@ -1,12 +1,12 @@
-// Toggle voice capture with pause-based segmentation for the chat input.
-// Click to start listening; click again to stop. While listening, a Web
-// Audio VAD watches the mic level — each time you pause (sustained
-// silence after speech), the current segment is finalized and sent to
-// the local /api/transcribe endpoint, and its transcript is appended to
-// the input for review. Mac-only — the mic button is hidden unless the
-// backend reports voice input ready. See plans/feat-voice-input.md.
+// Thin Vue wrapper over the framework-neutral capture controller in
+// `@mulmoclaude/whisper/client` (shared with MulmoTerminal). This file supplies
+// the MulmoClaude-specific transport (api client + route constants) and language
+// mapping, and mirrors the controller's pushed state into Vue refs. The capture
+// logic itself (MediaRecorder + VAD + segment queue) lives in the package.
+// See plans/feat-extract-whisper-package.md.
 
 import { onScopeDispose, ref, type Ref } from "vue";
+import { createVoiceCapture, localeToWhisperLanguage, type VoiceCaptureTransport } from "@mulmoclaude/whisper/client";
 import { API_ROUTES } from "../config/apiRoutes";
 import { apiGet, apiPost } from "../utils/api";
 
@@ -17,59 +17,15 @@ export interface VoiceModelStatus {
   error?: string;
 }
 
+/** Response shape of `GET /api/transcribe/model` — host contract consumed by the
+ *  Settings → Voice tab. */
 export interface VoiceInputStatusResponse {
   capable: boolean;
   enabled: boolean;
   model: VoiceModelStatus;
 }
 
-// Map a UI locale (vue-i18n) to a Whisper language code. UI language is
-// a strong prior for the spoken language; "auto" lets Whisper detect it
-// from the audio when there's no confident mapping.
-const LOCALE_TO_WHISPER: Record<string, string> = {
-  en: "en",
-  ja: "ja",
-  zh: "zh",
-  ko: "ko",
-  es: "es",
-  "pt-BR": "pt",
-  fr: "fr",
-  de: "de",
-};
-
-export function localeToWhisperLanguage(locale: string): string {
-  return LOCALE_TO_WHISPER[locale] ?? "auto";
-}
-
-// VAD tuning. RMS over [-1,1] float samples; speech is well above room
-// noise. A pause is SILENCE_MS of sub-threshold level after speech.
-// MAX_SEGMENT_MS force-cuts a long unbroken utterance so no single clip
-// exceeds Whisper's 30s window or the server's size cap.
-const SPEECH_RMS = 0.015;
-const SILENCE_MS = 800;
-const MAX_SEGMENT_MS = 20_000;
-const MONITOR_INTERVAL_MS = 100;
-
-function pickRecorderMime(): string | undefined {
-  const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"];
-  if (typeof MediaRecorder === "undefined") return undefined;
-  return candidates.find((type) => MediaRecorder.isTypeSupported(type));
-}
-
-function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(reader.error ?? new Error("FileReader failed"));
-    reader.readAsDataURL(blob);
-  });
-}
-
-function computeRms(buffer: Float32Array): number {
-  let sum = 0;
-  for (const sample of buffer) sum += sample * sample;
-  return Math.sqrt(sum / buffer.length);
-}
+export { localeToWhisperLanguage };
 
 export interface UseVoiceInputOptions {
   /** Current vue-i18n locale (for default transcription language). */
@@ -86,9 +42,6 @@ export interface UseVoiceInput {
   transcribing: Ref<boolean>;
   error: Ref<string | null>;
   refreshAvailability: () => Promise<void>;
-  /** Begin listening. Resolves false if the mic is unavailable or
-   *  permission was denied (the caller should drop its session intent
-   *  so it doesn't retry every turn). */
   start: () => Promise<boolean>;
   stop: () => void;
 }
@@ -99,220 +52,45 @@ export function useVoiceInput(opts: UseVoiceInputOptions): UseVoiceInput {
   const transcribing = ref(false);
   const error = ref<string | null>(null);
 
-  let stream: MediaStream | null = null;
-  let audioCtx: AudioContext | null = null;
-  let analyser: AnalyserNode | null = null;
-  let vadBuffer = new Float32Array(0);
-  let monitorHandle: number | null = null;
-  let recorder: MediaRecorder | null = null;
-  let chunks: Blob[] = [];
-  let mimeType = "";
-  let segmentHasSpeech = false;
-  let silenceStart: number | null = null;
-  let segmentStart = 0;
-  let pending = 0;
-  let queue: Promise<void> = Promise.resolve();
-  let availabilityPollHandle: number | null = null;
-  // Bumped on stop(). Segments captured / sends resolved under an older
-  // generation are dropped, so a late transcript never leaks into the
-  // next session (the chat input disarms voice on session change).
-  let generation = 0;
-  let segmentGeneration = 0;
-  // Single-flight guard for start(): true between entry and the moment
-  // capture is set up (or the attempt aborts), so a second start can't
-  // race the first while it awaits mic permission.
-  let startInFlight = false;
+  const transport: VoiceCaptureTransport = {
+    async transcribe(dataUrl, language) {
+      const result = await apiPost<{ text: string }>(API_ROUTES.transcribe.run, { dataUrl, language });
+      if (!result.ok) throw new Error(result.error || "transcription failed");
+      return result.data;
+    },
+    async getStatus() {
+      const result = await apiGet<VoiceInputStatusResponse>(API_ROUTES.transcribe.model);
+      if (!result.ok) throw new Error(result.error || "status failed");
+      const { capable, enabled, model } = result.data;
+      return {
+        ready: capable && enabled && model.state === "ready",
+        downloading: capable && enabled && model.state === "downloading",
+      };
+    },
+  };
 
-  function stopAvailabilityPoll(): void {
-    if (availabilityPollHandle !== null) {
-      window.clearInterval(availabilityPollHandle);
-      availabilityPollHandle = null;
-    }
-  }
-
-  // Fetch readiness. While the model is downloading (capable + enabled),
-  // keep polling so the mic button appears as soon as it finishes —
-  // without requiring a remount/reload. Idle/unsupported clients don't
-  // poll (the download state is the only trigger).
-  async function refreshAvailability(): Promise<void> {
-    const result = await apiGet<VoiceInputStatusResponse>(API_ROUTES.transcribe.model);
-    if (!result.ok) {
-      available.value = false;
-      stopAvailabilityPoll();
-      return;
-    }
-    const { capable, enabled, model } = result.data;
-    available.value = capable && enabled && model.state === "ready";
-    if (capable && enabled && model.state === "downloading") {
-      if (availabilityPollHandle === null) {
-        availabilityPollHandle = window.setInterval(() => {
-          void refreshAvailability();
-        }, 2000);
-      }
-    } else {
-      stopAvailabilityPoll();
-    }
-  }
-
-  function setPending(delta: number): void {
-    pending += delta;
-    transcribing.value = pending > 0;
-  }
-
-  async function sendSegment(blob: Blob, gen: number): Promise<void> {
-    if (gen !== generation) return;
-    try {
-      const dataUrl = await blobToDataUrl(blob);
-      const result = await apiPost<{ text: string }>(API_ROUTES.transcribe.run, {
-        dataUrl,
-        language: localeToWhisperLanguage(opts.locale()),
-      });
-      if (gen !== generation) return;
-      if (!result.ok) {
-        error.value = result.error || "transcription failed";
-        return;
-      }
-      const text = result.data.text.trim();
-      if (text.length === 0) opts.onEmpty?.();
-      else opts.onTranscript(text);
-    } catch (err) {
-      error.value = err instanceof Error ? err.message : String(err);
-    }
-  }
-
-  // Serialize sends so transcripts append in capture order even though
-  // requests are async. `pending` keeps `transcribing` true from enqueue
-  // until the send resolves, covering time spent queued.
-  function enqueue(blob: Blob, gen: number): void {
-    setPending(1);
-    queue = queue
-      .then(() => sendSegment(blob, gen))
-      .catch(() => undefined)
-      .finally(() => setPending(-1));
-  }
-
-  function containerType(): string {
-    return mimeType.split(";")[0] || "audio/webm";
-  }
-
-  function onSegmentStop(): void {
-    const hadSpeech = segmentHasSpeech;
-    const gen = segmentGeneration;
-    const blob = new Blob(chunks, { type: containerType() });
-    // Begin the next segment immediately if still listening; the stop
-    // was a pause boundary, not the user toggling off.
-    if (listening.value) startRecorder();
-    // Skip if stop() bumped the generation (toggle-off / session change) —
-    // its transcript would belong to a session the user already left.
-    if (hadSpeech && blob.size > 0 && gen === generation) enqueue(blob, gen);
-  }
-
-  function startRecorder(): void {
-    if (!stream) return;
-    chunks = [];
-    segmentHasSpeech = false;
-    silenceStart = null;
-    segmentStart = Date.now();
-    segmentGeneration = generation;
-    recorder = new MediaRecorder(stream, { mimeType });
-    recorder.ondataavailable = (event) => {
-      if (event.data.size > 0) chunks.push(event.data);
-    };
-    recorder.onstop = onSegmentStop;
-    recorder.start();
-  }
-
-  function cutSegment(): void {
-    if (recorder && recorder.state === "recording") recorder.stop();
-  }
-
-  function monitorTick(): void {
-    if (!analyser) return;
-    analyser.getFloatTimeDomainData(vadBuffer);
-    const rms = computeRms(vadBuffer);
-    const now = Date.now();
-    if (rms > SPEECH_RMS) {
-      segmentHasSpeech = true;
-      silenceStart = null;
-    } else if (segmentHasSpeech) {
-      if (silenceStart === null) silenceStart = now;
-      else if (now - silenceStart > SILENCE_MS) cutSegment();
-    }
-    // Force-cut an over-long unbroken utterance regardless of pauses.
-    if (segmentHasSpeech && now - segmentStart > MAX_SEGMENT_MS) cutSegment();
-  }
-
-  async function start(): Promise<boolean> {
-    // Single-flight: `listening` only flips true AFTER getUserMedia
-    // resolves, so the caller's `!listening` guard can't prevent a second
-    // entry while we're awaiting permission. Reject re-entry here so two
-    // starts never race to overwrite stream/recorder/monitorHandle. A
-    // benign skip returns true (a start is already active / in progress)
-    // so the caller doesn't mistake it for a failure and drop its intent.
-    if (startInFlight || listening.value) return true;
-    startInFlight = true;
-    const startGen = generation;
-    try {
-      error.value = null;
-      mimeType = pickRecorderMime() ?? "";
-      if (!mimeType || !navigator.mediaDevices?.getUserMedia) {
-        error.value = "unsupported";
-        return false;
-      }
-      let acquired: MediaStream;
-      try {
-        acquired = await navigator.mediaDevices.getUserMedia({ audio: true });
-      } catch {
-        error.value = "permission-denied";
-        return false;
-      }
-      // stop() bumps the generation; if it fired while we awaited
-      // permission, this start is stale — release the mic and abort
-      // rather than begin recording into a session the user left.
-      if (startGen !== generation) {
-        acquired.getTracks().forEach((track) => track.stop());
-        return false;
-      }
-      stream = acquired;
-      audioCtx = new AudioContext();
-      analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 2048;
-      vadBuffer = new Float32Array(analyser.fftSize);
-      audioCtx.createMediaStreamSource(stream).connect(analyser);
-      listening.value = true;
-      startRecorder();
-      monitorHandle = window.setInterval(monitorTick, MONITOR_INTERVAL_MS);
-      return true;
-    } finally {
-      startInFlight = false;
-    }
-  }
-
-  function stop(): void {
-    // Bump the generation so any in-flight/queued segment is dropped
-    // rather than appended after the user stops or switches sessions.
-    generation += 1;
-    // Clearing `listening` first means onSegmentStop won't restart.
-    listening.value = false;
-    if (monitorHandle !== null) {
-      window.clearInterval(monitorHandle);
-      monitorHandle = null;
-    }
-    if (recorder && recorder.state === "recording") recorder.stop();
-    recorder = null;
-    if (audioCtx) {
-      audioCtx.close().catch(() => undefined);
-      audioCtx = null;
-    }
-    analyser = null;
-    stream?.getTracks().forEach((track) => track.stop());
-    stream = null;
-  }
-
-  onScopeDispose(() => {
-    stopAvailabilityPoll();
-    stop();
+  const capture = createVoiceCapture(transport, () => localeToWhisperLanguage(opts.locale()), {
+    onTranscript: opts.onTranscript,
+    onEmpty: opts.onEmpty,
+    onError: (message) => {
+      error.value = message;
+    },
+    onState: (state) => {
+      available.value = state.available;
+      listening.value = state.listening;
+      transcribing.value = state.transcribing;
+    },
   });
 
-  return { available, listening, transcribing, error, refreshAvailability, start, stop };
+  onScopeDispose(() => capture.dispose());
+
+  return {
+    available,
+    listening,
+    transcribing,
+    error,
+    refreshAvailability: capture.refreshAvailability,
+    start: capture.start,
+    stop: capture.stop,
+  };
 }
