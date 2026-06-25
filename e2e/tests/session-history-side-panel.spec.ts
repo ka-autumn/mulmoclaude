@@ -127,4 +127,23 @@ test.describe("session-history side-panel toggle", () => {
     await page.goto("/chat");
     await expect(page.getByTestId("session-history-side-panel")).toBeVisible();
   });
+
+  test("leaving /chat while the panel is expanded still renders the plugin page", async ({ page }) => {
+    // Regression: the side panel is chat-only chrome and unmounts off
+    // /chat, but the canvas/sidebar stay gated by `!sidePanelExpanded`.
+    // Without resetting the transient expanded flag on chat→non-chat,
+    // navigating away while expanded would blank the body.
+    await page.goto("/chat");
+    await page.getByTestId("session-history-toggle-off").click();
+    await expect(page.getByTestId("session-history-side-panel")).toBeVisible();
+
+    // Expand to full-width, then navigate off chat via the Files button.
+    await page.getByTestId("session-history-expand-off").click();
+    await page.getByTestId("plugin-launcher-files").click();
+    await page.waitForURL(/\/files(?:$|\?)/);
+
+    // The plugin page renders — the body is not blanked.
+    await expect(page.getByTestId("files-view-root")).toBeVisible();
+    await expect(page.getByTestId("session-history-side-panel")).toBeHidden();
+  });
 });

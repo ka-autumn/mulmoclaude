@@ -679,10 +679,18 @@ const canvasDropHandlers = computed(() =>
 // don't persist empty sessions on the server. Fires true → false only;
 // an empty → /chat transition is handled by the route-params watcher
 // and onMounted.
+//
+// Also collapse the side panel's transient full-width mode. The panel
+// itself is chat-only chrome (`isChatPage && sidePanelVisible`), so it
+// unmounts off /chat — but the canvas/sidebar stay gated by
+// `!sidePanelExpanded`. Without this reset, leaving /chat while expanded
+// would unmount the panel AND keep the canvas hidden, blanking plugin
+// pages until the panel is collapsed again.
 watch(isChatPage, (isChat, wasChat) => {
   if (!(wasChat && !isChat)) return;
   removeCurrentIfEmpty();
   currentSessionId.value = "";
+  sidePanelExpanded.value = false;
 });
 
 function handleSessionSelect(sessionId: string): void {
