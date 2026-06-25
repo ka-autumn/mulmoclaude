@@ -1,6 +1,6 @@
 {
   "name": "@mulmoclaude/chart-plugin",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "ECharts visualization plugin (presentChart) — shared gui-chat-protocol plugin for MulmoClaude and MulmoTerminal. Server-side write goes through the generic files.artifacts runtime capability.",
   "type": "module",
   "main": "./dist/index.js",
@@ -42,7 +42,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@tailwindcss/vite": "^4.2.2",
-    "@types/node": "^26.0.0",
+    "@types/node": "^26.0.1",
     "@typescript-eslint/eslint-plugin": "^8.62.0",
     "@typescript-eslint/parser": "^8.62.0",
     "@vitejs/plugin-vue": "^6.0.5",

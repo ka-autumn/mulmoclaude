@@ -1,6 +1,6 @@
 {
   "name": "@mulmoclaude/markdown-plugin",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Full-fidelity markdown document plugin (presentDocument) — Marp slides, PDF export, AI image-fill — shared gui-chat-protocol plugin for MulmoClaude and MulmoTerminal.",
   "type": "module",
   "main": "./dist/index.js",
@@ -47,7 +47,7 @@
     "@eslint/js": "^10.0.1",
     "@tailwindcss/vite": "^4.2.2",
     "@types/js-yaml": "^4.0.9",
-    "@types/node": "^26.0.0",
+    "@types/node": "^26.0.1",
     "@typescript-eslint/eslint-plugin": "^8.62.0",
     "@typescript-eslint/parser": "^8.62.0",
     "@vitejs/plugin-vue": "^6.0.5",

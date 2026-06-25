@@ -28,6 +28,7 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const SHARED_DIRS = ["packages/plugins", "packages/services"];
 const SCOPE = "@mulmoclaude/";
@@ -73,6 +74,67 @@ function isHigher(a, b) {
   return false;
 }
 
+/** Top-level package.json fields that, when changed in isolation, do NOT alter
+ *  what consumers install and therefore do NOT warrant a publish-bump:
+ *
+ *    - `devDependencies` — never installed by consumers (npm/yarn/pnpm skip
+ *      them on `--production` and at transitive install)
+ *    - `scripts`         — only run locally / in CI, not at consumer install
+ *    - `version`         — guard's own state; allowed here so the same exempt
+ *      pattern keeps working when the author bumps version alongside a
+ *      devDeps-only sweep (the `isHigher` check would catch that case
+ *      anyway, but listing it here lets the exempt logic stay obvious)
+ *
+ *  Everything else (`dependencies`, `peerDependencies`, `optionalDependencies`,
+ *  `exports`, `files`, `main`, `module`, `types`, `bin`, `engines`, …) MUST
+ *  trigger a bump because it changes the install-time contract consumers
+ *  observe. */
+export const NON_SHIPPING_PKG_JSON_KEYS = new Set(["devDependencies", "scripts", "version"]);
+
+/** Pure helper: compare two parsed package.json objects and return true when
+ *  every key whose value differs is in `NON_SHIPPING_PKG_JSON_KEYS`. Exported
+ *  for unit testing — the I/O-bound wrapper `isNonShippingChange` below uses
+ *  git + fs to fetch the two JSONs, then delegates the decision here. */
+export function packageJsonDiffShipsNothing(baseJson, headJson) {
+  const allKeys = new Set([...Object.keys(baseJson), ...Object.keys(headJson)]);
+  for (const key of allKeys) {
+    if (JSON.stringify(baseJson[key]) === JSON.stringify(headJson[key])) continue;
+    if (!NON_SHIPPING_PKG_JSON_KEYS.has(key)) return false;
+  }
+  return true;
+}
+
+/** True when the ONLY file this branch changed under <pkgDir> is its
+ *  package.json, AND the only top-level keys that differ between base and
+ *  HEAD are in `NON_SHIPPING_PKG_JSON_KEYS`. Lets cross-workspace devDep
+ *  sweeps (e.g. `@types/node` 26.0.0 → 26.0.1 in every package.json) land
+ *  without forcing 15+ identical publish bumps that consumers can't even
+ *  observe. */
+function isNonShippingChange(pkgDir, pkgJsonRel) {
+  const changed = changedUnder(pkgDir);
+  if (changed.length !== 1) return false;
+  if (changed[0] !== toGitPath(pkgJsonRel)) return false;
+  let baseJson;
+  try {
+    baseJson = JSON.parse(git(["show", `${base}:${toGitPath(pkgJsonRel)}`]));
+  } catch {
+    return false; // can't classify a brand-new package this way — let caller decide
+  }
+  const headJson = JSON.parse(readFileSync(pkgJsonRel, "utf-8"));
+  return packageJsonDiffShipsNothing(baseJson, headJson);
+}
+
+// Only run the CLI when this file is invoked directly. When imported by a
+// unit test (`test/scripts/test_check_shared_pkg_bumps.ts`) we want the pure
+// helpers without the side-effecting git / fs walk that follows.
+const isCli = process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
+if (!isCli) {
+  // imported as a module — pure exports above are enough.
+} else {
+  runCli();
+}
+
+function runCli() {
 const failures = [];
 const packageDirs = []; // every subdir holding a package.json, for orphan exclusion
 
@@ -88,6 +150,11 @@ for (const root of SHARED_DIRS) {
     if (changedUnder(pkgDir).length === 0) continue;
     const baseVersion = versionAtBase(pkgJsonRel);
     if (baseVersion === null) continue; // new package — nothing published to skew
+    // Cross-workspace devDep / script sweeps (e.g. `@types/node` patch bump
+    // touching every package.json) don't change what consumers install — skip
+    // the bump requirement so the author doesn't have to publish-bump every
+    // package for a change that ships nothing.
+    if (isNonShippingChange(pkgDir, pkgJsonRel)) continue;
     if (!isHigher(pkg.version, baseVersion)) {
       failures.push(`${pkg.name} — changed, but version ${pkg.version} is not greater than base ${baseVersion}`);
     }
@@ -120,5 +187,5 @@ if (failures.length > 0) {
   console.error("so an unbumped change ships a version skew between the two apps.");
   process.exit(1);
 }
-
 console.log(`✓ all changed @mulmoclaude/* shared packages are version-bumped vs ${base}`);
+}
