@@ -1,6 +1,6 @@
 {
   "name": "@mulmoclaude/collection-watchers",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Collection-completion bell subsystem (fs.watch plumbing + convergent reconciler) shared by MulmoClaude and MulmoTerminal. Depends on the @mulmoclaude/core/notifier singleton + @mulmoclaude/core/collection; the host injects its notification taxonomy + in-app routing via a CollectionNotificationAdapter.",
   "type": "module",
   "main": "./dist/index.js",

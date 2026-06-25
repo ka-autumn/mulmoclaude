@@ -1,6 +1,6 @@
 {
   "name": "@mulmoclaude/skill-bridge",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Skill staging→active mirror rule for MulmoClaude and MulmoTerminal. The agent writes skill drafts under data/skills/<slug>/ (no .claude/ permission gate); this mirrors the allowlist (SKILL.md, schema.json, templates/<safe path>) into .claude/skills/<slug>/. Pure rule + fs ops, parameterized by workspaceRoot. Server-only; no Vue.",
   "type": "module",
   "main": "./dist/index.js",

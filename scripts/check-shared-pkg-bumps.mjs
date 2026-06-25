@@ -172,6 +172,13 @@ for (const root of SHARED_DIRS) {
     if (packageDirs.some((dir) => file.startsWith(`${toGitPath(dir)}/`))) continue;
     const segments = path.relative(root, file.split("/").join(path.sep)).split(path.sep);
     if (segments.length < 2) continue; // loose file at the root, not a shipped subtree
+    // A whole-package deletion (its package.json existed at base but is gone in
+    // HEAD — e.g. a package consolidated into @mulmoclaude/core) ships nothing to
+    // skew: the package is removed, not version-skewed. Its now-deleted files
+    // would otherwise read as orphan shared source since the dir dropped out of
+    // `packageDirs`. Symmetric to the "new package — nothing to skew" skip above.
+    const removedPkgJsonRel = path.join(root, segments[0], "package.json");
+    if (!existsSync(removedPkgJsonRel) && versionAtBase(removedPkgJsonRel) !== null) continue;
     orphans.push(file);
   }
 }
