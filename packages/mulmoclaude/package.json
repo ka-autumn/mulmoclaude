@@ -22,10 +22,10 @@
   "dependencies": {
     "@google/genai": "^2.2.0",
     "@gui-chat-plugin/browse": "^0.5.0",
-    "@gui-chat-plugin/camera": "^0.4.1",
+    "@gui-chat-plugin/camera": "^0.5.0",
     "@gui-chat-plugin/google-map": "^0.6.0",
-    "@gui-chat-plugin/mindmap": "^0.4.1",
-    "@gui-chat-plugin/present3d": "^0.4.1",
+    "@gui-chat-plugin/mindmap": "^0.5.0",
+    "@gui-chat-plugin/present3d": "^0.5.0",
     "@marp-team/marp-core": "^4.3.0",
     "@mulmobridge/chat-service": "^0.1.2",
     "@mulmobridge/client": "^0.1.4",

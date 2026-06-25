@@ -963,10 +963,10 @@
   dependencies:
     gui-chat-protocol "^0.4.0"
 
-"@gui-chat-plugin/camera@^0.4.1":
-  version "0.4.1"
-  resolved "https://registry.yarnpkg.com/@gui-chat-plugin/camera/-/camera-0.4.1.tgz#f127547f19bd89d5135f32dcc179fadebe5562e4"
-  integrity sha512-JgMeYubDfX2Ez49SoKGHpVgekNViDtUXUxDm9/F2fuzHD6KqxzmkLHYnmbgP4h8LJP8OB3sgELDItBpkRkeDHA==
+"@gui-chat-plugin/camera@^0.5.0":
+  version "0.5.0"
+  resolved "https://npm.flatt.tech/@gui-chat-plugin/camera/-/camera-0.5.0.tgz#9f0b875f5bf20c140b2daea307c2c22fba2aadce"
+  integrity sha512-c9L6eXnNR8jpt8mp+Q6wN8Xx4jiIhNOPddlV8mS78kEkljw5fdBZw5V8VhOtuygWcJmPjHIUssj+EpLat4ZefA==
 
 "@gui-chat-plugin/google-map@^0.6.0":
   version "0.6.0"
@@ -975,20 +975,20 @@
   dependencies:
     gui-chat-protocol "^0.4.0"
 
-"@gui-chat-plugin/mindmap@^0.4.1":
-  version "0.4.1"
-  resolved "https://registry.yarnpkg.com/@gui-chat-plugin/mindmap/-/mindmap-0.4.1.tgz#547ed008e920d9b579f1f15bc8faeefbd0b9b5e4"
-  integrity sha512-802LzyPaQpFUZqjqVGQrH85emWIFdvt2hzJ31ZMUbfJOYaCWkAiW6eQysW4S2X7JqJ688Nd+8PcCKklXlOckyg==
+"@gui-chat-plugin/mindmap@^0.5.0":
+  version "0.5.0"
+  resolved "https://npm.flatt.tech/@gui-chat-plugin/mindmap/-/mindmap-0.5.0.tgz#5eba74c8a79c9ecd98a95a4a9ae965711083322c"
+  integrity sha512-PN9pWQj5vO+uCJqp4iFTdU+Ph7gMzuI1InycMP91IxFZdfXMXl+YW+VafNLbj/aG4RRuHgZOzy86hoU8Np1eRQ==
   dependencies:
-    gui-chat-protocol "^0.3.3"
+    gui-chat-protocol "^0.4.0"
     jspdf "^4.0.0"
 
-"@gui-chat-plugin/present3d@^0.4.1":
-  version "0.4.1"
-  resolved "https://registry.yarnpkg.com/@gui-chat-plugin/present3d/-/present3d-0.4.1.tgz#56e33a72b37f947c6b45d328b71d8e741b03a8b8"
-  integrity sha512-iSnCpzPXjmibtF/2SBHUvozruYgzSfTJ50Kb4tkDgPhx+g+B9pLD7pTIEHaiJNiJfdVfzK8Qf6K4DRBxBZn0RQ==
+"@gui-chat-plugin/present3d@^0.5.0":
+  version "0.5.0"
+  resolved "https://npm.flatt.tech/@gui-chat-plugin/present3d/-/present3d-0.5.0.tgz#0a041b07e83c9ac45fcc3e94458866fd545fee13"
+  integrity sha512-2hqW0gWUUXhz4hpz3xfWFSKlBgoQOIF/+zi+gacfgKIyyLNtpNL701fQYPLsB/K116CSkIC0pA9FhMwRDHrnrw==
   dependencies:
-    gui-chat-protocol "^0.3.3"
+    gui-chat-protocol "^0.4.0"
     three "^0.184.0"
     three-bvh-csg "^0.0.18"
     three-mesh-bvh "0.9.10"
@@ -5073,11 +5073,6 @@ gui-chat-protocol@0.4.0, gui-chat-protocol@^0.4.0:
   version "0.4.0"
   resolved "https://registry.yarnpkg.com/gui-chat-protocol/-/gui-chat-protocol-0.4.0.tgz#de6baffca33edccd77f0c018e9a15cb11b009031"
   integrity sha512-uJ6SN3zBz0ATUCxx6sA8b3syyRuQDEyAOweGf6yrZc5fi/SkXd0CN1o7mnyDqoVmohhHXPq2tgiXud0g6gYZew==
-
-gui-chat-protocol@^0.3.3:
-  version "0.3.3"
-  resolved "https://registry.yarnpkg.com/gui-chat-protocol/-/gui-chat-protocol-0.3.3.tgz#6a0f5a887a94c4a75e32fadffc4f762630eba1d5"
-  integrity sha512-4OKU8zzb5ZO66ffMQDiIMUp9jFPLeaMImVzJRJ/K6fREqQHiS2dJBnGx16IzTtsUcy1bZR34qUCCfP9qvxyrbA==
 
 has-bigints@^1.0.2:
   version "1.1.0"
