@@ -340,7 +340,7 @@ import { buildAgentRequestBody, postAgentRun } from "./utils/agent/request";
 import { resolvePastedAttachment } from "./utils/agent/pastedAttachment";
 import { applyAgentEvent, type AgentEventContext } from "./utils/agent/eventDispatch";
 import { pushErrorMessage, beginUserTurn, updateResult, applyToolResultToSession } from "./utils/session/sessionHelpers";
-import { parseCollectionSlashSeed, makeSyntheticCollectionResult } from "./utils/collections/presentSeed";
+import { parseCollectionSlashSeed, makeSyntheticCollectionResult, hasRealCollectionResult } from "./utils/collections/presentSeed";
 import { roleName, roleIcon } from "./utils/role/icon";
 import { createEmptySession } from "./utils/session/sessionFactory";
 import { buildLoadedSession, parseSessionEntries } from "./utils/session/sessionEntries";
@@ -1127,6 +1127,10 @@ async function seedCollectionPresentation(message: string): Promise<void> {
   // The active session can change while the collection-list fetch is in flight
   // (user starts another chat); only seed the session we parsed for.
   if (activeSession.value?.id !== session.id) return;
+  // Race guard: if the agent's real presentCollection result already arrived
+  // (fast agent, slow collection-list fetch), reconcile has nothing to remove,
+  // so seeding now would append a stale duplicate. Skip — the real card is up.
+  if (hasRealCollectionResult(session, seed.slug)) return;
   applyToolResultToSession(session, makeSyntheticCollectionResult(seed.slug, seed.itemId));
 }
 

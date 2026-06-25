@@ -5,7 +5,12 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { parseCollectionSlashSeed, makeSyntheticCollectionResult, reconcileSyntheticCollection } from "../../../src/utils/collections/presentSeed.js";
+import {
+  parseCollectionSlashSeed,
+  makeSyntheticCollectionResult,
+  reconcileSyntheticCollection,
+  hasRealCollectionResult,
+} from "../../../src/utils/collections/presentSeed.js";
 import { createEmptySession } from "../../../src/utils/session/sessionFactory.js";
 import { TOOL_NAME as PRESENT_COLLECTION } from "@mulmoclaude/collection-plugin";
 import type { ToolResultComplete } from "gui-chat-protocol/vue";
@@ -87,5 +92,32 @@ describe("reconcileSyntheticCollection", () => {
     reconcileSyntheticCollection(session, makeSyntheticCollectionResult("clients"));
 
     assert.equal(session.toolResults.length, 1);
+  });
+});
+
+describe("hasRealCollectionResult — race guard for the seeding path", () => {
+  it("is true once the agent's real result for the slug has landed", () => {
+    const session = createEmptySession("s1", "general");
+    session.toolResults.push(realResult("clients"));
+    assert.equal(hasRealCollectionResult(session, "clients"), true);
+  });
+
+  it("is false for a different slug or when only a placeholder exists", () => {
+    const session = createEmptySession("s1", "general");
+    session.toolResults.push(realResult("invoices"));
+    session.toolResults.push(makeSyntheticCollectionResult("clients"));
+    // 'clients' has only a synthetic placeholder, and 'invoices' is unrelated.
+    assert.equal(hasRealCollectionResult(session, "clients"), false);
+    assert.equal(hasRealCollectionResult(session, "leads"), false);
+  });
+
+  it("guards the fast-agent / slow-fetch ordering: real first, then seed is a no-op", () => {
+    // Reproduces the reviewed race: the real result arrives (reconcile finds no
+    // placeholder), and only afterwards does the seeding fetch resolve. The
+    // guard must prevent appending a duplicate placeholder.
+    const session = createEmptySession("s1", "general");
+    reconcileSyntheticCollection(session, realResult("clients")); // no-op: nothing to remove yet
+    session.toolResults.push(realResult("clients")); // real card applied
+    assert.equal(hasRealCollectionResult(session, "clients"), true); // → seeding would be skipped
   });
 });

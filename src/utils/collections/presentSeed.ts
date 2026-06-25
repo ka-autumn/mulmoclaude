@@ -49,6 +49,17 @@ function collectionSlugOf(result: ToolResultComplete): string | undefined {
   return data?.collectionSlug;
 }
 
+/** True when the session already holds the agent's *real* presentCollection
+ *  result for `slug`. Guards the seeding path against the race where the
+ *  collection-list validation fetch resolves after the real result has already
+ *  arrived: by then {@link reconcileSyntheticCollection} has run with nothing to
+ *  remove, so inserting the placeholder would leave a stale duplicate card. */
+export function hasRealCollectionResult(session: ActiveSession, slug: string): boolean {
+  return session.toolResults.some(
+    (result) => result.toolName === PRESENT_COLLECTION_TOOL_NAME && !isSyntheticCollection(result) && collectionSlugOf(result) === slug,
+  );
+}
+
 /** Build the placeholder presentCollection card shown the instant a chat is
  *  started from a collection view. Same render contract as the real tool
  *  result — the View self-fetches from `collectionSlug` — but flagged so
