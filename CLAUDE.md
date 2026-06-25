@@ -134,6 +134,32 @@ NEVER name a non-runtime-plugin package `@mulmoclaude/foo-plugin` (e.g. a helper
 
 The yarn 4 smoke workflow (`yarn4_smoke`) verifies the chain still works under yarn 4. Both tiers' driver only spawns `yarn workspace <name> run build` — identical syntax in yarn 1 and 4 — so portability is preserved.
 
+## Package dependency direction (always apply)
+
+The monorepo has three package families. **Dependencies flow in ONE direction only** — violating this creates uphill imports, parallel-build races, and the tier-ordering dance that #1789 / #1795 had to dismantle.
+
+```
+                       ▲ depends on
+                       │
+        host           │   (server/, src/, packages/mulmoclaude)
+        ──────         │
+        plugins        │   (packages/plugins/*-plugin)
+        ──────         │
+   shared core         │   (@mulmoclaude/core — formerly the 7 packages/services/*)
+                       │
+        no deps        │   (leaf libs: @mulmobridge/protocol, @receptron/task-scheduler, etc.)
+                       │
+```
+
+**Rules:**
+
+- A **plugin** (`packages/plugins/<name>-plugin`) MAY import `@mulmoclaude/core/<subpath>` (or any leaf lib). It MUST NOT import another `*-plugin`. The runtime-plugin model is "1 plugin = 1 npm package, dispatched via `/api/plugins/runtime/:pkg`, gated by roles" — merging would break that model. Cross-plugin sharing goes through core.
+- **Shared core** (`@mulmoclaude/core` — provides `./collection`, `./collection/server`, `./collection-watchers`, `./skill-bridge`, `./notifier`, `./scheduler`, `./whisper`, `./whisper/client`, `./workspace-setup`, `./workspace-setup/slug`, `./file-change-publisher`) MUST NOT import any `*-plugin`. If a plugin owns code that core / another plugin needs, **pull it OUT of the plugin into core** (the `isSafeActionTemplatePath` / `discoverCollections` / `whenMatches` extraction that #1795 did is the canonical pattern), don't import uphill.
+- **Browser-safe surfaces of core** stay on dedicated subpaths (`@mulmoclaude/core/whisper/client`, `@mulmoclaude/core/workspace-setup/slug`). Everything else under `@mulmoclaude/core/*` is server-only — importing a server-only subpath from a Vue component fails the Vite browser-bundle check.
+- **Host** (`server/`, `src/`, the `packages/mulmoclaude` launcher) MAY import anything below it. Host code stays generic — provider-specific routes / handlers / config belong in the relevant plugin, not in `server/`.
+
+When the build complains "Cannot find module `@mulmoclaude/foo`" cold (after `yarn install` + `yarn build:packages`), the cause is almost always an uphill or peer import that the build-order tier system can't resolve. Don't patch with a new tier or a `--first=foo` flag — surface the import and move the code instead. Plan record: [`plans/done/refactor-shared-core.md`](plans/done/refactor-shared-core.md).
+
 ## Architecture (summary)
 
 Full reference: [`docs/developer.md`](docs/developer.md)
