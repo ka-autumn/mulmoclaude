@@ -333,6 +333,7 @@ const frMessages = {
     errLabelConflict: 'L\'étiquette "{label}" existe déjà',
   },
   pluginLauncher: {
+    chat: { label: "Discussion" },
     automations: { label: "Actions" },
     wiki: { label: "Wiki" },
     collections: { label: "Collections" },

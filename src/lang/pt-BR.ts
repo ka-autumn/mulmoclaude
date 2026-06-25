@@ -331,6 +331,7 @@ const ptBRMessages = {
     errLabelConflict: 'Rótulo "{label}" já existe',
   },
   pluginLauncher: {
+    chat: { label: "Chat" },
     automations: { label: "Ações" },
     wiki: { label: "Wiki" },
     collections: { label: "Coleções" },

@@ -21,25 +21,28 @@
             :active-tool-name="selectedResult?.toolName ?? null"
             :active-view-mode="currentPage"
             :shortcuts="shortcuts"
+            :active-session-count="activeSessionCount"
+            :unread-count="unreadCount"
             @navigate="onPluginNavigate"
             @navigate-shortcut="onShortcutNavigate"
+            @navigate-chat="handleHomeClick"
           />
         </div>
       </div>
-      <!-- Row 2: role selector + session tabs. Shown whenever the
-           side panel is hidden — Row 2 and the side panel are
-           mutually exclusive. The header-controls wrapper is pinned
-           to 264px (w-72 minus px-3 padding on each side) so that
+      <!-- Row 2: role selector + session tabs. Chat-only chrome — shown
+           on /chat whenever the side panel is hidden (Row 2 and the
+           side panel are mutually exclusive). Off /chat the whole row
+           is gone; the always-visible Chat button in Row 1 is the way
+           back into a conversation. The header-controls wrapper is
+           pinned to 264px (w-72 minus px-3 padding on each side) so
            RoleSelector / + / toggle occupy the exact same x-range as
            they do inside the open side panel — toggling the panel
            therefore doesn't shift those controls. -->
-      <div v-if="!sidePanelVisible" class="flex items-center gap-2 px-3 py-2 border-b border-gray-100">
+      <div v-if="isChatPage && !sidePanelVisible" class="flex items-center gap-2 px-3 py-2 border-b border-gray-100">
         <div class="w-[264px] shrink-0">
           <SessionHeaderControls
             :roles="roles"
             :side-panel-visible="sidePanelVisible"
-            :active-session-count="activeSessionCount"
-            :unread-count="unreadCount"
             @role-change="onRoleChange"
             @new-session="handleNewSessionClick"
             @update:side-panel-visible="setSidePanelVisible"
@@ -53,12 +56,12 @@
     <div class="flex flex-1 min-h-0">
       <!-- Session-history side panel. Opt-in column to the left of
            the chat sidebar / canvas, toggled via
-           SessionHistoryToggleButton. Renders on every page when
-           `sidePanelVisible` is true. Row 2 of the top bar hides when
-           the panel is open — the panel's own header supplies the
-           role selector + new-session button instead. -->
+           SessionHistoryToggleButton. Chat-only chrome — renders on
+           /chat when `sidePanelVisible` is true. Row 2 of the top bar
+           hides when the panel is open — the panel's own header
+           supplies the role selector + new-session button instead. -->
       <div
-        v-if="sidePanelVisible"
+        v-if="isChatPage && sidePanelVisible"
         class="relative border-r border-gray-200 bg-white text-gray-900 flex flex-col min-w-0 overflow-hidden"
         :class="sidePanelExpanded ? 'flex-1' : 'w-72 flex-shrink-0'"
         data-testid="session-history-side-panel"
@@ -72,8 +75,6 @@
           <SessionHeaderControls
             :roles="roles"
             :side-panel-visible="sidePanelVisible"
-            :active-session-count="activeSessionCount"
-            :unread-count="unreadCount"
             @role-change="onRoleChange"
             @new-session="handleNewSessionClick"
             @update:side-panel-visible="setSidePanelVisibleAndCollapse"
@@ -678,10 +679,18 @@ const canvasDropHandlers = computed(() =>
 // don't persist empty sessions on the server. Fires true → false only;
 // an empty → /chat transition is handled by the route-params watcher
 // and onMounted.
+//
+// Also collapse the side panel's transient full-width mode. The panel
+// itself is chat-only chrome (`isChatPage && sidePanelVisible`), so it
+// unmounts off /chat — but the canvas/sidebar stay gated by
+// `!sidePanelExpanded`. Without this reset, leaving /chat while expanded
+// would unmount the panel AND keep the canvas hidden, blanking plugin
+// pages until the panel is collapsed again.
 watch(isChatPage, (isChat, wasChat) => {
   if (!(wasChat && !isChat)) return;
   removeCurrentIfEmpty();
   currentSessionId.value = "";
+  sidePanelExpanded.value = false;
 });
 
 function handleSessionSelect(sessionId: string): void {

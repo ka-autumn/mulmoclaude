@@ -335,6 +335,7 @@ const koMessages = {
     errLabelConflict: '라벨 "{label}" 은(는) 이미 사용 중입니다',
   },
   pluginLauncher: {
+    chat: { label: "채팅" },
     automations: { label: "자동화" },
     wiki: { label: "위키" },
     collections: { label: "컬렉션" },

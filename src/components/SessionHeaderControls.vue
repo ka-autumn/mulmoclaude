@@ -26,12 +26,7 @@
       >
         <span class="material-icons text-sm">add</span>
       </button>
-      <SessionHistoryToggleButton
-        :model-value="sidePanelVisible"
-        :active-session-count="activeSessionCount"
-        :unread-count="unreadCount"
-        @update:model-value="(value: boolean) => emit('update:sidePanelVisible', value)"
-      />
+      <SessionHistoryToggleButton :model-value="sidePanelVisible" @update:model-value="(value: boolean) => emit('update:sidePanelVisible', value)" />
     </div>
   </div>
 </template>
@@ -49,8 +44,6 @@ const { t } = useI18n();
 const props = defineProps<{
   roles: Role[];
   sidePanelVisible: boolean;
-  activeSessionCount: number;
-  unreadCount: number;
 }>();
 
 const emit = defineEmits<{

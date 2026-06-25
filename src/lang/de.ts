@@ -337,6 +337,7 @@ const deMessages = {
     errLabelConflict: 'Label "{label}" existiert bereits',
   },
   pluginLauncher: {
+    chat: { label: "Chat" },
     automations: { label: "Aktionen" },
     wiki: { label: "Wiki" },
     collections: { label: "Sammlungen" },

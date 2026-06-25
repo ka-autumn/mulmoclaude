@@ -112,16 +112,41 @@ test.describe("session-history side-panel toggle", () => {
     await expect(page.getByTestId(`session-tab-${SESSION_A.id}`)).toBeVisible();
   });
 
-  test("side panel stays visible across page navigation", async ({ page }) => {
+  test("side panel is chat-only — hidden off /chat, restored on return", async ({ page }) => {
     // Enable the toggle on /chat first so the preference is on.
     await page.goto("/chat");
     await page.getByTestId("session-history-toggle-off").click();
     await expect(page.getByTestId("session-history-side-panel")).toBeVisible();
 
-    // Navigate off chat — panel stays up. `sidePanelVisible` is the
-    // single flag driving the column; it does not depend on the
-    // current route, so Files / Wiki / etc. render alongside it.
+    // Navigate off chat — the session-history chrome is chat-only, so
+    // the panel unmounts even though `sidePanelVisible` is still on.
     await page.goto("/files");
+    await expect(page.getByTestId("session-history-side-panel")).toBeHidden();
+
+    // Returning to /chat restores it (the preference persisted).
+    await page.goto("/chat");
     await expect(page.getByTestId("session-history-side-panel")).toBeVisible();
+  });
+
+  test("leaving /chat while the panel is expanded still renders the plugin page", async ({ page }) => {
+    // Regression: the side panel is chat-only chrome and unmounts off
+    // /chat, but the canvas/sidebar stay gated by `!sidePanelExpanded`.
+    // Without resetting the transient expanded flag on chat→non-chat,
+    // navigating away while expanded would blank the body.
+    await page.goto("/chat");
+    await page.getByTestId("session-history-toggle-off").click();
+    await expect(page.getByTestId("session-history-side-panel")).toBeVisible();
+
+    // Expand to full-width, then navigate off chat via the Files button.
+    await page.getByTestId("session-history-expand-off").click();
+    // Confirm the expand actually took effect — otherwise the test could
+    // pass even if the toggle broke, since it never reproduces the bug.
+    await expect(page.getByTestId("session-history-expand-on")).toBeVisible();
+    await page.getByTestId("plugin-launcher-files").click();
+    await page.waitForURL(/\/files(?:$|\?)/);
+
+    // The plugin page renders — the body is not blanked.
+    await expect(page.getByTestId("files-view-root")).toBeVisible();
+    await expect(page.getByTestId("session-history-side-panel")).toBeHidden();
   });
 });

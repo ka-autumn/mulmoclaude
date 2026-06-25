@@ -64,13 +64,12 @@ test.describe("session tab bar — visible per-tab info", () => {
     await expect(tabB.getByLabel("Started by bridge")).toBeVisible();
   });
 
-  test("unread dot stays visible when the user leaves /chat for a plugin page", async ({ page }) => {
-    // Regression: the dot was gated on `sessions[i].id !==
-    // currentSessionId`, which evaluates the same way on /wiki /files
-    // etc. because `currentSessionId` doesn't clear when the user
-    // navigates off chat. That meant the tab the user was reading
-    // before navigating away would silently lose its unread dot the
-    // moment a new reply arrived — exactly when they need it most.
+  test("unread count surfaces on the Chat button after the user leaves /chat", async ({ page }) => {
+    // The session-tab bar is chat-only, so its per-tab unread dots
+    // unmount off /chat. The aggregate unread count instead rides the
+    // always-visible Chat button (SessionCountBadges), so the user can
+    // still tell replies are waiting from any page — without that, the
+    // unread signal would vanish the moment they navigate away.
     await mockAllApis(page, {
       sessions: [
         { ...SESSION_A, hasUnread: true },
@@ -78,22 +77,18 @@ test.describe("session tab bar — visible per-tab info", () => {
       ],
     });
 
-    // On /chat, the active session's dot is suppressed (the user is
-    // literally looking at that conversation).
+    const chatBtn = page.getByTestId("plugin-launcher-chat");
+
+    // On /chat, the Chat button already carries the unread badge.
     await page.goto("/chat");
     await expect(page.getByText("MulmoClaude")).toBeVisible();
-    await expect(page.getByTestId(`session-tab-${SESSION_B.id}`)).toBeVisible();
-    // Query by `aria-current="page"` to identify the active tab —
-    // reading data-testid from a tab we selected by id (the previous
-    // approach) was tautological and would pass even if the tabs
-    // were swapped. SESSION_B is newer → it's the displayed chat.
-    const activeTabId = await page.locator("button[aria-current='page'][data-testid^='session-tab-']").getAttribute("data-testid");
-    expect(activeTabId).toBe(`session-tab-${SESSION_B.id}`);
+    await expect(chatBtn.getByTestId("session-count-unread")).toBeVisible();
 
-    // Navigate off chat. The dot on tab B must now appear, because
-    // B is no longer on-screen.
+    // Navigate off chat. The tab bar (and its per-tab dots) unmounts,
+    // but the unread badge on the Chat button persists — at least one
+    // session is still unread.
     await page.goto("/wiki");
-    await expect(page.getByTestId(`session-tab-${SESSION_B.id}`).getByLabel("New reply")).toBeVisible();
-    await expect(page.getByTestId(`session-tab-${SESSION_A.id}`).getByLabel("New reply")).toBeVisible();
+    await expect(page.getByTestId(`session-tab-${SESSION_B.id}`)).toBeHidden();
+    await expect(chatBtn.getByTestId("session-count-unread")).toBeVisible();
   });
 });

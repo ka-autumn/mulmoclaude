@@ -368,24 +368,21 @@ test.describe("wiki navigation — from manageWiki tool result", () => {
     await expect(page.getByRole("heading", { level: 1, name: "Onboarding" })).toBeVisible();
   });
 
-  test("session tab click from /wiki navigates back to /chat for that session", async ({ page }) => {
-    // Regression: loadSession used to early-return whenever
-    // `sessionId === currentSessionId.value`, which left the user
-    // stuck on /wiki because currentSessionId is not reset when
-    // navigating to a non-chat page. The guard now also checks the
-    // URL so cross-page re-selection actually navigates.
+  test("Chat button returns to /chat from /wiki (session-tab bar is chat-only)", async ({ page }) => {
     await page.goto("/chat/wiki-session");
     await expect(page.getByText("MulmoClaude")).toBeVisible();
 
-    // Leave /chat for /wiki.
+    // Leave /chat for /wiki. The session-history chrome is now
+    // chat-only, so the session-tab bar unmounts off /chat.
     await page.goto("/wiki");
     await expect(page.getByTestId("wiki-page-entry-onboarding")).toBeVisible();
     expect(page.url()).toContain("/wiki");
+    await expect(page.getByTestId("session-tab-wiki-session")).toBeHidden();
 
-    // Re-select the same session from the tab bar — this was a no-op.
-    await page.getByTestId("session-tab-wiki-session").click();
-
-    await page.waitForURL(/\/chat\/wiki-session/);
-    expect(new URL(page.url()).pathname).toBe("/chat/wiki-session");
+    // The always-visible Chat button in the top bar is the way back
+    // into a conversation (resumes the most recent chat).
+    await page.getByTestId("plugin-launcher-chat").click();
+    await page.waitForURL(/\/chat\//);
+    expect(new URL(page.url()).pathname).toMatch(/^\/chat\//);
   });
 });

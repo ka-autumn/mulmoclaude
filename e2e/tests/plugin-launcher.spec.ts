@@ -42,4 +42,24 @@ test.describe("plugin launcher — navigation path", () => {
     expect(url.pathname).toBe("/files");
     expect(url.searchParams.get("path")).toBeNull();
   });
+
+  // The Chat button is a dedicated control (not a TARGETS entry): it
+  // resumes-or-creates a chat rather than pushing a fixed route, and it
+  // stays visible on every page so the session-history chrome can be
+  // chat-only.
+  test("Chat button is always visible and returns to /chat from another page", async ({ page }) => {
+    await page.goto("/wiki");
+    await page.waitForURL(/\/wiki/);
+
+    // Chat-only chrome (history side panel + role selector) is gone here.
+    await expect(page.getByTestId("session-history-side-panel")).toBeHidden();
+    await expect(page.getByTestId("role-selector-btn")).toBeHidden();
+
+    // The Chat button persists and lands back on /chat, where the role
+    // selector reappears.
+    await expect(page.getByTestId("plugin-launcher-chat")).toBeVisible();
+    await page.getByTestId("plugin-launcher-chat").click();
+    await page.waitForURL(/\/chat\//);
+    await expect(page.getByTestId("role-selector-btn")).toBeVisible();
+  });
 });

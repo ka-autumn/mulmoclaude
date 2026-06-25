@@ -327,6 +327,7 @@ const zhMessages = {
     errLabelConflict: '标签 "{label}" 已存在',
   },
   pluginLauncher: {
+    chat: { label: "聊天" },
     automations: { label: "自动化" },
     wiki: { label: "百科" },
     collections: { label: "集合" },

@@ -352,6 +352,7 @@ const enMessages = {
     errLabelConflict: 'Label "{label}" already exists',
   },
   pluginLauncher: {
+    chat: { label: "Chat" },
     automations: { label: "Actions" },
     wiki: { label: "Wiki" },
     collections: { label: "Collections" },

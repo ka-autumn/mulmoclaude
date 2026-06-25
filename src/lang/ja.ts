@@ -335,6 +335,7 @@ const jaMessages = {
     errLabelConflict: "ラベル「{label}」は既に使用されています",
   },
   pluginLauncher: {
+    chat: { label: "チャット" },
     automations: { label: "自動化" },
     wiki: { label: "Wiki" },
     collections: { label: "コレクション" },

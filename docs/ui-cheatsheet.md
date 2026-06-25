@@ -19,13 +19,13 @@ A quick visual reference so chat instructions about UI ("the bell at the top rig
 │ │                          ⚙ settings (→ Skills / Roles tabs)      │  │
 │ └──────────────────────────────────────────────────────────────────┘  │
 │ ┌─<PluginLauncher> [plugin-launcher]──────────────────────────────────┐│
-│ │ ⏰Actions│📖Wiki│▦Collections│📡Feeds ‖ 📁Files ‖ ▦Invoices│📡Weather    ││
-│ │ [plugin-launcher-automations] … [plugin-launcher-feeds] …            ││
+│ │ 💬Chat ‖ ⏰Actions│📖Wiki│▦Collections│📡Feeds ‖ 📁Files               ││
+│ │ [plugin-launcher-chat] [plugin-launcher-automations] … [-feeds] …    ││
 │ │   [plugin-launcher-shortcuts]→[plugin-launcher-shortcut-<kind>-<slug>]││
-│ │ data plugins (0–3) │ ‖ │ management (Files) │ ‖ │ pinned shortcuts (scrolls) ││
+│ │ Chat (always-on, carries active/unread badges) │ data plugins │ mgmt │ shortcuts ││
 │ │ Skills & Roles moved into Settings (gear → Management group)           ││
 │ └─────────────────────────────────────────────────────────────────────┘│
-│ ┌─[main pane — route-specific]────┐ ┌─<SessionHistoryPanel>────────┐  │
+│ ┌─[main pane — route-specific]────┐ ┌─<SessionHistoryPanel> (/chat)┐  │
 │ │                                 │ │ [session-history-side-panel] │  │
 │ │  (the active /route's content)  │ │ ┌─[session-filter-bar]─────┐ │  │
 │ │                                 │ │ │ All │Unread│Running│...   │ │  │
@@ -37,7 +37,9 @@ A quick visual reference so chat instructions about UI ("the bell at the top rig
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-Sidebar visibility toggles via the canvas-layout state. When closed, the main pane is full-width.
+The `[plugin-launcher-chat]` button is the leftmost top-bar control — always visible, on every route. It resumes the most recent chat (or starts a fresh one) and carries the session-count badges: yellow `activeSessionCount` (running) + red `unreadCount` (unread replies), moved here from the history toggle (`<SessionCountBadges>`).
+
+The session-history chrome — Row 2's role selector + `[session-tab-bar]` (horizontal) and `<SessionHistoryPanel>` / `[session-history-side-panel]` (vertical) — renders **only on `/chat`**. Off-chat (`/files`, `/wiki`, …) it's gone, and the Chat button is the way back in. On `/chat`, the side panel toggles via `[session-history-toggle-on|off]`; when closed, the main pane is full-width.
 
 ## `<SessionSidebar>` — left column on every chat session (single layout)
 

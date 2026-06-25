@@ -339,6 +339,7 @@ const esMessages = {
     errLabelConflict: 'La etiqueta "{label}" ya existe',
   },
   pluginLauncher: {
+    chat: { label: "Chat" },
     automations: { label: "Acciones" },
     wiki: { label: "Wiki" },
     collections: { label: "Colecciones" },
