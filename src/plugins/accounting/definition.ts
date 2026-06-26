@@ -1,9 +1,12 @@
 import type { ToolDefinition } from "gui-chat-protocol";
 import { META } from "./meta";
-import { ACCOUNTING_ACTIONS } from "./actions";
-import { SUPPORTED_COUNTRY_CODES } from "./countries";
-import { FISCAL_YEAR_ENDS } from "./fiscalYear";
-import { TIME_SERIES_GRANULARITIES, TIME_SERIES_METRICS } from "./timeSeriesEnums";
+import {
+  ACCOUNTING_ACTIONS,
+  SUPPORTED_COUNTRY_CODES,
+  FISCAL_YEAR_ENDS,
+  TIME_SERIES_GRANULARITIES,
+  TIME_SERIES_METRICS,
+} from "@mulmoclaude/accounting-plugin/shared";
 
 // MCP tool definition for the accounting plugin.
 //

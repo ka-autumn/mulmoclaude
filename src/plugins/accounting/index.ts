@@ -1,7 +1,10 @@
 import type { PluginRegistration, ToolPlugin } from "../../tools/types";
 import type { ToolResult } from "gui-chat-protocol";
-import View from "./View.vue";
-import Preview from "./Preview.vue";
+// The View + Preview now live in @mulmoclaude/accounting-plugin/vue (shared
+// with MulmoTerminal). The built-in host still wraps them in its own plugin
+// scope. The host injects the network + pub/sub seams via
+// `configureAccountingHost(...)` in src/main.ts before any View mounts.
+import { AccountingView, AccountingPreview } from "@mulmoclaude/accounting-plugin/vue";
 import toolDefinition from "./definition";
 import { META } from "./meta";
 import { wrapWithScope } from "../scope";
@@ -37,8 +40,8 @@ const accountingPlugin: ToolPlugin<AccountingActionData> = {
 
   isEnabled: () => true,
   generatingMessage: "Working on the books...",
-  viewComponent: wrapWithScope("accounting", View),
-  previewComponent: wrapWithScope("accounting", Preview),
+  viewComponent: wrapWithScope("accounting", AccountingView),
+  previewComponent: wrapWithScope("accounting", AccountingPreview),
 };
 
 export default accountingPlugin;

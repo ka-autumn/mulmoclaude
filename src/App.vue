@@ -342,7 +342,7 @@ import StackView from "./components/StackView.vue";
 import FilesView from "./components/FilesView.vue";
 import AutomationsView from "./plugins/scheduler/AutomationsView.vue";
 import WikiView from "./plugins/wiki/View.vue";
-import AccountingView from "./plugins/accounting/View.vue";
+import { AccountingView } from "@mulmoclaude/accounting-plugin/vue";
 import { buildWikiRouteParams } from "./plugins/wiki/route";
 import { CollectionView, CollectionsIndexView, FeedsView } from "@mulmoclaude/collection-plugin/vue";
 import PluginScopedRoot from "./components/PluginScopedRoot.vue";

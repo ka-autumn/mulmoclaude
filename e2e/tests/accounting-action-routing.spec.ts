@@ -22,7 +22,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mockAllApis } from "../fixtures/api";
 import { makeAccountingActionToolResult, mockAccountingApi, type AccountingSeedBook, type SeedJournalEntry } from "../fixtures/accounting";
-import { ACCOUNTING_ACTIONS } from "../../src/plugins/accounting/actions";
+import { ACCOUNTING_ACTIONS } from "@mulmoclaude/accounting-plugin/shared";
 
 const SESSION_ID = "accounting-action-routing-session";
 const BOOK_ID = "book-action-routing";

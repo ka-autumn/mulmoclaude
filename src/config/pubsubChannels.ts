@@ -19,12 +19,6 @@
 // First slice of issue #289 (item 6: pub-sub channels).
 
 import { BUILT_IN_PLUGIN_METAS, defineHostAggregate, type BuiltInPluginMetas, type HostPluginCollision, type IntraPluginCollision } from "../plugins/metas";
-import {
-  bookChannel as accountingBookChannelFromMeta,
-  BOOK_EVENT_KINDS as ACCOUNTING_BOOK_EVENT_KINDS_FROM_META,
-  type BookEventKind as AccountingBookEventKindFromMeta,
-  type BookChannelPayload as AccountingBookChannelPayloadFromMeta,
-} from "../plugins/accounting/meta";
 
 /**
  * Channel for the per-session event stream. One per chat session.
@@ -110,28 +104,14 @@ export interface SessionsChannelPayload {
 }
 
 /**
- * Per-book change channel — one channel per book id. Publishers
- * fan out journal / opening / accounts / snapshot events scoped to
- * a single bookId (see `AccountingBookChannelPayload`).
- *
- * Publisher: `server/accounting/eventPublisher.ts` (called from
- * every mutating action in the service layer).
- * Subscribers: View.vue + sub-components via
- * `useAccountingChannel(bookId)`.
- *
- * Book-list-level events (a new book was created, an existing one
- * was deleted) ride the static `PUBSUB_CHANNELS.accountingBooks`
- * channel below — kept separate so a `JournalList.vue` viewing book
- * A doesn't repaint when the user creates book B from another window.
+ * Per-book accounting change channels (`accounting:<bookId>`) and the
+ * book-list channel (`PUBSUB_CHANNELS.accountingBooks`) are now owned
+ * by `@mulmoclaude/accounting-plugin` — the channel factory + event
+ * kinds live in its `./shared` surface, the publisher in `./server`,
+ * and the subscriber (`useAccountingChannel`) in `./vue`. The host no
+ * longer re-exports them here; only the static channel name flows
+ * through the META aggregator below.
  */
-// Plugin-owned: re-export accounting helpers from `meta.ts` under
-// the existing public names so external consumers don't have to
-// migrate their imports.
-export const accountingBookChannel = accountingBookChannelFromMeta;
-export const ACCOUNTING_BOOK_EVENT_KINDS = ACCOUNTING_BOOK_EVENT_KINDS_FROM_META;
-export type AccountingBookEventKind = AccountingBookEventKindFromMeta;
-export type AccountingBookChannelPayload = AccountingBookChannelPayloadFromMeta;
-
 // Plugin-owned static channel names auto-merged from each plugin's
 // META. Mapped type preserves the literal channel string (e.g.
 // `"accounting:books"`) so consumers get string-literal types.

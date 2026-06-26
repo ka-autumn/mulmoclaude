@@ -1,0 +1,74 @@
+{
+  "name": "@mulmoclaude/accounting-plugin",
+  "version": "0.1.1",
+  "description": "Double-entry accounting plugin for MulmoClaude and MulmoTerminal. Three surfaces: ./shared (isomorphic enums/meta, browser-safe), ./vue (chat View/Preview + canvas app), ./server (createAccountingRouter — the workspace-file-backed backend, wired via dependency injection so it pulls zero host-only infra).",
+  "type": "module",
+  "exports": {
+    "./shared": {
+      "types": "./dist/shared/index.d.ts",
+      "import": "./dist/shared.js",
+      "require": "./dist/shared.cjs",
+      "default": "./dist/shared.js"
+    },
+    "./vue": {
+      "types": "./dist/vue/index.d.ts",
+      "import": "./dist/vue.js",
+      "require": "./dist/vue.cjs",
+      "default": "./dist/vue.js"
+    },
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "import": "./dist/server.js",
+      "require": "./dist/server.cjs",
+      "default": "./dist/server.js"
+    },
+    "./style.css": "./dist/style.css"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "vite build && vue-tsc -p tsconfig.build.json --emitDeclarationOnly",
+    "typecheck": "vue-tsc --noEmit",
+    "test": "tsx --test test/test_*.ts test/accounting/test_*.ts"
+  },
+  "peerDependencies": {
+    "express": "^5.2.1",
+    "gui-chat-protocol": "^0.4.0",
+    "vue": "^3.5.0",
+    "vue-i18n": "^11.4.4"
+  },
+  "peerDependenciesMeta": {
+    "express": {
+      "optional": true
+    },
+    "vue": {
+      "optional": true
+    },
+    "vue-i18n": {
+      "optional": true
+    },
+    "gui-chat-protocol": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.2.2",
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.0.1",
+    "@vitejs/plugin-vue": "^6.0.5",
+    "express": "^5.2.1",
+    "gui-chat-protocol": "0.4.0",
+    "tailwindcss": "^4.2.2",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.1.0",
+    "vue": "^3.5.39",
+    "vue-i18n": "11.4.6",
+    "vue-tsc": "^3.2.6"
+  },
+  "license": "MIT"
+}

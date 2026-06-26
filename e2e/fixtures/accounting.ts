@@ -8,9 +8,8 @@
 
 import { randomUUID } from "node:crypto";
 import type { Page, Route } from "@playwright/test";
-import { ACCOUNTING_ACTIONS } from "../../src/plugins/accounting/actions";
-import type { SupportedCountryCode } from "../../src/plugins/accounting/countries";
-import { isValidCalendarDate } from "../../server/accounting/journal";
+import { ACCOUNTING_ACTIONS, type SupportedCountryCode } from "@mulmoclaude/accounting-plugin/shared";
+import { isValidCalendarDate } from "@mulmoclaude/accounting-plugin/server";
 
 interface FakeBook {
   id: string;
