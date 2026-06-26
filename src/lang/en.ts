@@ -369,6 +369,7 @@ const enMessages = {
     wiki: { label: "Wiki" },
     collections: { label: "Collections" },
     feeds: { label: "Feeds" },
+    accounting: { label: "Accounting" },
     files: { label: "Files" },
   },
   shortcuts: {

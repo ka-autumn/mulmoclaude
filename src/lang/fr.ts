@@ -350,6 +350,7 @@ const frMessages = {
     wiki: { label: "Wiki" },
     collections: { label: "Collections" },
     feeds: { label: "Flux" },
+    accounting: { label: "Comptabilité" },
     files: { label: "Fichiers" },
   },
   shortcuts: {

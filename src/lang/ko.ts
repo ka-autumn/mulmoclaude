@@ -352,6 +352,7 @@ const koMessages = {
     wiki: { label: "위키" },
     collections: { label: "컬렉션" },
     feeds: { label: "피드" },
+    accounting: { label: "회계" },
     files: { label: "파일" },
   },
   shortcuts: {

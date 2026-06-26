@@ -344,6 +344,7 @@ const zhMessages = {
     wiki: { label: "百科" },
     collections: { label: "集合" },
     feeds: { label: "订阅源" },
+    accounting: { label: "会计" },
     files: { label: "文件" },
   },
   shortcuts: {

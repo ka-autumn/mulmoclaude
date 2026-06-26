@@ -348,6 +348,7 @@ const ptBRMessages = {
     wiki: { label: "Wiki" },
     collections: { label: "Coleções" },
     feeds: { label: "Feeds" },
+    accounting: { label: "Contabilidade" },
     files: { label: "Arquivos" },
   },
   shortcuts: {

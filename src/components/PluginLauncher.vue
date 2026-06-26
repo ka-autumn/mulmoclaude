@@ -138,7 +138,7 @@ export type PluginLauncherKind = "view"; // Switch the canvas to a dedicated vie
 // out of this file avoids duplication across the 8 locales.
 export interface PluginLauncherTarget {
   /** Stable key for testid + dispatch in App.vue. */
-  key: "dashboard" | "automations" | "wiki" | "collections" | "feeds" | "files" | "debug";
+  key: "dashboard" | "automations" | "wiki" | "collections" | "feeds" | "accounting" | "files" | "debug";
   kind: PluginLauncherKind;
   /** Material-icons glyph. */
   icon: string;
@@ -172,6 +172,11 @@ const TARGETS: PluginLauncherTarget[] = [
   // collections. Takes the rss_feed glyph now that the legacy Sources
   // surface is gone.
   { key: "feeds", kind: "view", icon: "rss_feed" },
+  // Accounting — the double-entry bookkeeping app. Sits with the other
+  // data-app surfaces (collections / feeds). The button always shows so
+  // the books are reachable directly; the `manageAccounting` *tool*
+  // (LLM access) remains opt-in per Role, independent of this entry point.
+  { key: "accounting", kind: "view", icon: "account_balance" },
   // Skills and Roles moved into the Settings modal — both are static
   // configuration surfaces (what Claude can do / which role a chat
   // uses), not dynamic workspace data you monitor, so they belong with

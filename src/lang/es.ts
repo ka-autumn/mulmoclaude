@@ -356,6 +356,7 @@ const esMessages = {
     wiki: { label: "Wiki" },
     collections: { label: "Colecciones" },
     feeds: { label: "Feeds" },
+    accounting: { label: "Contabilidad" },
     files: { label: "Archivos" },
   },
   shortcuts: {

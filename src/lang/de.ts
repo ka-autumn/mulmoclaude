@@ -354,6 +354,7 @@ const deMessages = {
     wiki: { label: "Wiki" },
     collections: { label: "Sammlungen" },
     feeds: { label: "Feeds" },
+    accounting: { label: "Buchhaltung" },
     files: { label: "Dateien" },
   },
   shortcuts: {

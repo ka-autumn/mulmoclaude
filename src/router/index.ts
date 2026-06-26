@@ -79,6 +79,14 @@ const routes: RouteRecordRaw[] = [
   // `/collections` lists every discovered collection;
   // `/collections/:slug` opens that collection's <CollectionView>.
   { path: "/collections/:slug?", name: PAGE_ROUTES.collections, component: Stub },
+  // Accounting — the double-entry bookkeeping app (manageAccounting).
+  // Standalone page so the user can reach the books directly without
+  // going through an LLM `openBook` tool call. The View self-fetches
+  // the book list on mount and auto-selects a book (or shows the
+  // first-run "New book" form on an empty workspace), so no route
+  // param is required. The `manageAccounting` *tool* stays opt-in per
+  // Role; this only adds a UI entry point to the same View.
+  { path: "/accounting", name: PAGE_ROUTES.accounting, component: Stub },
   // Legacy `/apps` URL — kept as a redirect for ~one release so any
   // existing bookmarks survive the rename. Safe to delete after.
   { path: "/apps", redirect: "/collections" },

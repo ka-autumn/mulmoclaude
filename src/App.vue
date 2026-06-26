@@ -234,6 +234,13 @@
                directly. -->
           <CollectionView v-else-if="currentPage === 'collections' && route.params.slug" :key="String(route.params.slug)" />
           <CollectionsIndexView v-else-if="currentPage === 'collections'" />
+          <!-- Accounting — the double-entry bookkeeping app. Host
+               component (no PluginScopedRoot): the View talks to
+               /api/accounting via the host's apiCall directly and never
+               calls `useRuntime()`, so it needs no plugin scope. Mounted
+               without a `selected-result` prop — standalone it self-fetches
+               the book list and auto-selects a book on mount. -->
+          <AccountingView v-else-if="currentPage === 'accounting'" />
           <!-- Debug page (encore plan PR 1 follow-up). The View ships
                inside the @mulmoclaude/debug-plugin runtime package; we
                look it up by tool name and render the registered
@@ -335,6 +342,7 @@ import StackView from "./components/StackView.vue";
 import FilesView from "./components/FilesView.vue";
 import AutomationsView from "./plugins/scheduler/AutomationsView.vue";
 import WikiView from "./plugins/wiki/View.vue";
+import AccountingView from "./plugins/accounting/View.vue";
 import { buildWikiRouteParams } from "./plugins/wiki/route";
 import { CollectionView, CollectionsIndexView, FeedsView } from "@mulmoclaude/collection-plugin/vue";
 import PluginScopedRoot from "./components/PluginScopedRoot.vue";

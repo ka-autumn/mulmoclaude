@@ -352,6 +352,7 @@ const jaMessages = {
     wiki: { label: "Wiki" },
     collections: { label: "コレクション" },
     feeds: { label: "フィード" },
+    accounting: { label: "会計" },
     files: { label: "ファイル" },
   },
   shortcuts: {
