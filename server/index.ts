@@ -35,6 +35,7 @@ import configRefreshRoutes from "./api/routes/config-refresh.js";
 import hookLogRoutes from "./api/routes/hookLog.js";
 import skillsRoutes from "./api/routes/skills.js";
 import collectionsRoutes from "./api/routes/collections.js";
+import collectionsRegistryRoutes from "./api/routes/collectionsRegistry.js";
 import { startCollectionWatchers } from "./workspace/collections/watcher.js";
 import runtimePluginRoutes from "./api/routes/runtime-plugin.js";
 // Side-effect: registers the built-in "markdown" dispatch handler so the
@@ -676,6 +677,7 @@ app.use(configRefreshRoutes);
 app.use(hookLogRoutes);
 app.use(skillsRoutes);
 app.use(collectionsRoutes);
+app.use(collectionsRegistryRoutes);
 app.use(runtimePluginRoutes);
 async function listSessionsForBridge(opts: { limit: number; offset: number }) {
   const rows = await loadAllSessions();
