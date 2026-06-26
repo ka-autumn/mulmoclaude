@@ -100,8 +100,8 @@
     "gui-chat-protocol": "^0.4.0",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
-    "vite": "^8.0.13",
-    "vite-plugin-dts": "^5.0.0"
+    "vite": "^8.1.0",
+    "vite-plugin-dts": "^5.0.3"
   },
   "license": "MIT"
 }
