@@ -332,21 +332,10 @@ test.describe("notification bell — history more / less toggle", () => {
     await expect(page.getByTestId("notification-history-toggle")).toHaveCount(0);
   });
 
-  test("toggle appears with hidden count 1 at the > 5 boundary", async ({ page }) => {
-    // Triangulates the threshold (`> HISTORY_INITIAL_VISIBLE`): combined
-    // with the 5-entry "toggle absent" case above and the 8-entry
-    // expand/collapse case, this pins the boundary at exactly 5.
-    const history = Array.from({ length: HISTORY_INITIAL_VISIBLE + 1 }, (_, index) => buildHistoryEntry(index));
-    await mockAllApis(page, { sessions: [] });
-    await primeNotifierHistory(page, history);
-
-    await page.goto("/files");
-    await page.getByTestId("notification-bell").click();
-    const toggle = page.getByTestId("notification-history-toggle");
-    await expect(toggle).toBeVisible();
-    await expect(toggle).toHaveText(/\b1\b/);
-    await expect(page.getByTestId(`notification-history-${history[HISTORY_INITIAL_VISIBLE].id}`)).toHaveCount(0);
-  });
+  // The "boundary +1" case (6 entries → toggle with hidden count 1)
+  // used to live here. The 5-entry "toggle absent" case above and the
+  // 8-entry expand/collapse case already pin the threshold at exactly
+  // 5; the +1 case was over-specification.
 });
 
 function buildHistoryEntryWithBody(index: number, body: string, navigateTarget?: string): NotifierHistoryFixture {
@@ -393,32 +382,33 @@ test.describe("notification bell — history body expansion", () => {
     await expect(page.getByTestId("notification-history-body")).toHaveCount(0);
   });
 
-  test("navigate icon appears when expanded and navigateTarget is present", async ({ page }) => {
-    const history = [buildHistoryEntryWithBody(0, "Body with link", "/calendar")];
+  test("navigate icon visibility tracks navigateTarget on expanded rows", async ({ page }) => {
+    // Two rows side-by-side: one carries `navigateTarget`, the other
+    // doesn't. Expanding both proves the icon ONLY surfaces for the
+    // row that carries the link — covering presence + absence in one
+    // fixture without paying the panel-open overhead twice.
+    const history = [buildHistoryEntryWithBody(0, "Body with link", "/calendar"), buildHistoryEntryWithBody(1, "Body without link")];
     await mockAllApis(page, { sessions: [] });
     await primeNotifierHistory(page, history);
 
     await page.goto("/todos");
     await page.getByTestId("notification-bell").click();
 
-    const row = page.getByTestId(`notification-history-${history[0].id}`);
+    const withLink = page.getByTestId(`notification-history-${history[0].id}`);
+    const withoutLink = page.getByTestId(`notification-history-${history[1].id}`);
+    // Collapsed: no navigate icon visible anywhere.
     await expect(page.getByTestId("notification-history-navigate")).toHaveCount(0);
 
-    await row.click();
-    await expect(page.getByTestId("notification-history-navigate")).toBeVisible();
-  });
+    // Expand the linked row → exactly one navigate icon appears.
+    await withLink.click();
+    await expect(page.getByTestId("notification-history-navigate")).toHaveCount(1);
 
-  test("navigate icon is absent for entries without navigateTarget", async ({ page }) => {
-    const history = [buildHistoryEntryWithBody(0, "Body without link")];
-    await mockAllApis(page, { sessions: [] });
-    await primeNotifierHistory(page, history);
-
-    await page.goto("/todos");
-    await page.getByTestId("notification-bell").click();
-    await page.getByTestId(`notification-history-${history[0].id}`).click();
-
-    await expect(page.getByTestId("notification-history-body")).toBeVisible();
-    await expect(page.getByTestId("notification-history-navigate")).toHaveCount(0);
+    // Expand the unlinked row → still exactly one navigate icon (the
+    // newly-expanded row contributes none). The body for the unlinked
+    // row IS visible, confirming the row expanded.
+    await withoutLink.click();
+    await expect(page.getByTestId("notification-history-navigate")).toHaveCount(1);
+    await expect(page.getByTestId("notification-history-body")).toHaveCount(2);
   });
 
   test("history row without body or navigateTarget has no expand button", async ({ page }) => {

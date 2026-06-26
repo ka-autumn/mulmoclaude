@@ -47,28 +47,10 @@ test.describe("session navigation via URL", () => {
     expect(page.url()).toContain(SESSION_A.id);
   });
 
-  test("browser back returns to the previous session", async ({ page }) => {
+  test("browser back / forward round-trips the previous session", async ({ page }) => {
     // With /history gone, the side panel is DOM state, not a route.
     // Stack after two session selects: [..., /chat/<initial>,
-    // /chat/A, /chat/B]. One back → /chat/A.
-    await page.goto("/chat");
-    await page.waitForURL(/\/chat\//);
-
-    await openHistoryWithSessions(page);
-    await page.locator(`[data-testid="session-item-${SESSION_A.id}"]`).click();
-    await page.waitForURL(new RegExp(SESSION_A.id));
-
-    await page.locator(`[data-testid="session-item-${SESSION_B.id}"]`).click();
-    await page.waitForURL(new RegExp(SESSION_B.id));
-
-    await page.goBack();
-    await page.waitForURL(new RegExp(SESSION_A.id));
-  });
-
-  test("browser forward works after going back", async ({ page }) => {
-    // Stack after two session selects: [..., /chat/<initial>,
-    // /chat/A, /chat/B]. Back lands on /chat/A; forward returns
-    // to /chat/B.
+    // /chat/A, /chat/B]. Back → /chat/A, forward → /chat/B.
     await page.goto("/chat");
     await page.waitForURL(/\/chat\//);
 
@@ -109,7 +91,7 @@ test.describe("session navigation via URL", () => {
   });
 });
 
-test.describe("page routing", () => {
+test.describe("page routing — direct page loads", () => {
   test("/files loads the files page", async ({ page }) => {
     await page.goto("/files");
     await expect(page.getByText("MulmoClaude")).toBeVisible();
@@ -122,62 +104,53 @@ test.describe("page routing", () => {
     expect(new URL(page.url()).pathname).toBe("/automations");
   });
 
-  test("/calendar redirects to /automations (Calendar view removed)", async ({ page }) => {
-    await page.goto("/calendar");
-    await page.waitForURL(/\/automations(?:$|\?)/);
-    expect(new URL(page.url()).pathname).toBe("/automations");
-  });
-
-  test("/scheduler redirects to /automations (bookmark preservation for #758)", async ({ page }) => {
-    await page.goto("/scheduler");
-    await page.waitForURL(/\/automations(?:$|\?)/);
-    expect(new URL(page.url()).pathname).toBe("/automations");
-  });
-
   test("/wiki loads the wiki page", async ({ page }) => {
     await page.goto("/wiki");
     await expect(page.getByText("MulmoClaude")).toBeVisible();
     expect(new URL(page.url()).pathname).toBe("/wiki");
   });
-
-  // Skills and Roles moved into the Settings modal (Management group);
-  // the old standalone routes now redirect to /chat so existing
-  // bookmarks don't 404.
-  test("/skills redirects to /chat", async ({ page }) => {
-    await page.goto("/skills");
-    await page.waitForURL(/\/chat/);
-    expect(new URL(page.url()).pathname).toMatch(/^\/chat/);
-  });
-
-  test("/roles redirects to /chat", async ({ page }) => {
-    await page.goto("/roles");
-    await page.waitForURL(/\/chat/);
-    expect(new URL(page.url()).pathname).toMatch(/^\/chat/);
-  });
-
-  test("unknown path redirects to /chat", async ({ page }) => {
-    await page.goto("/does-not-exist");
-    await page.waitForURL(/\/chat/);
-    expect(new URL(page.url()).pathname).toMatch(/^\/chat/);
-  });
-
-  test("legacy /history bookmark falls through to /chat", async ({ page }) => {
-    // The old /history route is gone; the catch-all redirects
-    // anything unknown (including deep /history/<filter> bookmarks)
-    // to /chat so existing bookmarks don't 404.
-    await page.goto("/history");
-    await page.waitForURL(/\/chat/);
-    expect(new URL(page.url()).pathname).toMatch(/^\/chat/);
-  });
-
-  test("legacy /history/<filter> bookmark falls through to /chat", async ({ page }) => {
-    await page.goto("/history/unread");
-    await page.waitForURL(/\/chat/);
-    expect(new URL(page.url()).pathname).toMatch(/^\/chat/);
-  });
 });
 
-// Counterpart of the `page routing` group above: same routes, but
+// Every legacy / removed / unknown route redirects to a new home so
+// existing bookmarks survive. The shape of each assertion is identical
+// ("goto X, the final pathname matches Y") so a table-driven test
+// covers them all without per-case boilerplate.
+test.describe("page routing — legacy / redirected", () => {
+  const REDIRECTS: readonly { label: string; from: string; toMatch: RegExp; expectedPathnameMatch: RegExp }[] = [
+    {
+      label: "/calendar → /automations (Calendar view removed)",
+      from: "/calendar",
+      toMatch: /\/automations(?:$|\?)/,
+      expectedPathnameMatch: /^\/automations$/,
+    },
+    {
+      label: "/scheduler → /automations (bookmark preservation for #758)",
+      from: "/scheduler",
+      toMatch: /\/automations(?:$|\?)/,
+      expectedPathnameMatch: /^\/automations$/,
+    },
+    // Skills + Roles moved into the Settings modal (Management group);
+    // the old standalone routes now redirect to /chat so existing
+    // bookmarks don't 404.
+    { label: "/skills → /chat (moved into Settings modal)", from: "/skills", toMatch: /\/chat/, expectedPathnameMatch: /^\/chat/ },
+    { label: "/roles → /chat (moved into Settings modal)", from: "/roles", toMatch: /\/chat/, expectedPathnameMatch: /^\/chat/ },
+    { label: "unknown path → /chat (catch-all)", from: "/does-not-exist", toMatch: /\/chat/, expectedPathnameMatch: /^\/chat/ },
+    // The old /history route is gone; the catch-all redirects anything
+    // unknown (including deep /history/<filter> bookmarks) to /chat.
+    { label: "/history → /chat (legacy bookmark)", from: "/history", toMatch: /\/chat/, expectedPathnameMatch: /^\/chat/ },
+    { label: "/history/<filter> → /chat (legacy deep bookmark)", from: "/history/unread", toMatch: /\/chat/, expectedPathnameMatch: /^\/chat/ },
+  ];
+
+  for (const { label, from, toMatch, expectedPathnameMatch } of REDIRECTS) {
+    test(label, async ({ page }) => {
+      await page.goto(from);
+      await page.waitForURL(toMatch);
+      expect(new URL(page.url()).pathname).toMatch(expectedPathnameMatch);
+    });
+  }
+});
+
+// Counterpart of the `page routing` groups above: same routes, but
 // reached by clicking the launcher buttons above the canvas rather
 // than typing the URL. The launcher's button → URL contract is
 // independent of the router accepting the URL, so we keep both

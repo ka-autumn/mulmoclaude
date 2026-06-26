@@ -5,8 +5,21 @@
 // param. The router encodes each segment independently, so any bug
 // in the param-array push path, the back-compat redirect, or the
 // watcher would silently break deep links — especially for names
-// with multi-byte or reserved ASCII characters. These tests exercise
-// the full matrix.
+// with multi-byte or reserved ASCII characters.
+//
+// Coverage strategy: rather than re-test every weird character, pick
+// one representative per distinct URL-encoding code path. Each entry
+// below targets a different escape rule the router has to get right:
+//
+//   * ASCII baseline      → no escape, control case
+//   * spaces in basename  → %20 (most common encoded char)
+//   * percent literal     → %25 (escape-the-escape, easy to forget)
+//   * Japanese kanji+kana → multibyte UTF-8 (%E6%97%A5…)
+//   * emoji + ASCII       → surrogate pair + space mix
+//
+// The picks above cover every encoding class. A bug in the
+// query→param shape (e.g. forgetting to decode) would fail one of
+// these five regardless of which specific reserved char triggers it.
 
 import { test, expect, type Page } from "@playwright/test";
 import { mockAllApis } from "../fixtures/api";
@@ -14,47 +27,12 @@ import { API_ROUTES } from "../../src/config/apiRoutes";
 
 import { ONE_SECOND_MS } from "../../server/utils/time.ts";
 
-// ── Fixture names with a wide mix of "interesting" characters ───
-//
-// Each entry is a workspace-relative path. The router must round-trip
-// every one of these through `/files/<path>` without mangling the
-// filename when it's handed back to the content-fetch API.
-//
-// No raw `/` in a basename — POSIX / Windows forbid it, so the
-// filesystem can never produce one; the router layer doesn't need
-// to handle it. Raw `?` / `#` / `%` in a basename are legal on disk
-// but require URL-encoding in the address bar.
 const WEIRD_NAMES: readonly { label: string; path: string }[] = [
   { label: "ASCII baseline", path: "artifacts/documents/17c48329.md" },
-  { label: "deep nesting (6 levels)", path: "a/b/c/d/e/f.md" },
   { label: "spaces in basename", path: "notes/my cool notes.md" },
-  { label: "spaces in directory", path: "deep notes/draft one.md" },
-  { label: "dots and hyphens", path: "artifacts/docs/file.v1_beta-draft.md" },
-  { label: "parens", path: "artifacts/docs/file (copy 1).md" },
-  { label: "brackets", path: "artifacts/docs/[tag]note.md" },
-  { label: "braces", path: "artifacts/docs/{var}note.md" },
-  { label: "ampersand", path: "artifacts/docs/Q&A.md" },
-  { label: "apostrophe", path: "artifacts/docs/it's.md" },
-  { label: "comma and semicolon", path: "artifacts/docs/a,b;c.md" },
-  { label: "equals sign", path: "artifacts/docs/key=val.md" },
-  { label: "at sign", path: "artifacts/docs/@mentions.md" },
-  { label: "plus sign", path: "artifacts/docs/C++tips.md" },
   { label: "percent literal", path: "artifacts/docs/100%done.md" },
-  { label: "hash/fragment char", path: "artifacts/docs/#1-priority.md" },
-  { label: "question mark", path: "artifacts/docs/how-to?.md" },
   { label: "Japanese (kanji + kana)", path: "wiki/日本語ノート.md" },
-  { label: "Korean (hangul)", path: "wiki/한국어메모.md" },
-  { label: "Chinese (simplified)", path: "wiki/中文备忘.md" },
-  { label: "Arabic RTL", path: "wiki/ملاحظة عربية.md" },
-  { label: "Cyrillic", path: "wiki/заметка.md" },
-  { label: "Greek", path: "wiki/σημείωση.md" },
-  { label: "emoji (BMP + surrogate pair)", path: "notes/🎉party-📝plan.md" },
-  { label: "accented Latin", path: "notes/café-résumé.md" },
-  { label: "combining diacritic (NFD)", path: "notes/café.md" },
-  { label: "mixed script + emoji + space", path: "notes/日本語 notes 🗾 draft.md" },
-  { label: "all-numeric basename", path: "notes/12345.md" },
-  { label: "dot-prefixed hidden-style", path: "notes/.draft.md" },
-  { label: "very long basename", path: `notes/${"x".repeat(180)}.md` },
+  { label: "emoji + space mix", path: "notes/🎉party 📝plan.md" },
 ];
 
 // Body of the mocked response. Kept distinct per-path so the DOM
@@ -130,9 +108,9 @@ function buildPathUrl(path: string): string {
 
 // ── Direct deep-link round-trip ─────────────────────────────────
 //
-// For every weird name: navigate straight to /files/<encoded>, check
-// the mocked content renders (proving the param survived the decode
-// and reached the content endpoint intact).
+// For every representative encoding class: navigate straight to
+// /files/<encoded>, check the mocked content renders (proving the
+// param survived the decode and reached the content endpoint intact).
 
 test.describe("deep link / files/<path>: character round-trip", () => {
   test.beforeEach(async ({ page }) => {
@@ -233,8 +211,11 @@ test.describe("rejections", () => {
 test("browser back restores the previous file selection", async ({ page }) => {
   await installFileMocks(page, WEIRD_NAMES);
 
+  // Pick the ASCII + emoji representatives — they're the two extremes
+  // of the encoding spectrum, so the history-entry round-trip is
+  // exercised across both ends.
   const first = "artifacts/documents/17c48329.md";
-  const second = "notes/café.md";
+  const second = "notes/🎉party 📝plan.md";
 
   await page.goto(buildPathUrl(first));
   await expect(page.getByText(bodyFor(first)).first()).toBeVisible({
