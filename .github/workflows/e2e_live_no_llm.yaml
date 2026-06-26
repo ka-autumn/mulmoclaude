@@ -45,7 +45,9 @@ jobs:
           # resume context recall, skills/media tool dispatch, etc.)
           # still self-skip on `E2E_LIVE_NO_LLM=1`.
           - wiki                     # 4 tests, no Claude needed
-          - wiki-nav                 # 7 tests + L-15b (test.fail in CI)
+          - wiki-nav                 # L-14 / L-15 / L-15b / L-16 (B-23/B-24 + #1194 + bullet-link round-trip)
+          - wiki-piped-links         # L-WIKI-PIPE / L-WIKI-LINT-PIPE-CLEAN (PR #1312 / issue #1297)
+          - wiki-lint                # L-WIKI-LINT-{EMPTY-TARGET,BROKEN,ORPHAN,MISSING,TAG-DRIFT}
           - workspace-link-routing   # L-23 / L-24 / linkify-codespan
           - ui                       # L-18 / L-19 / L-20 (L-18 via plugin-dispatch)
           - roles                    # 4 turns via fake-echo
