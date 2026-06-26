@@ -1,5 +1,5 @@
 <template>
-  <div class="h-full overflow-auto p-4" :class="{ 'select-none': isResizing }" data-testid="dashboard-view">
+  <div class="h-full overflow-auto p-4" :class="{ 'select-none': isResizing || isReordering }" data-testid="dashboard-view">
     <!-- Empty state: no pinned collections yet. -->
     <div v-if="favoriteSlugs.length === 0" class="h-full flex flex-col items-center justify-center text-center text-slate-500 gap-2">
       <span class="material-icons text-4xl text-slate-300">dashboard</span>
@@ -16,22 +16,19 @@
         v-for="(tile, index) in tiles"
         v-show="metaFor(tile.slug)"
         :key="tile.slug"
-        class="flex flex-col border border-slate-200 rounded-lg bg-white overflow-hidden shadow-sm"
-        :class="{ 'ring-2 ring-indigo-400': dropIndex === index }"
+        class="flex flex-col border border-slate-200 rounded-lg bg-white overflow-hidden shadow-sm transition-opacity"
+        :class="{ 'ring-2 ring-indigo-400': dropIndex === index && dragIndex !== index, 'opacity-50': dragIndex === index }"
+        :data-dashboard-index="index"
         :data-testid="`dashboard-tile-${tile.slug}`"
-        @dragover.prevent="dropIndex = index"
-        @drop.prevent="onDrop(index)"
       >
         <!-- Tile header: drag handle + title/icon (opens full view) + view picker. -->
         <header class="flex items-center gap-2 px-3 py-2 border-b border-slate-100 bg-slate-50">
           <span
-            class="material-icons text-base text-slate-400 cursor-grab select-none"
-            draggable="true"
+            class="material-icons text-base text-slate-400 cursor-grab select-none touch-none"
             :title="t('dashboard.dragHint')"
             :aria-label="t('dashboard.dragHint')"
             data-testid="dashboard-tile-drag"
-            @dragstart="onDragStart(index)"
-            @dragend="onDragEnd"
+            @pointerdown.prevent="onReorderStart(index, $event)"
             >drag_indicator</span
           >
           <button
@@ -153,27 +150,69 @@ function openFull(slug: string): void {
   router.push({ name: PAGE_ROUTES.collections, params: { slug } }).catch(() => {});
 }
 
-// ── Drag-to-reorder (independent of the launcher's shortcut order) ──
+// ── Drag-to-reorder via pointer events. Native HTML5 DnD conflicted with
+//    the embedded views' own card drag-and-drop (e.g. kanban), so drops
+//    over a tile body were swallowed — pointer + elementFromPoint avoids
+//    that entirely, the same robust approach as the row resize. ──
 const dragIndex = ref<number | null>(null);
 const dropIndex = ref<number | null>(null);
+const isReordering = ref(false);
+let reorder: { startIndex: number; handle: HTMLElement; pointerId: number } | null = null;
 
-function onDragStart(index: number): void {
-  dragIndex.value = index;
+/** The tile index under a viewport point, or null when over no tile. */
+function tileIndexAtPoint(clientX: number, clientY: number): number | null {
+  const section = document.elementFromPoint(clientX, clientY)?.closest<HTMLElement>("[data-dashboard-index]");
+  if (!section) return null;
+  const index = Number(section.dataset.dashboardIndex);
+  return Number.isNaN(index) ? null : index;
 }
 
-function onDragEnd(): void {
+function onReorderMove(event: PointerEvent): void {
+  if (!reorder) return;
+  event.preventDefault();
+  dropIndex.value = tileIndexAtPoint(event.clientX, event.clientY);
+}
+
+function teardownReorder(): void {
+  window.removeEventListener("pointermove", onReorderMove);
+  window.removeEventListener("pointerup", onReorderEnd);
+  window.removeEventListener("pointercancel", onReorderEnd);
+  isReordering.value = false;
+}
+
+function onReorderEnd(): void {
+  teardownReorder();
+  if (!reorder) return;
+  const { startIndex, handle, pointerId } = reorder;
+  const target = dropIndex.value;
+  reorder = null;
   dragIndex.value = null;
   dropIndex.value = null;
-}
-
-function onDrop(target: number): void {
-  const from = dragIndex.value;
-  onDragEnd();
-  if (from === null || from === target) return;
+  try {
+    handle.releasePointerCapture(pointerId);
+  } catch {
+    // Capture may already be gone (pointercancel) — ignore.
+  }
+  if (target === null || target === startIndex) return;
   const next = [...tiles.value];
-  const [moved] = next.splice(from, 1);
+  const [moved] = next.splice(startIndex, 1);
   next.splice(target, 0, moved);
   void setTiles(next);
+}
+
+function onReorderStart(index: number, event: PointerEvent): void {
+  const handle = event.currentTarget as HTMLElement;
+  try {
+    handle.setPointerCapture(event.pointerId);
+  } catch {
+    // Pointer capture unsupported — fall back to plain window listeners.
+  }
+  reorder = { startIndex: index, handle, pointerId: event.pointerId };
+  dragIndex.value = index;
+  isReordering.value = true;
+  window.addEventListener("pointermove", onReorderMove);
+  window.addEventListener("pointerup", onReorderEnd);
+  window.addEventListener("pointercancel", onReorderEnd);
 }
 
 // ── Drag-to-resize, per grid ROW (height is positional, not per tile) ──
@@ -280,7 +319,10 @@ function onResizeStart(index: number, event: PointerEvent): void {
   window.addEventListener("pointercancel", onResizeEnd);
 }
 
-onBeforeUnmount(teardownResize);
+onBeforeUnmount(() => {
+  teardownResize();
+  teardownReorder();
+});
 
 // First load: fold favorites into the stored layout once both lists are
 // authoritatively loaded (so an empty pre-load list never prunes tiles).
